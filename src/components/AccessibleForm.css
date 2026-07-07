@@ -1,0 +1,482 @@
+/* src/components/AccessibleForm.css - Accessible form styles */
+
+/* Screen reader only utility */
+.sr-only {
+  position: absolute !important;
+  height: 1px;
+  width: 1px;
+  overflow: hidden;
+  clip: rect(1px, 1px, 1px, 1px);
+  white-space: nowrap;
+  border: 0;
+  padding: 0;
+  margin: -1px;
+}
+
+/* Base form styles */
+.accessible-form {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 24px;
+  background: var(--card-bg);
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+}
+
+.accessible-form__header {
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 16px;
+}
+
+.accessible-form__title {
+  margin: 0 0 8px 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.accessible-form__description {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Error styles */
+.accessible-form__errors {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 20px;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+
+.accessible-form__error-title {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #dc2626;
+}
+
+.accessible-form__error-list {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.accessible-form__error-item {
+  font-size: 14px;
+  color: #7f1d1d;
+  margin-bottom: 4px;
+}
+
+/* Form content */
+.accessible-form__content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.accessible-form__actions {
+  margin-top: 24px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.accessible-form__submit {
+  background: #0d6efd;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s;
+  min-width: 120px;
+}
+
+.accessible-form__submit:hover:not(:disabled) {
+  background: #0b5ed7;
+}
+
+.accessible-form__submit:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.accessible-form__submit:focus {
+  outline: 2px solid #0d6efd;
+  outline-offset: 2px;
+}
+
+.accessible-form__submit:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.accessible-form__submit[aria-busy="true"] {
+  position: relative;
+  padding-right: 40px;
+}
+
+.accessible-form__submit[aria-busy="true"]::after {
+  content: '';
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* Input styles */
+.accessible-input,
+.accessible-select,
+.accessible-textarea {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.accessible-input__label,
+.accessible-select__label,
+.accessible-textarea__label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-color);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.accessible-input__required,
+.accessible-select__required,
+.accessible-textarea__required {
+  color: var(--danger-color);
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.accessible-input__field,
+.accessible-select__field,
+.accessible-textarea__field {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 16px;
+  font-family: inherit;
+  background: var(--input-bg);
+  color: var(--text-color);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  min-height: 44px;
+}
+
+.accessible-input__field:focus,
+.accessible-select__field:focus,
+.accessible-textarea__field:focus {
+  outline: none;
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1);
+}
+
+.accessible-input__field:disabled,
+.accessible-select__field:disabled,
+.accessible-textarea__field:disabled {
+  background: #f9fafb;
+  color: #9ca3af;
+  cursor: not-allowed;
+  border-color: #e5e7eb;
+}
+
+.accessible-input__field--error,
+.accessible-select__field--error,
+.accessible-textarea__field--error {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+}
+
+.accessible-input__field--error:focus,
+.accessible-select__field--error:focus,
+.accessible-textarea__field--error:focus {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+}
+
+.accessible-input__help,
+.accessible-select__help,
+.accessible-textarea__help {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.accessible-input__error,
+.accessible-select__error,
+.accessible-textarea__error {
+  font-size: 12px;
+  color: #dc2626;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.accessible-input__error::before,
+.accessible-select__error::before,
+.accessible-textarea__error::before {
+  content: '⚠️';
+  font-size: 14px;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .accessible-form {
+    background: #1f2937;
+    border: 1px solid #374151;
+  }
+  
+  .accessible-form__title {
+    color: #f9fafb;
+  }
+  
+  .accessible-form__description {
+    color: #9ca3af;
+  }
+  
+  .accessible-form__header {
+    border-bottom-color: #374151;
+  }
+  
+  .accessible-form__errors {
+    background: #3f1d1d;
+    border-color: #7f1d1d;
+  }
+  
+  .accessible-form__error-title {
+    color: #fecaca;
+  }
+  
+  .accessible-form__error-item {
+    color: #fecaca;
+  }
+  
+  .accessible-input__label,
+  .accessible-select__label,
+  .accessible-textarea__label {
+    color: #e5e7eb;
+  }
+  
+  .accessible-input__field,
+  .accessible-select__field,
+  .accessible-textarea__field {
+    background: #374151;
+    border-color: #4b5563;
+    color: #e5e7eb;
+  }
+  
+  .accessible-input__field:focus,
+  .accessible-select__field:focus,
+  .accessible-textarea__field:focus {
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+  }
+  
+  .accessible-input__field:disabled,
+  .accessible-select__field:disabled,
+  .accessible-textarea__field:disabled {
+    background: #1f2937;
+    color: #6b7280;
+    border-color: #374151;
+  }
+  
+  .accessible-input__field--error,
+  .accessible-select__field--error,
+  .accessible-textarea__field--error {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+  }
+  
+  .accessible-input__field--error:focus,
+  .accessible-select__field--error:focus,
+  .accessible-textarea__field--error:focus {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+  }
+  
+  .accessible-input__help,
+  .accessible-select__help,
+  .accessible-textarea__help {
+    color: #9ca3af;
+  }
+  
+  .accessible-input__error,
+  .accessible-select__error,
+  .accessible-textarea__error {
+    color: #fecaca;
+  }
+}
+
+.dark-mode .accessible-form {
+  background: #1f2937;
+  border: 1px solid #374151;
+}
+
+.dark-mode .accessible-form__title {
+  color: #f9fafb;
+}
+
+.dark-mode .accessible-form__description {
+  color: #9ca3af;
+}
+
+.dark-mode .accessible-form__header {
+  border-bottom-color: #374151;
+}
+
+.dark-mode .accessible-form__errors {
+  background: #3f1d1d;
+  border-color: #7f1d1d;
+}
+
+.dark-mode .accessible-form__error-title {
+  color: #fecaca;
+}
+
+.dark-mode .accessible-form__error-item {
+  color: #fecaca;
+}
+
+.dark-mode .accessible-input__label,
+.dark-mode .accessible-select__label,
+.dark-mode .accessible-textarea__label {
+  color: #e5e7eb;
+}
+
+.dark-mode .accessible-input__field,
+.dark-mode .accessible-select__field,
+.dark-mode .accessible-textarea__field {
+  background: #374151;
+  border-color: #4b5563;
+  color: #e5e7eb;
+}
+
+.dark-mode .accessible-input__field:focus,
+.dark-mode .accessible-select__field:focus,
+.dark-mode .accessible-textarea__field:focus {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+}
+
+.dark-mode .accessible-input__field:disabled,
+.dark-mode .accessible-select__field:disabled,
+.dark-mode .accessible-textarea__field:disabled {
+  background: #1f2937;
+  color: #6b7280;
+  border-color: #374151;
+}
+
+.dark-mode .accessible-input__field--error,
+.dark-mode .accessible-select__field--error,
+.dark-mode .accessible-textarea__field--error {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+.dark-mode .accessible-input__field--error:focus,
+.dark-mode .accessible-select__field--error:focus,
+.dark-mode .accessible-textarea__field--error:focus {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+.dark-mode .accessible-input__help,
+.dark-mode .accessible-select__help,
+.dark-mode .accessible-textarea__help {
+  color: #9ca3af;
+}
+
+.dark-mode .accessible-input__error,
+.dark-mode .accessible-select__error,
+.dark-mode .accessible-textarea__error {
+  color: #fecaca;
+}
+
+/* Reduce motion support */
+@media (prefers-reduced-motion: reduce) {
+  .accessible-form__submit {
+    transition: none;
+  }
+  
+  .accessible-form__submit:active:not(:disabled) {
+    transform: none;
+  }
+  
+  .accessible-form__submit[aria-busy="true"]::after {
+    animation: none;
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .accessible-form {
+    padding: 16px;
+    margin: 0 16px;
+  }
+  
+  .accessible-form__title {
+    font-size: 20px;
+  }
+  
+  .accessible-form__actions {
+    justify-content: center;
+  }
+}
+
+/* High contrast support */
+@media (prefers-contrast: high) {
+  .accessible-form {
+    border: 2px solid;
+  }
+  
+  .accessible-input__field,
+  .accessible-select__field,
+  .accessible-textarea__field {
+    border-width: 2px;
+  }
+  
+  .accessible-form__submit {
+    border: 2px solid;
+  }
+}
+
+/* Focus visible support */
+@media (prefers-reduced-motion: no-preference) {
+  .accessible-input__field,
+  .accessible-select__field,
+  .accessible-textarea__field {
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  }
+}
+
+/* Print styles */
+@media print {
+  .accessible-form {
+    box-shadow: none;
+    border: 1px solid #000;
+  }
+  
+  .accessible-form__submit {
+    display: none;
+  }
+}

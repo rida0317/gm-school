@@ -1,0 +1,468 @@
+/* src/components/AnalyticsDashboard.css - Analytics dashboard styles */
+
+.analytics-dashboard {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.analytics-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  padding: 20px;
+  background: var(--card-bg);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.control-group label {
+  font-weight: 500;
+  color: #333;
+}
+
+.control-select {
+  padding: 10px 15px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 14px;
+  background: var(--input-bg);
+  color: var(--text-color);
+  cursor: pointer;
+}
+
+.control-select:focus {
+  outline: none;
+  border-color: #2196F3;
+}
+
+.loading-state {
+  text-align: center;
+  padding: 80px 20px;
+}
+
+.spinner {
+  font-size: 48px;
+  display: block;
+  margin-bottom: 20px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.metric-card {
+  background: var(--card-bg);
+  padding: 25px;
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s, box-shadow 0.2s;
+  border-left: 4px solid var(--primary-color);
+  color: var(--text-color);
+}
+
+.metric-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+}
+
+.metric-card.highlight {
+  border-left-color: #9C27B0;
+  background: linear-gradient(135deg, #f3e5f5 0%, white 100%);
+}
+
+.metric-icon {
+  font-size: 32px;
+  margin-bottom: 10px;
+}
+
+.metric-value {
+  font-size: 36px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 5px;
+}
+
+.metric-label {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.metric-trend {
+  font-size: 13px;
+  color: #28a745;
+  font-weight: 500;
+}
+
+.analytics-section {
+  background: var(--card-bg);
+  padding: 25px;
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 30px;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+}
+
+.section-title {
+  font-size: 22px;
+  color: #333;
+  margin-top: 0;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.predictions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 20px;
+}
+
+.prediction-card {
+  background: var(--bg-color);
+  border-radius: 10px;
+  padding: 20px;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+}
+
+.prediction-card.wide {
+  grid-column: 1 / -1;
+}
+
+.prediction-card h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 18px;
+  color: #333;
+}
+
+.prediction-content {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.prediction-item {
+  background: var(--card-bg);
+  padding: 15px;
+  border-radius: 8px;
+  border-left: 3px solid var(--primary-color);
+  border: 1px solid var(--border-color);
+  border-left-width: 3px;
+  color: var(--text-color);
+}
+
+.prediction-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.prediction-teacher {
+  font-weight: 600;
+  color: #333;
+}
+
+.prediction-confidence {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: #e8f5e9;
+}
+
+.prediction-details {
+  display: flex;
+  gap: 15px;
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 10px;
+}
+
+.prediction-recommendations {
+  font-size: 13px;
+  color: #666;
+}
+
+.prediction-recommendations strong {
+  color: #333;
+  display: block;
+  margin-bottom: 5px;
+}
+
+.prediction-recommendations ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.prediction-recommendations li {
+  margin-bottom: 5px;
+}
+
+.schedule-analysis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+.analysis-stat {
+  background: var(--card-bg);
+  padding: 20px;
+  border-radius: 8px;
+  text-align: center;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+}
+
+.stat-label {
+  display: block;
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 10px;
+}
+
+.stat-value {
+  display: block;
+  font-size: 28px;
+  font-weight: 700;
+  color: #2196F3;
+}
+
+.analysis-recommendations {
+  grid-column: 1 / -1;
+  background: var(--card-bg);
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+}
+
+.analysis-recommendations h4 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.analysis-recommendations ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.analysis-recommendations li {
+  margin-bottom: 8px;
+  color: #666;
+  line-height: 1.6;
+}
+
+.workload-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.workload-bar-container {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.workload-teacher-name {
+  width: 150px;
+  font-weight: 500;
+  color: #333;
+  font-size: 14px;
+}
+
+.workload-bar-wrapper {
+  flex: 1;
+}
+
+.workload-bar {
+  height: 24px;
+  background: #e0e0e0;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 5px;
+}
+
+.workload-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4CAF50, #8BC34A);
+  border-radius: 12px;
+  transition: width 0.3s ease;
+}
+
+.workload-fill.optimal {
+  background: linear-gradient(90deg, #4CAF50, #8BC34A);
+}
+
+.workload-fill.under {
+  background: linear-gradient(90deg, #FFC107, #FF9800);
+}
+
+.workload-fill.over {
+  background: linear-gradient(90deg, #FF5722, #F44336);
+}
+
+.workload-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #666;
+}
+
+.classes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.class-card {
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 20px;
+  transition: all 0.2s;
+  color: var(--text-color);
+}
+
+.class-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  transform: translateY(-2px);
+}
+
+.class-card h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #333;
+  font-size: 18px;
+}
+
+.class-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.class-stat {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.class-stat:last-child {
+  border-bottom: none;
+}
+
+.class-stat .stat-label {
+  color: #666;
+  font-size: 13px;
+}
+
+.class-stat .stat-value {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.recommendations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.recommendation-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  padding: 15px;
+  background: var(--bg-color);
+  border-radius: 8px;
+  border-left: 4px solid var(--secondary-color);
+  border: 1px solid var(--border-color);
+  border-left-width: 4px;
+  color: var(--text-color);
+}
+
+.recommendation-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.recommendation-text {
+  color: #333;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+}
+
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: #2196F3;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #1976D2;
+}
+
+@media (max-width: 768px) {
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .predictions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analytics-controls {
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .workload-bar-container {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .workload-teacher-name {
+    width: 100%;
+    margin-bottom: 5px;
+  }
+}

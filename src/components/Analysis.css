@@ -1,0 +1,446 @@
+/* Analysis.css */
+
+.analysis-page {
+  max-width: 1400px;
+  margin: 0 auto;
+  height: calc(100vh - 100px);
+  display: flex;
+  flex-direction: column;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.tab-switcher {
+  display: flex;
+  gap: 10px;
+  background: var(--card-bg);
+  padding: 5px;
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+}
+
+.tab-btn {
+  padding: 10px 20px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 6px;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: all 0.2s;
+}
+
+.tab-btn.active {
+  background: var(--primary-color);
+  color: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Dashboard Styles (Existing + Tweaks) */
+.stats-overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stat-box {
+  background: var(--card-bg);
+  border-radius: 0;
+  padding: 1.5rem;
+  text-align: center;
+  box-shadow: var(--shadow-md);
+}
+
+.stat-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  margin-bottom: 0.5rem;
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.analysis-section {
+  background: var(--card-bg);
+  border-radius: 0;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow-md);
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* AI Assistant Styles */
+.ai-assistant-container {
+  flex: 1;
+  background: var(--card-bg);
+  border-radius: 0;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  min-height: 0; /* Critical for nested flex scrolling */
+}
+
+.chat-window {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.messages-list {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  background-color: var(--bg-color);
+  min-height: 0;
+}
+
+.message {
+  display: flex;
+  margin-bottom: 10px;
+}
+
+.message.user {
+  justify-content: flex-end;
+}
+
+.message.ai {
+  justify-content: flex-start;
+}
+
+.message-bubble {
+  max-width: 80%;
+  padding: 15px;
+  border-radius: 12px;
+  position: relative;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.message.user .message-bubble {
+  background: var(--primary-color);
+  color: white;
+  border-bottom-right-radius: 2px;
+}
+
+.message.ai .message-bubble {
+  background: var(--card-bg);
+  color: var(--text-color);
+  border-bottom-left-radius: 2px;
+  border: 1px solid var(--border-color);
+}
+
+.message-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.message-content {
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.message-time {
+  font-size: 0.7rem;
+  margin-top: 5px;
+  opacity: 0.7;
+  text-align: right;
+}
+
+/* Rich Data Styles */
+.message-data-list {
+  margin: 10px 0 0 0;
+  padding-left: 20px;
+}
+
+.message-data-list li {
+  margin-bottom: 5px;
+}
+
+.message-data-table-container {
+  margin-top: 10px;
+  overflow-x: auto;
+  background: var(--bg-color);
+  border-radius: 8px;
+  padding: 5px;
+}
+
+.message-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.message-data-table th, 
+.message-data-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.message-data-table th {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.message-data-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Quick Actions */
+.quick-actions {
+  display: flex;
+  gap: 10px;
+  padding: 15px 20px;
+  background: var(--card-bg);
+  border-top: 1px solid var(--border-color);
+  overflow-x: auto;
+}
+
+.quick-actions button {
+  padding: 8px 16px;
+  background: #f0f2f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all 0.2s;
+  color: var(--text-color);
+}
+
+.quick-actions button:hover {
+  background: var(--primary-light);
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+/* Input Area */
+.chat-input-area {
+  display: flex;
+  gap: 10px;
+  padding: 20px;
+  background: var(--card-bg);
+  border-top: 1px solid var(--border-color);
+}
+
+.chat-input {
+  flex: 1;
+  padding: 12px 15px;
+  border: 1px solid var(--border-color);
+  border-radius: 25px;
+  outline: none;
+  font-size: 1rem;
+  transition: border-color 0.2s;
+}
+
+.chat-input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.send-btn {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: none;
+  background: var(--primary-color);
+  color: white;
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s;
+}
+
+.send-btn:hover {
+  transform: scale(1.05);
+}
+
+.send-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Existing Analysis Styles... */
+.workload-item {
+  padding: 1rem;
+  background: var(--bg-color);
+  border-radius: var(--radius-md);
+  margin-bottom: 10px;
+}
+
+.workload-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.workload-bar {
+  height: 8px;
+  background: var(--border-color);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.workload-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.workload-fill.normal { background: #198754; }
+.workload-fill.over { background: #dc3545; }
+.workload-fill.under { background: #ffc107; }
+
+.workload-status.normal { background: #19875420; color: #198754; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; }
+.workload-status.over { background: #dc354520; color: #dc3545; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; }
+.workload-status.under { background: #ffc10720; color: #ffc107; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; }
+
+/* Issue cards */
+.issue-card {
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+.issue-danger { background: #ffebee; border: 1px solid #ffcdd2; color: #c62828; }
+.issue-warning { background: #fff8e1; border: 1px solid #ffecb3; color: #f57f17; }
+.issue-success { background: #e8f5e9; border: 1px solid #c8e6c9; color: #2e7d32; }
+
+/* Advanced AI Styles */
+.chat-header-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 20px;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.btn-text {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.btn-text:hover {
+  text-decoration: underline;
+}
+
+/* RTL Support */
+.message.rtl {
+  direction: rtl;
+  text-align: right;
+}
+
+.message.rtl .message-bubble {
+  border-bottom-right-radius: 2px !important;
+  border-bottom-left-radius: 12px !important;
+}
+
+.message.rtl .message-time {
+  text-align: left;
+}
+
+.message.rtl .message-data-table th,
+.message.rtl .message-data-table td {
+  text-align: right;
+}
+
+/* Recommendations */
+.message-recommendation {
+  margin-top: 15px;
+  padding: 12px;
+  background: #fff9c4;
+  border-radius: 8px;
+  border-right: 4px solid #fbc02d;
+  font-size: 0.9rem;
+}
+
+.message.rtl .message-recommendation {
+  border-right: none;
+  border-left: 4px solid #fbc02d;
+}
+
+.message-recommendation strong {
+  display: block;
+  margin-bottom: 5px;
+  color: #f57f17;
+}
+
+.message-recommendation p {
+  margin: 0;
+  color: #5d4037;
+}
+
+/* Message Types & Rich Reports */
+.message.type-report .message-bubble {
+  border-left: 5px solid #2196F3;
+  background: #f0f7ff;
+}
+
+.message.type-summary .message-bubble {
+  border-left: 5px solid #4CAF50;
+  background: #f1f8e9;
+}
+
+.rich-report-view {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px dashed var(--border-color);
+}
+
+.report-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--primary-color);
+  color: white;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.report-recommendation {
+  background: var(--bg-color);
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.report-recommendation strong {
+  color: var(--primary-color);
+  display: block;
+  margin-bottom: 5px;
+}
+
+.report-recommendation p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+

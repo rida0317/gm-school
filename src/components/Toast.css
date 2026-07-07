@@ -1,0 +1,202 @@
+/* src/components/Toast.css - Toast notification styles */
+
+.toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 12px 16px;
+  min-width: 300px;
+  max-width: 400px;
+  z-index: 9999;
+  transform: translateX(120%);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.toast--visible {
+  transform: translateX(0);
+}
+
+.toast--hidden {
+  transform: translateX(120%);
+}
+
+.toast--exiting {
+  animation: slideOut 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform: translateX(120%);
+}
+
+.toast--success {
+  border-left: 4px solid var(--success-color);
+  background: var(--card-bg);
+}
+
+.toast--error {
+  border-left: 4px solid var(--danger-color);
+  background: var(--card-bg);
+}
+
+.toast--warning {
+  border-left: 4px solid var(--warning-color);
+  background: var(--card-bg);
+}
+
+.toast--info {
+  border-left: 4px solid var(--info-color);
+  background: var(--card-bg);
+}
+
+.toast__icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.toast__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.toast__message {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text-color);
+  word-wrap: break-word;
+}
+
+.toast__close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  color: #6c757d;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+}
+
+.toast__close:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  color: #333;
+}
+
+.toast__close:focus {
+  outline: 2px solid #0d6efd;
+  outline-offset: 2px;
+}
+
+/* Animations */
+@keyframes slideIn {
+  from {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+}
+
+/* Responsive design */
+@media (max-width: 480px) {
+  .toast {
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+    min-width: auto;
+    max-width: none;
+  }
+}
+
+/* Dark mode support - both system and class-based */
+@media (prefers-color-scheme: dark) {
+  .toast {
+    background: #2d3748;
+    border-color: #4a5568;
+    color: #e2e8f0;
+  }
+}
+
+.dark-mode .toast {
+  background: var(--card-bg);
+  border-color: var(--border-color);
+  color: var(--text-color);
+}
+
+.dark-mode .toast--success,
+.dark-mode .toast--error,
+.dark-mode .toast--warning,
+.dark-mode .toast--info {
+  background: var(--card-bg);
+}
+
+.dark-mode .toast__message {
+  color: #e2e8f0;
+}
+
+.dark-mode .toast__close {
+  color: #a0aec0;
+}
+
+.dark-mode .toast__close:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #e2e8f0;
+}
+
+.toast[aria-live="polite"] {
+  display: flex; /* Maintain structure for screen readers */
+}
+
+.toast:focus-within {
+  box-shadow: 0 0 0 3px var(--focus-ring);
+  outline: none;
+}
+
+/* Reduce motion support */
+@media (prefers-reduced-motion: reduce) {
+  .toast,
+  .toast--visible,
+  .toast--hidden,
+  .toast--exiting {
+    transition: none;
+    animation: none;
+  }
+  
+  @keyframes slideIn {
+    from, to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+  
+  @keyframes slideOut {
+    from, to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+}

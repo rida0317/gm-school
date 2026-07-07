@@ -1,0 +1,301 @@
+/* QR Code Check-in Styles */
+
+.qr-checkin-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.qr-checkin-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.qr-checkin-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-color);
+  margin-bottom: 0.5rem;
+}
+
+.qr-checkin-subtitle {
+  font-size: 0.875rem;
+  color: #6c757d;
+}
+
+.qr-scanner-container {
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.qr-reader-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+#qr-reader {
+  width: 100% !important;
+  border: none !important;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+#qr-reader__scan_region {
+  min-height: 300px;
+}
+
+#qr-reader__dashboard {
+  padding: 1rem;
+}
+
+.qr-controls {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.qr-btn {
+  flex: 1;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.qr-btn-start {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+}
+
+.qr-btn-start:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4);
+}
+
+.qr-btn-stop {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+}
+
+.qr-btn-stop:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4);
+}
+
+.qr-scan-result {
+  background: #10b98120;
+  border: 2px solid #10b981;
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  margin-top: 1rem;
+  text-align: center;
+  animation: slideIn 0.3s ease;
+}
+
+.qr-scan-result.success {
+  background: #10b98120;
+  border-color: #10b981;
+  color: #059669;
+}
+
+.qr-scan-result.error {
+  background: #ef444420;
+  border-color: #ef4444;
+  color: #dc2626;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.qr-checkin-history {
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.qr-history-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-color);
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.qr-history-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.qr-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+  transition: background 0.2s ease;
+}
+
+.qr-history-item:last-child {
+  border-bottom: none;
+}
+
+.qr-history-item:hover {
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.qr-history-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.qr-history-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #10b98120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #10b981;
+}
+
+.qr-history-details {
+  flex: 1;
+}
+
+.qr-history-student {
+  font-weight: 600;
+  color: var(--text-color);
+  font-size: 0.875rem;
+}
+
+.qr-history-time {
+  font-size: 0.75rem;
+  color: #6c757d;
+}
+
+.qr-history-status {
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.qr-history-status.success {
+  background: #10b98120;
+  color: #059669;
+}
+
+.qr-history-status.error {
+  background: #ef444420;
+  color: #dc2626;
+}
+
+.qr-manual-input {
+  margin-top: 1.5rem;
+}
+
+.qr-manual-input label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-color);
+  margin-bottom: 0.5rem;
+}
+
+.qr-manual-input input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  transition: border-color 0.3s ease;
+}
+
+.qr-manual-input input:focus {
+  outline: none;
+  border-color: #10b981;
+}
+
+.qr-help-text {
+  font-size: 0.75rem;
+  color: #6c757d;
+  margin-top: 0.5rem;
+}
+
+.qr-generate-btn {
+  margin-top: 1rem;
+  width: 100%;
+  padding: 0.75rem;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.qr-generate-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4);
+}
+
+.qr-loading {
+  text-align: center;
+  padding: 2rem;
+  color: #6c757d;
+}
+
+.qr-loading-spinner {
+  animation: spin 1s linear infinite;
+  display: inline-block;
+  font-size: 2rem;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 768px) {
+  .qr-checkin-container {
+    padding: 1rem;
+  }
+
+  .qr-scanner-container {
+    padding: 1rem;
+  }
+
+  .qr-controls {
+    flex-direction: column;
+  }
+
+  .qr-history-list {
+    max-height: 300px;
+  }
+}

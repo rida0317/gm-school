@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0d6efd" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Generations" />
+    <meta name="author" content="Mohamed Reda Nahlaoui" />
+    <meta name="copyright" content="© 2026 Mohamed Reda Nahlaoui" />
+    
+    <!-- 🔒 SECURITY: Cache Control -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    
+    <!-- 🔒 SECURITY: Content Security Policy -->
+    <!-- Restricts sources for scripts, styles, images, and other resources -->
+    <!-- Note: Adjust 'self' and external domains based on your actual needs -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.google.com https://www.gstatic.com https://vercel.live https://*.vercel.com;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://vercel.live;
+      font-src 'self' https://fonts.gstatic.com https://vercel.live;
+      img-src 'self' data: https: blob:;
+      connect-src 'self' http://localhost:3000 http://localhost:3001 https://*.supabase.co https://*.supabase.com https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com wss://*.firebaseio.com wss://*.supabase.co wss://*.pusher.com https://vercel.live https://*.vercel.com;
+      frame-src 'self' https://www.google.com https://vercel.live https://*.vercel.com;
+      object-src 'none';
+      base-uri 'self';
+      form-action 'self';
+      upgrade-insecure-requests;
+    " />
+    
+    <!-- 🔒 SECURITY: Additional Security Headers via Meta Tags -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    
+    <!-- 🔒 SECURITY: Prevent DNS prefetching for privacy -->
+    <meta http-equiv="x-dns-prefetch-control" content="off" />
+    
+    <!-- 🔒 SECURITY: Disable IE frame options -->
+    <meta http-equiv="X-Download-Options" content="noopen" />
+    <meta http-equiv="X-Permitted-Cross-Domain-Policies" content="none" />
+    
+    <!-- Google Fonts for Multi-language Support -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;700&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <title>Les Generations Montantes</title>
+  </head>
+  <body>
+    <!-- 🔒 SECURITY: Noscript fallback -->
+    <noscript>
+      <div style="padding: 2rem; text-align: center; font-family: sans-serif;">
+        <h1>JavaScript Required</h1>
+        <p>This application requires JavaScript to function. Please enable JavaScript in your browser settings.</p>
+      </div>
+    </noscript>
+    
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

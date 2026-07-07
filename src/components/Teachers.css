@@ -1,0 +1,448 @@
+/* Teachers.css */
+
+.teachers-page {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.search-bar {
+  margin-bottom: 1.5rem;
+}
+
+.teachers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+.teacher-card {
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-md);
+  transition: var(--transition);
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  min-width: 0; /* Prevent overflow */
+}
+
+.teacher-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.teacher-header {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.teacher-avatar {
+  width: 54px;
+  height: 54px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.teacher-info {
+  flex: 1;
+}
+
+.teacher-name {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-color);
+  margin-bottom: 0.25rem;
+}
+
+.teacher-type {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+.teacher-type.full-time {
+  background: #19875420;
+  color: #198754;
+}
+
+.teacher-type.vacataire {
+  background: #ffc10720;
+  color: #ffc107;
+}
+
+.teacher-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.teacher-stat {
+  flex: 1;
+  min-width: 80px;
+  text-align: center;
+}
+
+.teacher-stat {
+  text-align: center;
+}
+
+.stat-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.stat-value {
+  display: block;
+  font-weight: 600;
+  color: var(--text-color);
+  font-size: 0.875rem;
+}
+
+.teacher-subjects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.badge {
+  background: var(--bg-color);
+  color: var(--text-color);
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.badge-more {
+  background: var(--primary-color);
+  color: white;
+}
+
+.teacher-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+
+.btn-sm {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  flex: 1;
+  min-width: 100px;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal-content {
+  background: var(--card-bg);
+  border-radius: 0;
+  max-width: 600px; /* Default narrow width */
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+}
+
+.modal-content.modal-large {
+  max-width: 85%; /* Use 85% of screen width */
+  width: 1400px; /* Very large maximum for ultra-wide screens */
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h2 {
+  font-size: 1.25rem;
+  color: var(--text-color);
+}
+
+.modal-close {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: var(--radius-md);
+  transition: var(--transition);
+}
+
+.modal-close:hover {
+  background: var(--bg-color);
+  color: var(--text-color);
+}
+
+.teacher-form {
+  padding: 1.5rem;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-label {
+  display: block;
+  font-weight: 500;
+  color: var(--text-color);
+  margin-bottom: 0.5rem;
+}
+
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.5rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-color);
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: var(--radius-md);
+  transition: var(--transition);
+}
+
+.checkbox-label:hover {
+  background: var(--bg-color);
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+/* Vacataire Hours Widget */
+.vacataire-hours-widget {
+  background: var(--bg-color);
+  padding: 1.25rem;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--primary-color);
+}
+
+.vacataire-hours-widget .form-label {
+  margin-bottom: 0.25rem;
+}
+
+.form-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+/* Availability Timetable Redesign */
+.availability-timetable {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--border-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.timetable-header-row,
+.timetable-row {
+  display: grid;
+  grid-template-columns: 100px repeat(11, 1fr); /* 1 Day + 11 slots */
+  min-width: 1100px; /* Wider to accommodate all slots in one row */
+  background: var(--card-bg);
+}
+
+.timetable-cell {
+  padding: 0.5rem 0.25rem;
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.header-cell {
+  background: var(--bg-color);
+  font-weight: 700;
+  color: var(--primary-color);
+  min-height: 50px;
+  text-transform: none;
+  font-size: 0.65rem;
+}
+
+.day-cell {
+  background: var(--bg-color);
+  font-weight: 700;
+  color: var(--text-color);
+  justify-content: center;
+  border-right: 2px solid var(--border-color);
+  font-size: 0.8rem;
+}
+
+.slot-disabled {
+  background: var(--bg-color);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  font-size: 0.6rem;
+  font-weight: 600;
+  opacity: 0.6;
+}
+
+.slot-disabled.lunch-slot {
+  background: var(--bg-color);
+  opacity: 0.7;
+}
+
+.slot-disabled.na-slot {
+  background: var(--bg-color);
+  opacity: 0.4;
+}
+
+.hour-cell {
+  background: var(--card-bg);
+}
+
+.hour-cell:hover {
+  background: rgba(13, 110, 253, 0.08);
+}
+
+.hour-cell.selected {
+  background: var(--primary-light);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  font-weight: 700;
+}
+
+.hour-cell.selected::after {
+  content: '✅';
+  font-size: 0.8rem;
+  margin-top: 2px;
+}
+
+.slot-disabled {
+  background: var(--bg-color);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  font-size: 0.65rem;
+  font-weight: 600;
+  border-color: var(--border-color);
+  gap: 4px;
+}
+
+.slot-disabled .coffee-icon {
+  font-size: 1.1rem;
+}
+
+.hours-summary {
+  padding: 1rem;
+  background: var(--primary-light);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  color: var(--primary-color);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--border-color);
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: var(--card-bg);
+  border-radius: 0;
+  box-shadow: var(--shadow-md);
+}
+
+.empty-icon {
+  font-size: 4rem;
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.empty-state h3 {
+  font-size: 1.25rem;
+  color: var(--text-color);
+  margin-bottom: 0.5rem;
+}
+
+.empty-state p {
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .teachers-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .teachers-grid {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1rem;
+  }
+
+  .modal-content {
+    max-width: 95%;
+  }
+  
+  .timetable-header-row,
+  .timetable-row {
+    min-width: 800px;
+  }
+}

@@ -1,0 +1,7 @@
+<!-- Placeholder icon - Replace with your actual icon.png (256x256 recommended) -->
+<!-- For now, we'll use a simple SVG that can be converted -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <rect width="256" height="256" fill="#4A90D9" rx="40"/>
+  <text x="128" y="160" font-family="Arial, sans-serif" font-size="120" font-weight="bold" fill="white" text-anchor="middle">S</text>
+  <text x="128" y="210" font-family="Arial, sans-serif" font-size="40" fill="white" text-anchor="middle">School</text>
+</svg>

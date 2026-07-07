@@ -1,0 +1,251 @@
+/* src/components/Skeleton.css - Skeleton screen styles */
+
+/* Base skeleton styles */
+.skeleton {
+  background-color: var(--border-color);
+  background-image: linear-gradient(90deg, var(--bg-color) 25%, var(--border-color) 50%, var(--bg-color) 75%);
+  background-size: 200% 100%;
+  background-position: 200% 0;
+  border-radius: 4px;
+  display: inline-block;
+  vertical-align: middle;
+  overflow: hidden;
+}
+
+/* Animation variants */
+.skeleton--pulse {
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.skeleton--wave {
+  animation: skeleton-wave 1.5s ease-in-out infinite;
+}
+
+/* Keyframes */
+@keyframes skeleton-pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes skeleton-wave {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Variant-specific styles */
+.skeleton--circular {
+  border-radius: 50%;
+}
+
+.skeleton--rectangular {
+  border-radius: 4px;
+}
+
+.skeleton--text {
+  height: 16px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+}
+
+/* Predefined skeleton layouts */
+
+/* Text skeleton */
+.skeleton-text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Card skeleton */
+.skeleton-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.skeleton-card__container {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.skeleton-card__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Table skeleton */
+.skeleton-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.skeleton-table__header {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.skeleton-table__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.skeleton-table__row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  padding: 8px 0;
+}
+
+/* Dashboard skeleton */
+.skeleton-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.skeleton-dashboard__header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeleton-dashboard__stats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+}
+
+.skeleton-dashboard__stat {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.skeleton-dashboard__stat-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.skeleton-dashboard__content {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
+}
+
+.skeleton-dashboard__chart {
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.skeleton-dashboard__list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+/* Dark mode support */
+/* Dark mode support - both system and class-based */
+@media (prefers-color-scheme: dark) {
+  .skeleton {
+    background-color: #2d3748;
+    background-image: linear-gradient(90deg, #4a5568 25%, #2d3748 50%, #4a5568 75%);
+  }
+}
+
+.dark-mode .skeleton {
+  background-color: #2d3748;
+  background-image: linear-gradient(90deg, #4a5568 25%, #2d3748 50%, #4a5568 75%);
+}
+
+.dark-mode .skeleton-table__header,
+.dark-mode .skeleton-table__row {
+  border-bottom-color: #4a5568;
+}
+
+.dark-mode .skeleton-dashboard__stat,
+.dark-mode .skeleton-dashboard__chart,
+.dark-mode .skeleton-dashboard__list {
+  border-color: #4a5568;
+  background: #1a202c;
+}
+
+/* Reduce motion support */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background-image: none;
+    background-color: #e0e0e0;
+  }
+  
+  .skeleton--pulse,
+  .skeleton--wave {
+    animation: none;
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .skeleton-dashboard__content {
+    grid-template-columns: 1fr;
+  }
+  
+  .skeleton-table__header,
+  .skeleton-table__row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  
+  .skeleton-dashboard__stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .skeleton-dashboard__stats {
+    grid-template-columns: 1fr;
+  }
+  
+  .skeleton-card__container {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+.skeleton[aria-busy="true"] {
+  cursor: wait;
+}
+
+/* Focus management */
+.skeleton:focus-within {
+  outline: none;
+}

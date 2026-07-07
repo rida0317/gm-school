@@ -1,0 +1,46 @@
+/* src/components/ToastContainer.css - Toast container styles */
+
+.toast-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding: 20px;
+  gap: 10px;
+}
+
+/* Ensure toasts don't overlap with other fixed elements */
+.toast-container {
+  padding-bottom: 80px; /* Space for potential footer or navigation */
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .toast-container {
+    padding: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .toast-container {
+    padding: 10px;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  /* Toast styles are handled in Toast.css */
+}
+
+/* Reduce motion support */
+@media (prefers-reduced-motion: reduce) {
+  .toast-container {
+    /* No additional styles needed - animations are handled in Toast.css */
+  }
+}

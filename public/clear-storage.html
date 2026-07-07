@@ -1,0 +1,104 @@
+<!-- Debug page to clear localStorage -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clear App Storage</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .card {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 { color: #333; }
+    button {
+      background: #dc3545;
+      color: white;
+      border: none;
+      padding: 15px 30px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin: 10px 5px;
+    }
+    button:hover { background: #c82333; }
+    button.secondary {
+      background: #6c757d;
+    }
+    button.secondary:hover { background: #5a6268; }
+    .status {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 8px;
+      display: none;
+    }
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+      display: block;
+    }
+    .info {
+      background: #e7f3ff;
+      padding: 15px;
+      border-radius: 8px;
+      margin: 20px 0;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🧹 Clear App Storage</h1>
+    
+    <div class="info">
+      <strong>⚠️ Warning:</strong> This will clear all saved data including:
+      <ul>
+        <li>Login sessions</li>
+        <li>School data</li>
+        <li>User preferences</li>
+        <li>Local cache</li>
+      </ul>
+    </div>
+
+    <button onclick="clearAll()">🗑️ Clear Everything</button>
+    <button class="secondary" onclick="clearSupabaseOnly()">🔐 Clear Auth Only</button>
+    <button class="secondary" onclick="window.close()">❌ Cancel</button>
+
+    <div id="status" class="status"></div>
+  </div>
+
+  <script>
+    function clearAll() {
+      localStorage.clear()
+      sessionStorage.clear()
+      showStatus('✅ All storage cleared! Closing in 2 seconds...')
+      setTimeout(() => window.close(), 2000)
+    }
+
+    function clearSupabaseOnly() {
+      const keys = Object.keys(localStorage)
+      keys.forEach(key => {
+        if (key.includes('supabase') || key.includes('auth') || key.includes('school')) {
+          localStorage.removeItem(key)
+        }
+      })
+      showStatus('✅ Auth storage cleared!')
+    }
+
+    function showStatus(msg) {
+      const el = document.getElementById('status')
+      el.textContent = msg
+      el.className = 'status success'
+    }
+  </script>
+</body>
+</html>

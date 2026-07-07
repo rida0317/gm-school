@@ -1,0 +1,95 @@
+/* src/components/LoadingSpinner.css - Loading spinner styles */
+
+.loading-spinner {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+}
+
+.loading-spinner__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner {
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #0d6efd;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.loading-spinner--small .spinner {
+  width: 20px;
+  height: 20px;
+  border-width: 2px;
+}
+
+.loading-spinner--medium .spinner {
+  width: 32px;
+  height: 32px;
+  border-width: 3px;
+}
+
+.loading-spinner--large .spinner {
+  width: 48px;
+  height: 48px;
+  border-width: 4px;
+}
+
+.loading-spinner__text {
+  color: #6c757d;
+  font-size: 14px;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* Keyframes for spinning animation */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .spinner {
+    border-color: #4a5568;
+    border-top-color: #60a5fa;
+  }
+  
+  .loading-spinner__text {
+    color: #a0aec0;
+  }
+}
+
+/* Reduce motion support */
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
+/* Accessibility improvements */
+.loading-spinner[aria-busy="true"] {
+  /* Ensure screen readers announce loading state */
+}
+
+/* Focus management */
+.loading-spinner:focus-within {
+  outline: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .loading-spinner {
+    padding: 15px;
+  }
+  
+  .loading-spinner--large .spinner {
+    width: 36px;
+    height: 36px;
+  }
+}
