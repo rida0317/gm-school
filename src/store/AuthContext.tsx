@@ -63,9 +63,15 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [userData, setUserData] = useState<UserData | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState<User | null>({ id: 'local-admin', email: 'admin@local.com' } as any)
+  const [userData, setUserData] = useState<UserData | null>({
+    id: 'local-admin',
+    email: 'admin@local.com',
+    role: 'admin',
+    status: 'active',
+    schoolId: 'default'
+  })
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const loadUserData = async (userId: string, email: string) => {
@@ -153,45 +159,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let isMounted = true
 
     const checkSession = async () => {
-      logger.log('🔍 Checking session on mount...')
-      try {
-        // Timeout to prevent infinite loading if Supabase hangs
-        const sessionPromise = supabase.auth.getSession()
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Session check timeout')), 5000)
-        )
-
-        const result = await Promise.race([sessionPromise, timeoutPromise])
-        const { data: { session }, error } = result as any
-
-        if (error) throw error
-
-        if (isMounted) {
-          if (session) {
-            logger.log('✅ Session found:', session.user.id)
-            setUser(session.user)
-            await loadUserData(session.user.id, session.user.email || '')
-          } else {
-            logger.log('ℹ️ No session found')
-            setUser(null)
-          }
-        }
-      } catch (error: any) {
-        logger.error('❌ Session check failed:', error.message)
-        if (isMounted) {
-          setUser(null)
-          setError(error.message)
-        }
-      } finally {
-        if (isMounted) {
-          logger.log('✅ Session check finished')
-          setLoading(false)
-        }
-      }
-
-      }
-
-    checkSession()
+      // Disabled session check for local bypass
+    }
+    // checkSession()
 
     // Force stop loading after 10 seconds no matter what (fallback)
     const loadingTimeout = setTimeout(() => {
@@ -201,7 +171,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }, 10000)
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    // Disabled auth state change for local bypass
+    const subscription = { unsubscribe: () => {} }
+    /* const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         logger.log('🔔 Auth state changed:', event)
 
@@ -221,7 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
       }
-    )
+    ) */
 
     return () => {
       isMounted = false

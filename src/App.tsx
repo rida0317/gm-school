@@ -27,8 +27,7 @@ import QRCodeGenerator from './components/QRCodeGenerator'
 import QRCodeScanner from './components/QRCodeScanner'
 import Library from './components/Library'
 import Stock from './components/Stock'
-import Login from './components/Auth/Login'
-import Signup from './components/Auth/Signup'
+// Login and Signup imported here before
 import UserManagement from './components/admin/UserManagement'
 import MonthlyPayments from './components/MonthlyPayments'
 import DashboardPage from './components/DashboardPage'
@@ -62,10 +61,8 @@ function App() {
             <AuthProvider>
               <ErrorBoundary>
                 <SchoolDataProvider>
-                  <Routes>
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/signup" element={<Signup />} />
-                    <Route path="/" element={<Layout />}>
+                    <Routes>
+                      <Route path="/" element={<Layout />}>
                       <Route index element={<Navigate to="/dashboard" replace />} />
                       <Route path="dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
                       <Route path="teachers" element={<ProtectedRoute requiredPermission="canAccessTeachers"><Teachers /></ProtectedRoute>} />
