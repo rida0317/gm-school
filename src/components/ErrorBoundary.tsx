@@ -1,128 +1,51 @@
-// src/components/ErrorBoundary.tsx - Global error boundary component
-
-import React, { Component, ErrorInfo, ReactNode } from 'react'
+import { Component, ErrorInfo, ReactNode } from 'react';
 
 interface Props {
-  children: ReactNode
-  fallback?: ReactNode
-  onError?: (error: Error, errorInfo: ErrorInfo) => void
+  children?: ReactNode;
+  fallback?: ReactNode;
 }
 
 interface State {
-  hasError: boolean
-  error?: Error
-  errorInfo?: ErrorInfo
+  hasError: boolean;
+  error?: Error;
 }
 
-class ErrorBoundary extends Component<Props, State> {
-  constructor(props: Props) {
-    super(props)
-    this.state = { hasError: false }
+export class ErrorBoundary extends Component<Props, State> {
+  public state: State = {
+    hasError: false
+  };
+
+  public static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
   }
 
-  static getDerivedStateFromError(error: Error): State {
-    // Update state so the next render will show the fallback UI
-    return { hasError: true, error }
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('Uncaught error:', error, errorInfo);
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Ignore specific warnings from third-party scripts/extensions
-    const ignoreMessages = [
-      'DialogContent requires a DialogTitle',
-      'DialogTitle',
-      'radix-ui',
-    ]
-    const shouldIgnore = ignoreMessages.some(msg => 
-      error.message?.includes(msg) || error.toString().includes(msg)
-    )
-    if (shouldIgnore) {
-      return
-    }
-
-    // Log error details
-    console.error('ErrorBoundary caught an error:', error, errorInfo)
-
-    // Call optional error handler
-    if (this.props.onError) {
-      this.props.onError(error, errorInfo)
-    }
-
-    // Update state with error info
-    this.setState({
-      error,
-      errorInfo
-    })
-
-    // Log to console in development
-    if (import.meta.env.DEV) {
-      
-    }
-  }
-
-  handleRetry = () => {
-    this.setState({ hasError: false, error: undefined, errorInfo: undefined })
-  }
-
-  handleReload = () => {
-    window.location.reload()
-  }
-
-  render() {
+  public render() {
     if (this.state.hasError) {
-      // Custom fallback UI
       if (this.props.fallback) {
-        return this.props.fallback
+        return this.props.fallback;
       }
-
-      // Default error UI
       return (
-        <div className="error-boundary">
-          <div className="error-container">
-            <div className="error-icon">⚠️</div>
-            <h1 className="error-title">Oops! Something went wrong</h1>
-            <p className="error-message">
-              We're sorry, but something unexpected happened. Don't worry, your data is safe.
+        <div className="flex min-h-screen items-center justify-center bg-background text-foreground p-4">
+          <div className="max-w-md w-full space-y-4 text-center">
+            <h1 className="text-3xl font-bold text-destructive">Something went wrong</h1>
+            <p className="text-muted-foreground">
+              {this.state.error?.message || 'An unexpected error occurred.'}
             </p>
-
-            <div className="error-actions">
-              <button onClick={this.handleRetry} className="btn btn-primary">
-                Try Again
-              </button>
-              <button onClick={this.handleReload} className="btn btn-secondary">
-                Reload Page
-              </button>
-              <button
-                onClick={() => window.location.href = '/dashboard'}
-                className="btn btn-outline"
-              >
-                Go to Dashboard
-              </button>
-            </div>
-
-            <details className="error-details" style={{ marginTop: '2rem' }}>
-              <summary style={{ cursor: 'pointer', color: '#dc2626', fontWeight: 'bold' }}>
-                🔍 Click to see error details
-              </summary>
-              <pre className="error-stack" style={{ 
-                background: '#f5f5f5', 
-                padding: '1rem', 
-                overflow: 'auto',
-                fontSize: '0.85rem',
-                marginTop: '0.5rem'
-              }}>
-                {this.state.error?.toString()}
-                {'\n\n'}
-                {this.state.errorInfo?.componentStack}
-              </pre>
-            </details>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md shadow hover:bg-primary/90 transition-colors"
+            >
+              Refresh Page
+            </button>
           </div>
         </div>
-      )
+      );
     }
 
-    return this.props.children
+    return this.props.children;
   }
 }
-
-export default ErrorBoundary
-
