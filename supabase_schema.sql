@@ -1,7 +1,7 @@
 -- Core Tables
 
 CREATE TABLE schools (
-  id text PRIMARY KEY,
+  id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
   name text NOT NULL,
   code text,
   logo text,
@@ -17,7 +17,7 @@ CREATE TABLE schools (
 );
 
 CREATE TABLE classes (
-  id text PRIMARY KEY,
+  id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
   school_id text REFERENCES schools(id),
   name text NOT NULL,
   level text,
@@ -31,7 +31,7 @@ CREATE TABLE classes (
 );
 
 CREATE TABLE teachers (
-  id text PRIMARY KEY,
+  id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
   school_id text REFERENCES schools(id),
   name text NOT NULL,
   max_hours_per_week integer,
@@ -48,7 +48,7 @@ CREATE TABLE teachers (
 );
 
 CREATE TABLE students (
-  id text PRIMARY KEY,
+  id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
   school_id text REFERENCES schools(id),
   name text NOT NULL,
   class_id text,
@@ -70,7 +70,7 @@ CREATE TABLE students (
 );
 
 CREATE TABLE salles (
-  id text PRIMARY KEY,
+  id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
   school_id text REFERENCES schools(id),
   name text NOT NULL,
   type text,
@@ -81,7 +81,7 @@ CREATE TABLE salles (
 );
 
 CREATE TABLE subjects (
-  id text PRIMARY KEY,
+  id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
   school_id text REFERENCES schools(id),
   name text NOT NULL,
   is_active boolean DEFAULT true,
@@ -90,7 +90,7 @@ CREATE TABLE subjects (
 );
 
 CREATE TABLE levels (
-  id text PRIMARY KEY,
+  id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
   school_id text REFERENCES schools(id),
   name text NOT NULL,
   is_active boolean DEFAULT true,
@@ -99,7 +99,7 @@ CREATE TABLE levels (
 );
 
 CREATE TABLE grades (
-  id text PRIMARY KEY,
+  id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
   student_id text,
   school_id text REFERENCES schools(id),
   subject text NOT NULL,
@@ -116,7 +116,7 @@ CREATE TABLE grades (
 );
 
 CREATE TABLE timetables (
-  id text PRIMARY KEY,
+  id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
   school_id text REFERENCES schools(id),
   data jsonb,
   created_at timestamp with time zone DEFAULT now(),
@@ -126,7 +126,7 @@ CREATE TABLE timetables (
 -- Library Tables
 
 CREATE TABLE books (
-  id text PRIMARY KEY,
+  id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
   title text NOT NULL,
   author text NOT NULL,
   isbn text,
@@ -145,7 +145,7 @@ CREATE TABLE books (
 );
 
 CREATE TABLE library_loans (
-  id text PRIMARY KEY,
+  id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
   book_id text REFERENCES books(id),
   book_title text,
   student_id text,
@@ -165,7 +165,7 @@ CREATE TABLE library_loans (
 -- Stock Tables
 
 CREATE TABLE suppliers (
-  id text PRIMARY KEY,
+  id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
   name text NOT NULL,
   contact text,
   phone text,
@@ -181,7 +181,7 @@ CREATE TABLE suppliers (
 );
 
 CREATE TABLE stock_items (
-  id text PRIMARY KEY,
+  id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
   name text NOT NULL,
   description text,
   category text,
@@ -204,7 +204,7 @@ CREATE TABLE stock_items (
 );
 
 CREATE TABLE stock_transactions (
-  id text PRIMARY KEY,
+  id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
   item_id text REFERENCES stock_items(id),
   type text,
   quantity integer,
@@ -272,7 +272,7 @@ ALTER TABLE stock_transactions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow all" ON stock_transactions FOR ALL USING (true) WITH CHECK (true);
 
 CREATE TABLE monthly_payments (
-    id TEXT PRIMARY KEY,
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     student_id TEXT NOT NULL,
     school_id TEXT NOT NULL,
     academic_year TEXT NOT NULL,
@@ -296,7 +296,7 @@ CREATE TABLE monthly_payments (
 );
 
 CREATE TABLE notifications (
-    id TEXT PRIMARY KEY,
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     school_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     type TEXT NOT NULL,
