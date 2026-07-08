@@ -124,7 +124,7 @@ CREATE TABLE timetables (
 
 -- Library Tables
 
-CREATE TABLE library_books (
+CREATE TABLE books (
   id text PRIMARY KEY,
   title text NOT NULL,
   author text NOT NULL,
@@ -145,7 +145,7 @@ CREATE TABLE library_books (
 
 CREATE TABLE library_loans (
   id text PRIMARY KEY,
-  book_id text REFERENCES library_books(id),
+  book_id text REFERENCES books(id),
   book_title text,
   student_id text,
   student_name text,
@@ -255,8 +255,8 @@ CREATE POLICY "Allow all" ON grades FOR ALL USING (true) WITH CHECK (true);
 ALTER TABLE timetables ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow all" ON timetables FOR ALL USING (true) WITH CHECK (true);
 
-ALTER TABLE library_books ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow all" ON library_books FOR ALL USING (true) WITH CHECK (true);
+ALTER TABLE books ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all" ON books FOR ALL USING (true) WITH CHECK (true);
 
 ALTER TABLE library_loans ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow all" ON library_loans FOR ALL USING (true) WITH CHECK (true);
