@@ -270,23 +270,34 @@ export default function TimetablePage() {
     });
   };
 
-  // Helper to find an open available slot for a class and teacher
-  const findAlternativeSlot = (
+  // Smart Helper to find the absolute CLOSEST open available slot for a class and teacher (a9rab sa3a khawya)
+  const findClosestAlternativeSlot = (
     classId: string,
     teacher: Teacher | undefined,
     currentSlots: TimetableSlot[],
     excludeSlotIds: string[],
-    preferredDay?: number
+    preferredDayId: number,
+    preferredPeriodStart?: string
   ): { dayId: number; period: PeriodSlot } | null => {
-    const days = preferredDay
-      ? [preferredDay, ...MOROCCAN_SCHOOL_DAYS.map((d) => d.id).filter((d) => d !== preferredDay)]
-      : MOROCCAN_SCHOOL_DAYS.map((d) => d.id);
+    const preferredPeriodIndex = MOROCCAN_55MIN_PERIODS.findIndex(
+      (p) => normalizeTime(p.start) === normalizeTime(preferredPeriodStart)
+    );
+    const centerPeriodIdx = preferredPeriodIndex >= 0 ? preferredPeriodIndex : 0;
 
-    for (const dayId of days) {
-      for (const period of MOROCCAN_55MIN_PERIODS) {
+    const candidateSlots: { dayId: number; period: PeriodSlot; score: number }[] = [];
+
+    for (let dayIdx = 0; dayIdx < MOROCCAN_SCHOOL_DAYS.length; dayIdx++) {
+      const day = MOROCCAN_SCHOOL_DAYS[dayIdx];
+      const dayId = day.id;
+      const dayDist = Math.abs(dayId - preferredDayId);
+
+      for (let pIdx = 0; pIdx < MOROCCAN_55MIN_PERIODS.length; pIdx++) {
+        const period = MOROCCAN_55MIN_PERIODS[pIdx];
+
+        // Friday afternoon forbidden
         if (dayId === 5 && period.isAfternoon) continue;
 
-        // Class is free
+        // 1. Class must be free
         const classOccupied = currentSlots.some(
           (s) =>
             !excludeSlotIds.includes(s.id) &&
@@ -295,7 +306,7 @@ export default function TimetablePage() {
         );
         if (classOccupied) continue;
 
-        // Teacher is free
+        // 2. Teacher must be free
         if (teacher) {
           const teacherOccupied = currentSlots.some(
             (s) =>
@@ -305,13 +316,22 @@ export default function TimetablePage() {
           );
           if (teacherOccupied) continue;
 
+          // 3. Vacataire availability
           if (!isVacataireAvailable(teacher, dayId, period.id, period.start)) continue;
         }
 
-        return { dayId, period };
+        // Proximity score: day distance (weight 10) + period distance (weight 1)
+        const periodDist = Math.abs(pIdx - centerPeriodIdx);
+        const score = dayDist * 10 + periodDist;
+
+        candidateSlots.push({ dayId, period, score });
       }
     }
-    return null;
+
+    // Sort ascending: smallest score = absolute closest slot
+    candidateSlots.sort((a, b) => a.score - b.score);
+
+    return candidateSlots.length > 0 ? { dayId: candidateSlots[0].dayId, period: candidateSlots[0].period } : null;
   };
 
   // Drag and drop handlers
@@ -548,6 +568,16 @@ export default function TimetablePage() {
       const targetDayName =
         MOROCCAN_SCHOOL_DAYS.find((d) => d.id === targetDayId)?.name || 'Jour';
 
+      // Find the absolute CLOSEST free slot for that conflicting class & teacher!
+      const foundAltForConflicting = findClosestAlternativeSlot(
+        teacherBusyConflict.class_id,
+        draggedTeacher,
+        slots,
+        [currentDragged.id, teacherBusyConflict.id],
+        targetDayId,
+        targetPeriod.start
+      );
+
       setTeacherConflictModal({
         show: true,
         teacherName: draggedTeacher
@@ -558,12 +588,14 @@ export default function TimetablePage() {
         targetClassName: currentDragged.class?.name || 'Cette Classe',
         dayName: targetDayName,
         timeLabel: targetPeriod.label,
+        alternativeSlot: foundAltForConflicting || undefined,
         onSwapWithConflictingClass: async () => {
           await executeMoveOrSwap(
             currentDraggedCopy,
             targetDayId,
             targetPeriod,
-            teacherBusyConflict
+            teacherBusyConflict,
+            foundAltForConflicting || undefined
           );
         },
       });
@@ -603,12 +635,13 @@ export default function TimetablePage() {
       );
 
       if (targetTeacherConflictElsewhere) {
-        const foundAlt = findAlternativeSlot(
+        const foundAlt = findClosestAlternativeSlot(
           resolvedTargetSlot.class_id,
           targetTeacher,
           slots,
           [currentDragged.id, resolvedTargetSlot.id],
-          targetDayId
+          currentDragged.day_of_week,
+          currentDragged.start_time
         );
 
         const currentDraggedCopy = currentDragged;
@@ -657,12 +690,13 @@ export default function TimetablePage() {
       );
 
       if (!targetTeacherAvailableOnOrig) {
-        const foundAlt = findAlternativeSlot(
+        const foundAlt = findClosestAlternativeSlot(
           resolvedTargetSlot.class_id,
           targetTeacher,
           slots,
           [currentDragged.id, resolvedTargetSlot.id],
-          targetDayId
+          currentDragged.day_of_week,
+          currentDragged.start_time
         );
 
         const currentDraggedCopy = currentDragged;
