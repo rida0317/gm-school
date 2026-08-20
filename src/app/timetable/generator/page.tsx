@@ -166,6 +166,7 @@ export default function TimetableGeneratorPage() {
   const [existingSlotsCount, setExistingSlotsCount] = useState<number>(0);
   const [isClearingOld, setIsClearingOld] = useState(false);
   const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   const notify = useNotify();
 
@@ -245,6 +246,7 @@ export default function TimetableGeneratorPage() {
       setExistingSlotsCount(0);
       setGeneratedSchedule([]);
       setShowClearConfirmModal(false);
+      setDeleteConfirmText('');
 
       notify({
         title: 'Ancien Emploi du Temps Supprimé',
@@ -1244,7 +1246,10 @@ export default function TimetableGeneratorPage() {
             </div>
 
             <button
-              onClick={() => setShowClearConfirmModal(true)}
+              onClick={() => {
+                setDeleteConfirmText('');
+                setShowClearConfirmModal(true);
+              }}
               className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-500/25 transition-all hover:scale-105 shrink-0 cursor-pointer"
             >
               <Trash2 className="w-4 h-4" />
@@ -1631,10 +1636,28 @@ export default function TimetableGeneratorPage() {
               </span>
             </div>
 
+            {/* Verification word requirement */}
+            <div className="space-y-1.5 p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                Pour confirmer, veuillez taper le mot <span className="font-mono text-rose-600 dark:text-rose-400 font-black uppercase px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-900/50">SUPPRIMER</span> :
+              </label>
+              <input
+                type="text"
+                placeholder="Tapez SUPPRIMER..."
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                className="w-full px-3.5 py-2 text-xs font-bold rounded-xl border border-rose-300 dark:border-rose-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 font-mono tracking-wider"
+                autoFocus
+              />
+            </div>
+
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => setShowClearConfirmModal(false)}
+                onClick={() => {
+                  setShowClearConfirmModal(false);
+                  setDeleteConfirmText('');
+                }}
                 className="px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 font-bold text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 cursor-pointer"
               >
                 Annuler
@@ -1642,8 +1665,8 @@ export default function TimetableGeneratorPage() {
               <button
                 type="button"
                 onClick={handleClearExistingTimetable}
-                disabled={isClearingOld}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-500/25 transition-all cursor-pointer disabled:opacity-50"
+                disabled={isClearingOld || deleteConfirmText.trim().toUpperCase() !== 'SUPPRIMER'}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-500/25 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {isClearingOld ? (
                   <>
