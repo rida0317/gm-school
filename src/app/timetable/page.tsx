@@ -564,6 +564,9 @@ export default function TimetablePage() {
       }
 
       if (updatesToPersist.length > 0) {
+        // Instant Optimistic local UI update
+        setSlots(currentSlotsState);
+
         await Promise.all(
           updatesToPersist.map((u) =>
             supabase
@@ -595,6 +598,7 @@ export default function TimetablePage() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erreur lors de la résolution automatique';
       notify({ title: 'Erreur', message: msg, type: 'danger' });
+      await loadData();
     } finally {
       setIsAutoFixing(false);
     }
