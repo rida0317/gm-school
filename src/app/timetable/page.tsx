@@ -382,8 +382,8 @@ export default function TimetablePage() {
         isSameSlotTime(s.day_of_week, s.start_time, targetDayId, targetPeriod.start)
     );
 
-    // 2. Any slot for this TEACHER in ANOTHER class at (targetDayId, targetPeriod)
-    const slotInOtherClassForTeacher = slots.find(
+    // 2. Any slot for currentDragged.teacher in ANOTHER class at (targetDayId, targetPeriod)
+    const draggedTeacherConflictInOtherClass = slots.find(
       (s) =>
         s.id !== currentDragged.id &&
         s.teacher_id === currentDragged.teacher_id &&
@@ -391,9 +391,25 @@ export default function TimetablePage() {
         isSameSlotTime(s.day_of_week, s.start_time, targetDayId, targetPeriod.start)
     );
 
+    // 3. Any slot for displaced target teacher in ANOTHER class at (origDay, origStart)
+    const displacedTargetTeacher = slotInThisClassAtTarget
+      ? teachers.find((t) => t.id === slotInThisClassAtTarget.teacher_id) || slotInThisClassAtTarget.teacher
+      : undefined;
+
+    const displacedTeacherConflictInOtherClass = slotInThisClassAtTarget
+      ? slots.find(
+          (s) =>
+            s.id !== currentDragged.id &&
+            s.id !== slotInThisClassAtTarget.id &&
+            s.teacher_id === slotInThisClassAtTarget.teacher_id &&
+            s.class_id !== slotInThisClassAtTarget.class_id &&
+            isSameSlotTime(s.day_of_week, s.start_time, origDay, origStart)
+        )
+      : undefined;
+
     const updatesToRun: { id: string; day_of_week: number; start_time: string; end_time: string }[] = [];
 
-    // A. currentDragged moves to (targetDayId, targetPeriod) -> Hadi khasha ta3mar!
+    // A. currentDragged moves to (targetDayId, targetPeriod) in THIS class -> Hadi khasha ta3mar!
     updatesToRun.push({
       id: currentDragged.id,
       day_of_week: Number(targetDayId),
@@ -401,48 +417,59 @@ export default function TimetablePage() {
       end_time: targetPeriod.end,
     });
 
-    // B. If there is a slot in THIS class at target, move it to (origDay, origStart) to FILL the old slot!
+    // B. slotInThisClassAtTarget ALWAYS moves to (origDay, origStart) in THIS class -> Hadi ta3mar w ma tb9ach khawya!
     if (slotInThisClassAtTarget) {
-      if (alternativeTargetSlot && targetSlot?.id === slotInThisClassAtTarget.id) {
+      updatesToRun.push({
+        id: slotInThisClassAtTarget.id,
+        day_of_week: Number(origDay),
+        start_time: origStart,
+        end_time: origEnd,
+      });
+    }
+
+    // C. If displaced teacher has a conflict in ANOTHER class at (origDay, origStart) -> sa3a tania f la classe l-okhra hiya litbadel l a9rab sa3a khawya!
+    if (displacedTeacherConflictInOtherClass) {
+      const altForDisplacedOther = alternativeTargetSlot || findClosestAlternativeSlot(
+        displacedTeacherConflictInOtherClass.class_id,
+        displacedTargetTeacher,
+        slots,
+        [currentDragged.id, slotInThisClassAtTarget!.id, displacedTeacherConflictInOtherClass.id],
+        origDay,
+        origStart
+      );
+
+      if (altForDisplacedOther) {
         updatesToRun.push({
-          id: slotInThisClassAtTarget.id,
-          day_of_week: Number(alternativeTargetSlot.dayId),
-          start_time: alternativeTargetSlot.period.start,
-          end_time: alternativeTargetSlot.period.end,
-        });
-      } else {
-        // Direct fill into origin slot so origin slot does NOT stay empty!
-        updatesToRun.push({
-          id: slotInThisClassAtTarget.id,
-          day_of_week: Number(origDay),
-          start_time: origStart,
-          end_time: origEnd,
+          id: displacedTeacherConflictInOtherClass.id,
+          day_of_week: Number(altForDisplacedOther.dayId),
+          start_time: altForDisplacedOther.period.start,
+          end_time: altForDisplacedOther.period.end,
         });
       }
     }
 
-    // C. If teacher was teaching ANOTHER class at target (sa3a tania), move that other session to alternative closest free slot!
-    if (slotInOtherClassForTeacher) {
-      const altForOther = alternativeTargetSlot || findClosestAlternativeSlot(
-        slotInOtherClassForTeacher.class_id,
-        teachers.find((t) => t.id === slotInOtherClassForTeacher.teacher_id),
+    // D. If dragged teacher has a conflict in ANOTHER class at (targetDayId, targetPeriod) -> sa3a tania f la classe l-okhra hiya litbadel l a9rab sa3a khawya!
+    if (draggedTeacherConflictInOtherClass) {
+      const altForDraggedOther = alternativeTargetSlot || findClosestAlternativeSlot(
+        draggedTeacherConflictInOtherClass.class_id,
+        teachers.find((t) => t.id === draggedTeacherConflictInOtherClass.teacher_id),
         slots,
-        [currentDragged.id, slotInOtherClassForTeacher.id],
+        [currentDragged.id, draggedTeacherConflictInOtherClass.id],
         targetDayId,
         targetPeriod.start
       );
 
-      if (altForOther) {
+      if (altForDraggedOther) {
         updatesToRun.push({
-          id: slotInOtherClassForTeacher.id,
-          day_of_week: Number(altForOther.dayId),
-          start_time: altForOther.period.start,
-          end_time: altForOther.period.end,
+          id: draggedTeacherConflictInOtherClass.id,
+          day_of_week: Number(altForDraggedOther.dayId),
+          start_time: altForDraggedOther.period.start,
+          end_time: altForDraggedOther.period.end,
         });
       }
     }
 
-    // D. If targetSlot was explicitly passed and not yet added:
+    // E. If targetSlot was explicitly passed and not in current class (e.g. from modal swap):
     if (targetSlot && !updatesToRun.some((u) => u.id === targetSlot.id)) {
       if (alternativeTargetSlot) {
         updatesToRun.push({
@@ -627,21 +654,23 @@ export default function TimetablePage() {
       const targetTeacher =
         teachers.find((t) => t.id === resolvedTargetSlot.teacher_id) || resolvedTargetSlot.teacher;
 
-      // 1. Is the displaced teacher (e.g. Mohamed PC) already teaching another class at origin time (e.g. Mardi 08:30)?
+      // 1. Is the displaced teacher already teaching another class at origin time (e.g. Mardi 08:30)?
       const targetTeacherConflictElsewhere = slots.find(
         (s) =>
           s.id !== currentDragged.id &&
           s.id !== resolvedTargetSlot.id &&
           s.teacher_id === resolvedTargetSlot.teacher_id &&
+          s.class_id !== resolvedTargetSlot.class_id &&
           isSameSlotTime(s.day_of_week, s.start_time, currentDragged.day_of_week, currentDragged.start_time)
       );
 
       if (targetTeacherConflictElsewhere) {
-        const foundAlt = findClosestAlternativeSlot(
-          resolvedTargetSlot.class_id,
+        // Find alternative slot for the OTHER class session (sa3a tania)!
+        const foundAltForOther = findClosestAlternativeSlot(
+          targetTeacherConflictElsewhere.class_id,
           targetTeacher,
           slots,
-          [currentDragged.id, resolvedTargetSlot.id],
+          [currentDragged.id, resolvedTargetSlot.id, targetTeacherConflictElsewhere.id],
           currentDragged.day_of_week,
           currentDragged.start_time
         );
@@ -663,18 +692,16 @@ export default function TimetablePage() {
           targetClassName: resolvedTargetSlot.class?.name || 'Cette Classe',
           dayName: origDayName,
           timeLabel: origPeriod.label,
-          alternativeSlot: foundAlt || undefined,
-          onSwapWithConflictingClass: foundAlt
-            ? async () => {
-                await executeMoveOrSwap(
-                  currentDraggedCopy,
-                  targetDayId,
-                  targetPeriod,
-                  resolvedTargetSlot,
-                  foundAlt
-                );
-              }
-            : undefined,
+          alternativeSlot: foundAltForOther || undefined,
+          onSwapWithConflictingClass: async () => {
+            await executeMoveOrSwap(
+              currentDraggedCopy,
+              targetDayId,
+              targetPeriod,
+              resolvedTargetSlot,
+              foundAltForOther || undefined
+            );
+          },
         });
         return;
       }
