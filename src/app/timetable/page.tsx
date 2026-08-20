@@ -170,7 +170,8 @@ export default function TimetablePage() {
     targetClassName: string;
     dayName: string;
     timeLabel: string;
-    onSwapWithConflictingClass: () => Promise<void>;
+    alternativeSlot?: { dayId: number; period: PeriodSlot };
+    onSwapWithConflictingClass?: () => Promise<void>;
   } | null>(null);
 
   // PDF Export Mode: 'CURRENT' | 'ALL_CLASSES' | 'ALL_TEACHERS'
@@ -589,11 +590,11 @@ export default function TimetablePage() {
     let alternativeTargetPlacement: { dayId: number; period: PeriodSlot } | undefined = undefined;
 
     if (resolvedTargetSlot && resolvedTargetSlot.id !== currentDragged.id) {
-      // Check if resolvedTargetSlot's teacher has a conflict moving to draggedSlot's original time
       const targetTeacher =
         teachers.find((t) => t.id === resolvedTargetSlot.teacher_id) || resolvedTargetSlot.teacher;
 
-      const targetTeacherOccupiedOnOrig = slots.some(
+      // 1. Is the displaced teacher (e.g. Mohamed PC) already teaching another class at origin time (e.g. Mardi 08:30)?
+      const targetTeacherConflictElsewhere = slots.find(
         (s) =>
           s.id !== currentDragged.id &&
           s.id !== resolvedTargetSlot.id &&
@@ -601,6 +602,49 @@ export default function TimetablePage() {
           isSameSlotTime(s.day_of_week, s.start_time, currentDragged.day_of_week, currentDragged.start_time)
       );
 
+      if (targetTeacherConflictElsewhere) {
+        const foundAlt = findAlternativeSlot(
+          resolvedTargetSlot.class_id,
+          targetTeacher,
+          slots,
+          [currentDragged.id, resolvedTargetSlot.id],
+          targetDayId
+        );
+
+        const currentDraggedCopy = currentDragged;
+        const origDayName =
+          MOROCCAN_SCHOOL_DAYS.find((d) => d.id === currentDragged.day_of_week)?.name || 'Jour';
+        const origPeriod =
+          MOROCCAN_55MIN_PERIODS.find((p) => normalizeTime(p.start) === normalizeTime(currentDragged.start_time)) ||
+          MOROCCAN_55MIN_PERIODS[0];
+
+        setTeacherConflictModal({
+          show: true,
+          teacherName: targetTeacher
+            ? `${targetTeacher.first_name} ${targetTeacher.last_name}`
+            : 'Enseignant',
+          conflictingClassName: targetTeacherConflictElsewhere.class?.name || 'Autre Classe',
+          conflictingSubjectName: targetTeacherConflictElsewhere.subject?.name || 'Matière',
+          targetClassName: resolvedTargetSlot.class?.name || 'Cette Classe',
+          dayName: origDayName,
+          timeLabel: origPeriod.label,
+          alternativeSlot: foundAlt || undefined,
+          onSwapWithConflictingClass: foundAlt
+            ? async () => {
+                await executeMoveOrSwap(
+                  currentDraggedCopy,
+                  targetDayId,
+                  targetPeriod,
+                  resolvedTargetSlot,
+                  foundAlt
+                );
+              }
+            : undefined,
+        });
+        return;
+      }
+
+      // 2. Check Vacataire availability of displaced teacher on origin slot
       const origPeriod =
         MOROCCAN_55MIN_PERIODS.find((p) => normalizeTime(p.start) === normalizeTime(currentDragged.start_time)) ||
         MOROCCAN_55MIN_PERIODS[0];
@@ -612,8 +656,7 @@ export default function TimetablePage() {
         origPeriod.start
       );
 
-      // If target teacher is busy or not available at origin time, find an alternative slot for them!
-      if (targetTeacherOccupiedOnOrig || !targetTeacherAvailableOnOrig) {
+      if (!targetTeacherAvailableOnOrig) {
         const foundAlt = findAlternativeSlot(
           resolvedTargetSlot.class_id,
           targetTeacher,
@@ -621,9 +664,29 @@ export default function TimetablePage() {
           [currentDragged.id, resolvedTargetSlot.id],
           targetDayId
         );
-        if (foundAlt) {
-          alternativeTargetPlacement = foundAlt;
-        }
+
+        const currentDraggedCopy = currentDragged;
+        const origDayName =
+          MOROCCAN_SCHOOL_DAYS.find((d) => d.id === currentDragged.day_of_week)?.name || 'Jour';
+
+        setVacataireWarning({
+          show: true,
+          teacherName: targetTeacher
+            ? `${targetTeacher.first_name} ${targetTeacher.last_name}`
+            : 'Enseignant Vacataire',
+          dayName: origDayName,
+          timeLabel: origPeriod.label,
+          onConfirm: async () => {
+            await executeMoveOrSwap(
+              currentDraggedCopy,
+              targetDayId,
+              targetPeriod,
+              resolvedTargetSlot,
+              foundAlt || undefined
+            );
+          },
+        });
+        return;
       }
     }
 
@@ -2047,8 +2110,23 @@ export default function TimetablePage() {
                   </div>
                 </div>
 
+                {teacherConflictModal.alternativeSlot && (
+                  <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-slate-800 dark:text-slate-200 space-y-1">
+                    <span className="text-[10px] uppercase font-black text-emerald-600 dark:text-emerald-400">Solution Intelligente :</span>
+                    <p className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-200">
+                      Déplacer la séance de {teacherConflictModal.teacherName} vers :{' '}
+                      <strong>
+                        {MOROCCAN_SCHOOL_DAYS.find((d) => d.id === teacherConflictModal.alternativeSlot?.dayId)?.name || 'Jour'}{' '}
+                        &bull; {teacherConflictModal.alternativeSlot.period.label}
+                      </strong>
+                    </p>
+                  </div>
+                )}
+
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
-                  Vous ne pouvez pas assigner deux classes au même enseignant à la même heure. Vous pouvez annuler ou permuter automatiquement ses deux créneaux.
+                  {teacherConflictModal.onSwapWithConflictingClass
+                    ? 'Vous pouvez permuter / réorganiser automatiquement les séances sans créer de chevauchement.'
+                    : 'Le déplacement est impossible car cet enseignant est déjà engagé sur ce créneau horaire.'}
                 </p>
               </div>
 
@@ -2061,21 +2139,27 @@ export default function TimetablePage() {
                   }}
                   className="px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
                 >
-                  Annuler
+                  {teacherConflictModal.onSwapWithConflictingClass ? 'Annuler' : 'Fermer'}
                 </button>
 
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (teacherConflictModal.onSwapWithConflictingClass) {
-                      await teacherConflictModal.onSwapWithConflictingClass();
-                    }
-                  }}
-                  className="px-4 py-2.5 text-xs font-black text-white bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 rounded-xl shadow-lg shadow-rose-600/25 transition-all cursor-pointer flex items-center gap-1.5"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Permuter les 2 Séances (Swap)</span>
-                </button>
+                {teacherConflictModal.onSwapWithConflictingClass && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (teacherConflictModal.onSwapWithConflictingClass) {
+                        await teacherConflictModal.onSwapWithConflictingClass();
+                      }
+                    }}
+                    className="px-4 py-2.5 text-xs font-black text-white bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 rounded-xl shadow-lg shadow-rose-600/25 transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>
+                      {teacherConflictModal.alternativeSlot
+                        ? 'Permuter & Réorganiser'
+                        : 'Permuter les 2 Séances (Swap)'}
+                    </span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
