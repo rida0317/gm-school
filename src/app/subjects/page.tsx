@@ -638,7 +638,7 @@ export default function SubjectsPage() {
     if (!ok) return;
 
     const updated = subjects.filter((s) => s.id !== id);
-    persistSubjects(updated);
+    setSubjects(updated);
     notify({ title: 'Supprimée', message: 'Matière retirée du programme.', type: 'success' });
 
     try {
@@ -666,7 +666,7 @@ export default function SubjectsPage() {
       const rows = filteredSubjects.map((s) => {
         const activeCycles = s.cycles && s.cycles.length > 0 ? s.cycles : s.cycle ? [s.cycle] : ['PRIMAIRE'];
         const details = activeCycles.map((c) => {
-          const h = s.cycle_configs?.[c]?.weekly_hours || s.weekly_hours || 4;
+          const h = s.cycle_configs?.[c as EducationCycle]?.weekly_hours || s.weekly_hours || 4;
           return `${c}: ${h}h/sem`;
         }).join(' | ');
 
@@ -696,7 +696,7 @@ export default function SubjectsPage() {
       notify({ type: 'success', title: 'Export Réussi', message: 'Le programme pédagogique a été exporté en format Excel/CSV.' });
     } catch (err) {
       console.error(err);
-      notify({ type: 'error', title: 'Erreur', message: 'Impossible d\'exporter les données.' });
+      notify({ type: 'danger', title: 'Erreur', message: 'Impossible d\'exporter les données.' });
     }
   };
 
@@ -948,7 +948,7 @@ export default function SubjectsPage() {
                     {/* Multi-Cycles Quota Breakdown Chips */}
                     <div className="flex flex-wrap gap-1.5 mt-2.5">
                       {activeCycles.map((cyc, idx) => {
-                        const cycHours = s.cycle_configs?.[cyc]?.weekly_hours || s.weekly_hours || 4;
+                        const cycHours = s.cycle_configs?.[cyc as EducationCycle]?.weekly_hours || s.weekly_hours || 4;
                         const isCurrentActiveCycle = selectedCycle === cyc;
 
                         return (
@@ -1065,7 +1065,7 @@ export default function SubjectsPage() {
                       <td className="py-3 px-4">
                         <div className="flex flex-wrap gap-1">
                           {activeCycles.map((cyc, idx) => {
-                            const h = s.cycle_configs?.[cyc]?.weekly_hours || s.weekly_hours || 4;
+                            const h = s.cycle_configs?.[cyc as EducationCycle]?.weekly_hours || s.weekly_hours || 4;
                             return (
                               <span
                                 key={idx}
@@ -1419,7 +1419,7 @@ export default function SubjectsPage() {
               const activeLevels = getSubjectLevelsForCycle(s, selectedCycle);
 
               const breakdown = activeCycles.map((c) => {
-                const h = s.cycle_configs?.[c]?.weekly_hours || s.weekly_hours || 4;
+                const h = s.cycle_configs?.[c as EducationCycle]?.weekly_hours || s.weekly_hours || 4;
                 return `${c}: ${h}h/sem`;
               }).join(' | ');
 

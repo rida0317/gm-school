@@ -124,6 +124,8 @@ export interface Student {
   phone?: string;
   email?: string;
   status: string;
+  guardian_name?: string;
+  guardian_phone?: string;
   class?: ClassEntity;
   created_at: string;
 }

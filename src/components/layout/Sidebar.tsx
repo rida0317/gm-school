@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useI18n } from '@/lib/i18n';
+import { useI18n, TranslationKey } from '@/lib/i18n';
 import { useSettings } from '@/lib/settings';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -94,7 +94,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     router.push('/login');
   }
 
-  const roleKeys: Record<string, keyof typeof translations['fr']> = {
+  const roleKeys: Record<string, TranslationKey> = {
     SUPER_ADMIN: 'super_admin',
     ADMIN: 'admin',
     TEACHER: 'teacher',

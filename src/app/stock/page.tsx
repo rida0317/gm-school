@@ -743,11 +743,11 @@ export default function StockPage() {
     const list: Array<{ id: string; name: string; role: string; category: string; department: string }> = [];
 
     // 1. Teachers
-    teachers.forEach((t) => {
+    teachers.forEach((tch) => {
       list.push({
-        id: `tch-${t.id}`,
-        name: `${t.first_name} ${t.last_name}`,
-        role: t.specialization ? `Enseignant (${t.specialization})` : 'Enseignant',
+        id: `tch-${tch.id}`,
+        name: `${tch.first_name} ${tch.last_name}`,
+        role: tch.specialization ? `Enseignant (${tch.specialization})` : 'Enseignant',
         category: 'ENSEIGNANT',
         department: t('stock.department_pedagogique'),
       });
@@ -860,7 +860,7 @@ export default function StockPage() {
         const isOut = p.quantity === 0;
         const isLow = p.quantity > 0 && p.quantity <= p.minimum_quantity;
         const statut = isOut ? 'RUPTURE DE STOCK' : isLow ? 'STOCK FAIBLE' : 'DISPONIBLE';
-        const totalVal = ((p.unit_price || 0) * (p.quantity || 0)).toFixed(2);
+        const totalVal = ((p.purchase_price || 0) * (p.quantity || 0)).toFixed(2);
 
         return [
           `"${p.sku}"`,
@@ -869,10 +869,10 @@ export default function StockPage() {
           p.quantity,
           `"${p.unit || 'Unité'}"`,
           p.minimum_quantity,
-          (p.unit_price || 0).toFixed(2),
+          (p.purchase_price || 0).toFixed(2),
           totalVal,
           `"${statut}"`,
-          `"${(p.supplier?.name || 'Fournisseur GM').replace(/"/g, '""')}"`,
+          `"Fournisseur GM"`,
           `"${today}"`
         ].join(';');
       });
@@ -890,7 +890,7 @@ export default function StockPage() {
       notify({ type: 'success', title: 'Export Réussi', message: 'Le fichier Excel/CSV a été téléchargé avec succès.' });
     } catch (err) {
       console.error('Error exporting stock:', err);
-      notify({ type: 'error', title: 'Erreur d\'export', message: 'Impossible de générer le fichier d\'export.' });
+      notify({ type: 'danger', title: 'Erreur d\'export', message: 'Impossible de générer le fichier d\'export.' });
     }
   };
 

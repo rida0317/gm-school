@@ -21,8 +21,13 @@ import {
   Layers,
   GraduationCap,
   Calendar,
-  CheckCircle2
+  CalendarDays,
+  MoreVertical,
+  CheckCircle2,
+  XCircle
 } from 'lucide-react';
+import Link from 'next/link';
+import { useI18n } from '@/lib/i18n';
 
 export interface LevelGroup {
   cycle: string;
@@ -99,9 +104,6 @@ const MOROCCAN_55MIN_PERIODS = [
   { id: 'P6', start: '14:00', end: '14:55', label: '14h00 — 14h55', tag: 'Après-midi', notOnFriday: true },
   { id: 'P7', start: '15:05', end: '16:00', label: '15h05 — 16h00', tag: 'Après-midi', notOnFriday: true },
 ];
-
-import { useI18n } from '@/lib/i18n';
-
 
 export default function TeachersPage() {
   const { t, dir } = useI18n();

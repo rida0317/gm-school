@@ -40,6 +40,9 @@ export default function StudentsPage() {
     phone: '',
     class_id: '',
     address: '',
+    status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'GRADUATED',
+    guardian_name: '',
+    guardian_phone: '',
   });
 
   const confirm = useConfirm();
@@ -84,6 +87,9 @@ export default function StudentsPage() {
       phone: '',
       class_id: classes[0]?.id || '',
       address: '',
+      status: 'ACTIVE',
+      guardian_name: '',
+      guardian_phone: '',
     });
     setShowModal(true);
   };
@@ -100,6 +106,9 @@ export default function StudentsPage() {
       phone: student.phone || '',
       class_id: student.class_id || (classes[0]?.id || ''),
       address: student.address || '',
+      status: student.status as 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'GRADUATED' || 'ACTIVE',
+      guardian_name: student.guardian_name || '',
+      guardian_phone: student.guardian_phone || '',
     });
     setShowModal(true);
   };
@@ -123,6 +132,9 @@ export default function StudentsPage() {
             phone: formData.phone.trim() || null,
             class_id: formData.class_id || null,
             address: formData.address.trim() || null,
+            status: formData.status,
+            guardian_name: formData.guardian_name.trim() || null,
+            guardian_phone: formData.guardian_phone.trim() || null,
           })
           .eq('id', editingStudent.id);
 
@@ -146,6 +158,9 @@ export default function StudentsPage() {
             phone: formData.phone.trim() || null,
             class_id: formData.class_id || null,
             address: formData.address.trim() || null,
+            status: formData.status,
+            guardian_name: formData.guardian_name.trim() || null,
+            guardian_phone: formData.guardian_phone.trim() || null,
           },
         ]);
 
@@ -396,7 +411,7 @@ export default function StudentsPage() {
                     </h3>
                     <p className="text-xs text-slate-400 truncate">
                       {editingStudent
-                          ? t('update_student_record', { firstName: editingStudent.first_name, lastName: editingStudent.last_name })
+                          ? `${t('edit_student')} - ${editingStudent.first_name} ${editingStudent.last_name}`
                           : t('register_new_student')}
                     </p>
                   </div>

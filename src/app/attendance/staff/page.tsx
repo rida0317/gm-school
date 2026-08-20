@@ -319,7 +319,7 @@ export default function StaffAttendancePage() {
       status: editingRecord.status,
       check_in_time: editingRecord.checkInTime,
       expected_time: editingRecord.expectedTime,
-      lateMinutes: editingRecord.status === 'LATE' ? Number(editingRecord.lateMinutes) || 0 : 0,
+      late_minutes: editingRecord.status === 'LATE' ? Number(editingRecord.lateMinutes) || 0 : 0,
       is_justified: editingRecord.isJustified,
       justification_reason: editingRecord.justificationReason.trim(),
       notes: editingRecord.notes.trim(),
