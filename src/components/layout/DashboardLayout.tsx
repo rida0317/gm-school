@@ -1,25 +1,61 @@
 'use client';
 
-import React, { useState } from 'react';
-import { usePathname } from 'next/navigation';
+import React, { useState, useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth';
 import { hasRouteAccess, ROLE_CONFIGS } from '@/lib/permissions';
-import { ShieldAlert, ArrowLeft, Lock } from 'lucide-react';
+import { ShieldAlert, ArrowLeft, Lock, Loader2 } from 'lucide-react';
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const { dir } = useI18n();
-  const { profile, loading, signOut } = useAuth();
+  const { user, profile, loading, signOut } = useAuth();
 
-  const isPendingApproval = !loading && profile && profile.is_active === false;
-  const currentRole = profile?.role || 'SUPER_ADMIN';
-  const roleConfig = ROLE_CONFIGS[currentRole as keyof typeof ROLE_CONFIGS] || ROLE_CONFIGS.SUPER_ADMIN;
-  const isAllowed = loading || hasRouteAccess(currentRole, pathname);
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace('/login');
+    }
+  }, [loading, user, router]);
+
+  // Loading state: Show a clean, branded loading screen while checking authentication
+  if (loading || !user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white relative overflow-hidden">
+        {/* Decorative background glow */}
+        <div className="absolute -top-40 -left-40 w-96 h-96 bg-sky-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col items-center gap-4 animate-in fade-in duration-500">
+          <div className="w-16 h-16 rounded-2xl bg-white/10 p-2.5 backdrop-blur-md border border-white/20 shadow-xl flex items-center justify-center">
+            <Image
+              src="/logo.png"
+              alt="GM School"
+              width={48}
+              height={48}
+              className="w-full h-full object-contain"
+              priority
+            />
+          </div>
+          <div className="flex items-center gap-2 text-sky-400 text-sm font-semibold">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>Vérification de session...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const isPendingApproval = profile && profile.is_active === false;
+  const currentRole = profile?.role || 'TEACHER';
+  const roleConfig = ROLE_CONFIGS[currentRole as keyof typeof ROLE_CONFIGS] || ROLE_CONFIGS.TEACHER;
+  const isAllowed = hasRouteAccess(currentRole, pathname);
 
   return (
     <div className="min-h-screen text-slate-900 dark:text-slate-100 flex flex-col antialiased print:bg-white print:text-black print:min-h-0 relative">
