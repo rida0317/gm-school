@@ -206,8 +206,8 @@ export default function DashboardPage() {
               </div>
 
               <div>
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/15 border border-sky-400/30 text-sky-300 text-xs font-semibold mb-2">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <div className="flex items-center gap-1.5 text-sky-300 text-xs font-semibold mb-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                   <span>
                     {t('academic_year')} {settings.academic_year || '2025-2026'} &bull; {settings.current_term ? `${t('term')} ${settings.current_term.replace(/[^0-9]/g, '') || '1'}` : `${t('term')} 1`} &bull; {t('synchronized_system')}
                   </span>
