@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="100%" height="100%">
+  <defs>
+    <linearGradient id="paperBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e3a8a" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+    <linearGradient id="boxPaper" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f8fafc" />
+      <stop offset="100%" stop-color="#e2e8f0" />
+    </linearGradient>
+    <linearGradient id="labelBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#0369a1" />
+    </linearGradient>
+  </defs>
+
+  <rect width="400" height="300" rx="24" fill="url(#paperBg)"/>
+
+  <!-- Paper Stack Reams -->
+  <!-- Ream 3 bottom -->
+  <polygon points="120,210 280,210 320,170 160,170" fill="#cbd5e1"/>
+  <polygon points="120,210 120,230 280,230 280,210" fill="#94a3b8"/>
+  <polygon points="280,210 320,170 320,190 280,230" fill="#64748b"/>
+
+  <!-- Ream 2 middle -->
+  <polygon points="110,180 270,180 310,140 150,140" fill="#e2e8f0"/>
+  <polygon points="110,180 110,200 270,200 270,180" fill="#cbd5e1"/>
+  <polygon points="270,180 310,140 310,160 270,200" fill="#94a3b8"/>
+
+  <!-- Ream 1 top with wrapper band -->
+  <polygon points="100,150 260,150 300,110 140,110" fill="url(#boxPaper)" stroke="#ffffff" stroke-width="1"/>
+  <polygon points="100,150 100,170 260,170 260,150" fill="#e2e8f0"/>
+  <polygon points="260,150 300,110 300,130 260,170" fill="#cbd5e1"/>
+
+  <!-- Blue Wrapper Branding Band -->
+  <polygon points="160,150 220,150 260,110 200,110" fill="url(#labelBlue)"/>
+  <polygon points="160,150 160,170 220,170 220,150" fill="#0284c7"/>
+  <text x="210" y="135" fill="#ffffff" font-size="12" font-weight="900" font-family="sans-serif" text-anchor="middle">A4 80g</text>
+
+  <!-- 500 Sheets Badge -->
+  <g transform="translate(45, 45)">
+    <rect width="130" height="34" rx="17" fill="#ffffff" fill-opacity="0.15" stroke="#38bdf8" stroke-width="1.5"/>
+    <text x="65" y="22" fill="#ffffff" font-size="11" font-weight="800" font-family="sans-serif" text-anchor="middle">📄 CARTON 5 RAMES</text>
+  </g>
+</svg>

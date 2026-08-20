@@ -1,26 +1,93 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  
+  /* GM Brand Palette */
+  --gm-cyan: #38bdf8;
+  --gm-cyan-dark: #0284c7;
+  --gm-navy: #1e3a8a;
+  --gm-navy-dark: #0f172a;
+  --gm-orange: #f97316;
+  --gm-orange-dark: #ea580c;
+  --gm-gold: #f59e0b;
+  --gm-gold-light: #fbbf24;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #090d16;
+    --foreground: #f1f5f9;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  min-height: 100vh;
+}
+
+/* Custom GM Brand Utility Gradients */
+.bg-gm-gradient {
+  background: linear-gradient(135deg, #0284c7 0%, #1e3a8a 50%, #ea580c 100%);
+}
+
+.bg-gm-cyan-blue {
+  background: linear-gradient(135deg, #38bdf8 0%, #2563eb 100%);
+}
+
+.bg-gm-orange-gold {
+  background: linear-gradient(135deg, #f97316 0%, #f59e0b 100%);
+}
+
+.text-gm-gradient {
+  background: linear-gradient(135deg, #38bdf8 0%, #3b82f6 50%, #f97316 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Glassmorphism Cards with GM Glow */
+.gm-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(56, 189, 248, 0.15);
+  box-shadow: 0 10px 30px -10px rgba(2, 132, 199, 0.08);
+}
+
+.dark .gm-card {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(56, 189, 248, 0.12);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }

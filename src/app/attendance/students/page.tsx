@@ -1,0 +1,1572 @@
+'use client';
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { useI18n } from '@/lib/i18n';
+import { createClient } from '@/lib/supabase/client';
+import {
+  Student,
+  ClassEntity,
+  AttendanceStatus,
+  StudentAttendance
+} from '@/types/database';
+import { useNotify } from '@/lib/modal-service';
+import { useSettings } from '@/lib/settings';
+import {
+  ClipboardCheck,
+  Calendar,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  XCircle,
+  Search,
+  Printer,
+  FileSpreadsheet,
+  UserCheck,
+  UserX,
+  TrendingUp,
+  Award,
+  FileText,
+  X,
+  Edit2,
+  Filter,
+  GraduationCap,
+  Layers
+} from 'lucide-react';
+
+// Format delay duration helper
+export function formatDelayDuration(minutes: number): string {
+  if (!minutes || minutes <= 0) return '0 min';
+  const hours = Math.floor(minutes / 60);
+  const remainingMins = minutes % 60;
+  if (hours > 0 && remainingMins > 0) return `${hours}h ${remainingMins}min`;
+  if (hours > 0) return `${hours}h`;
+  return `${remainingMins} min`;
+}
+
+export default function StudentAttendancePage() {
+  const { t, dir } = useI18n();
+  const { settings } = useSettings();
+  const notify = useNotify();
+
+  // Navigation Tabs
+  const [activeTab, setActiveTab] = useState<'pointage' | 'daily_report' | 'monthly_report' | 'semester_report'>('pointage');
+
+  // Filter & Search states
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7)); // YYYY-MM
+  const [selectedSemester, setSelectedSemester] = useState<'S1' | 'S2'>('S1');
+  const [selectedClassId, setSelectedClassId] = useState<string>('ALL');
+  const [selectedCycle, setSelectedCycle] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Core Data
+  const [classes, setClasses] = useState<ClassEntity[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<StudentAttendance[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Edit delay / justification modal state
+  const [editingRecord, setEditingRecord] = useState<{
+    studentId: string;
+    studentName: string;
+    className: string;
+    status: AttendanceStatus;
+    checkInTime: string;
+    expectedTime: string;
+    lateMinutes: number;
+    isJustified: boolean;
+    justificationReason: string;
+    notes: string;
+  } | null>(null);
+
+  // Load classes, students and attendance
+  useEffect(() => {
+    async function initData() {
+      setLoading(true);
+      try {
+        const supabase = createClient();
+        const [{ data: cls }, { data: studs }, { data: att }] = await Promise.all([
+          supabase.from('classes').select('*').order('name'),
+          supabase.from('students').select('*, class:classes(*)').order('last_name'),
+          supabase.from('student_attendance').select('*'),
+        ]);
+
+        if (cls) setClasses(cls);
+        if (studs) setStudents(studs);
+        if (att) setAttendanceRecords(att as StudentAttendance[]);
+      } catch (err) {
+        console.error('Error loading student attendance:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    initData();
+  }, []);
+
+  // Helper to check if a class belongs to a cycle
+  const isClassInCycle = (lvlStr: string, cycle: string) => {
+    if (cycle === 'ALL') return true;
+    const lvl = (lvlStr || '').toUpperCase();
+    if (cycle === 'MATERNELLE') {
+      return ['TPS', 'PS', 'MS', 'GS', 'MATERNELLE'].some((k) => lvl.includes(k));
+    } else if (cycle === 'PRIMAIRE') {
+      return ['CP', 'CE1', 'CE2', 'CM1', 'CM2', 'CE6', 'PRIMAIRE'].some((k) => lvl.includes(k));
+    } else if (cycle === 'COLLEGE') {
+      return ['1AC', '2AC', '3AC', 'COLLÈGE', 'COLLEGE'].some((k) => lvl.includes(k));
+    } else if (cycle === 'LYCEE') {
+      return ['TRONC', 'BAC', 'LYCÉE', 'LYCEE', 'TCS', 'TCL', '1BAC', '2BAC'].some((k) => lvl.includes(k));
+    }
+    return true;
+  };
+
+  // Filtered classes list based on selected cycle
+  const filteredClasses = useMemo(() => {
+    return classes.filter((c) => isClassInCycle(c.level || c.name, selectedCycle));
+  }, [classes, selectedCycle]);
+
+  // Filtered student list
+  const filteredStudents = useMemo(() => {
+    return students.filter((student) => {
+      // Class filter
+      const matchClass = selectedClassId === 'ALL' || student.class_id === selectedClassId;
+
+      // Cycle filter
+      const matchCycle = isClassInCycle(student.class?.level || student.class?.name || '', selectedCycle);
+
+      // Search filter
+      const matchSearch =
+        searchQuery === '' ||
+        `${student.first_name} ${student.last_name} ${student.student_code} ${student.class?.name || ''} ${student.phone || ''}`
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase());
+
+      return matchClass && matchCycle && matchSearch;
+    });
+  }, [students, selectedClassId, selectedCycle, searchQuery]);
+
+  // Map of today's records indexed by student_id
+  const dailyRecordMap = useMemo(() => {
+    const map: Record<string, StudentAttendance> = {};
+    attendanceRecords
+      .filter((r) => r.date === selectedDate)
+      .forEach((r) => {
+        map[r.student_id] = r;
+      });
+    return map;
+  }, [attendanceRecords, selectedDate]);
+
+  // Persist records
+  const persistAttendanceRecords = async (newRecords: StudentAttendance[]) => {
+    setAttendanceRecords(newRecords);
+
+    try {
+      const supabase = createClient();
+      const currentDayRecords = newRecords
+        .filter((r) => r.date === selectedDate && r.class_id)
+        .map((r) => ({
+          student_id: r.student_id,
+          class_id: r.class_id || '',
+          date: r.date,
+          status: r.status,
+          late_minutes: r.late_minutes,
+          is_justified: r.is_justified,
+          justification_reason: r.justification_reason,
+          notes: r.notes,
+          reason: r.justification_reason || r.notes || (r.late_minutes && r.late_minutes > 0 ? `Retard: ${r.late_minutes}m` : null),
+        }));
+
+      if (currentDayRecords.length > 0) {
+        await supabase.from('student_attendance').upsert(currentDayRecords, { onConflict: 'student_id,date' });
+      }
+    } catch (err) {
+      console.warn('DB sync error:', err);
+    }
+  };
+
+  // Quick 1-click update for student status
+  const handleQuickStatusChange = (student: Student, newStatus: AttendanceStatus) => {
+    const existing = dailyRecordMap[student.id];
+
+    let lateMins = 0;
+    let checkIn = '08:00';
+    if (newStatus === 'LATE') {
+      lateMins = existing?.late_minutes && existing.late_minutes > 0 ? existing.late_minutes : 15;
+      checkIn = '08:15';
+    }
+
+    const updatedRecord: StudentAttendance = {
+      id: existing?.id || `att-stud-${student.id}-${selectedDate}`,
+      student_id: student.id,
+      class_id: student.class_id || undefined,
+      date: selectedDate,
+      status: newStatus,
+      check_in_time: newStatus === 'PRESENT' ? '08:00' : newStatus === 'LATE' ? checkIn : undefined,
+      expected_time: '08:00',
+      late_minutes: lateMins,
+      is_justified: existing?.is_justified || false,
+      justification_reason: existing?.justification_reason || '',
+      notes: existing?.notes || '',
+    };
+
+    const nextRecords = [
+      ...attendanceRecords.filter((r) => !(r.student_id === student.id && r.date === selectedDate)),
+      updatedRecord,
+    ];
+
+    persistAttendanceRecords(nextRecords);
+  };
+
+  // Mark all filtered students as PRESENT
+  const handleMarkAllPresent = () => {
+    const nextRecords = [...attendanceRecords];
+
+    filteredStudents.forEach((student) => {
+      const idx = nextRecords.findIndex((r) => r.student_id === student.id && r.date === selectedDate);
+      const record: StudentAttendance = {
+        id: idx >= 0 ? nextRecords[idx].id : `att-stud-${student.id}-${selectedDate}`,
+        student_id: student.id,
+        class_id: student.class_id || undefined,
+        date: selectedDate,
+        status: 'PRESENT',
+        check_in_time: '08:00',
+        expected_time: '08:00',
+        late_minutes: 0,
+        is_justified: false,
+        justification_reason: '',
+      };
+
+      if (idx >= 0) {
+        nextRecords[idx] = record;
+      } else {
+        nextRecords.push(record);
+      }
+    });
+
+    persistAttendanceRecords(nextRecords);
+    notify({
+      title: 'Pointage Élèves Effectué',
+      message: `${filteredStudents.length} élève(s) marqués présents à l'heure pour le ${selectedDate}.`,
+      type: 'success',
+    });
+  };
+
+  // Open detailed delay / justification modal
+  const openEditModal = (student: Student) => {
+    const existing = dailyRecordMap[student.id];
+    setEditingRecord({
+      studentId: student.id,
+      studentName: `${student.first_name} ${student.last_name}`,
+      className: student.class?.name || 'Classe non assignée',
+      status: existing?.status || 'PRESENT',
+      checkInTime: existing?.check_in_time || (existing?.status === 'LATE' ? '08:20' : '08:00'),
+      expectedTime: existing?.expected_time || '08:00',
+      lateMinutes: existing?.late_minutes || (existing?.status === 'LATE' ? 20 : 0),
+      isJustified: existing?.is_justified || false,
+      justificationReason: existing?.justification_reason || '',
+      notes: existing?.notes || '',
+    });
+  };
+
+  // Save detailed record modal
+  const handleSaveModalRecord = () => {
+    if (!editingRecord) return;
+
+    const student = students.find((s) => s.id === editingRecord.studentId);
+    const updatedRecord: StudentAttendance = {
+      id: dailyRecordMap[editingRecord.studentId]?.id || `att-stud-${editingRecord.studentId}-${selectedDate}`,
+      student_id: editingRecord.studentId,
+      class_id: student?.class_id || undefined,
+      date: selectedDate,
+      status: editingRecord.status,
+      check_in_time: editingRecord.checkInTime,
+      expected_time: editingRecord.expectedTime,
+      late_minutes: editingRecord.status === 'LATE' ? Number(editingRecord.lateMinutes) || 0 : 0,
+      is_justified: editingRecord.isJustified,
+      justification_reason: editingRecord.justificationReason.trim(),
+      notes: editingRecord.notes.trim(),
+    };
+
+    const nextRecords = [
+      ...attendanceRecords.filter((r) => !(r.student_id === editingRecord.studentId && r.date === selectedDate)),
+      updatedRecord,
+    ];
+
+    persistAttendanceRecords(nextRecords);
+    setEditingRecord(null);
+
+    notify({
+      title: 'Enregistrement Mis à Jour',
+      message: `Détails de présence enregistrés pour l'élève ${editingRecord.studentName}.`,
+      type: 'success',
+    });
+  };
+
+  // --- STATS COMPUTATIONS ---
+
+  // 1. Daily Statistics
+  const dailyStats = useMemo(() => {
+    let presentCount = 0;
+    let lateCount = 0;
+    let totalLateMins = 0;
+    let lateJustifiedCount = 0;
+    let absentCount = 0;
+    let absentJustifiedCount = 0;
+    let excusedCount = 0;
+
+    filteredStudents.forEach((student) => {
+      const rec = dailyRecordMap[student.id];
+      const status = rec?.status || 'PRESENT';
+
+      if (status === 'PRESENT') {
+        presentCount++;
+      } else if (status === 'LATE') {
+        lateCount++;
+        totalLateMins += rec?.late_minutes || 0;
+        if (rec?.is_justified) lateJustifiedCount++;
+      } else if (status === 'ABSENT') {
+        absentCount++;
+        if (rec?.is_justified) absentJustifiedCount++;
+      } else if (status === 'EXCUSED') {
+        excusedCount++;
+        absentJustifiedCount++;
+      }
+    });
+
+    const totalStudents = filteredStudents.length;
+    const rate = totalStudents > 0 ? Math.round(((presentCount + lateCount) / totalStudents) * 100) : 100;
+
+    return {
+      totalStudents,
+      presentCount,
+      lateCount,
+      totalLateMins,
+      totalLateFormatted: formatDelayDuration(totalLateMins),
+      lateJustifiedCount,
+      lateUnjustifiedCount: lateCount - lateJustifiedCount,
+      absentCount,
+      absentJustifiedCount,
+      absentUnjustifiedCount: absentCount - (absentJustifiedCount - excusedCount),
+      rate,
+    };
+  }, [filteredStudents, dailyRecordMap]);
+
+  // 2. Monthly Summary per Student
+  const monthlyStudentSummary = useMemo(() => {
+    const monthRecords = attendanceRecords.filter((r) => r.date.startsWith(selectedMonth));
+
+    return filteredStudents.map((student) => {
+      const studentMonthRecs = monthRecords.filter((r) => r.student_id === student.id);
+
+      let presentDays = 0;
+      let lateCount = 0;
+      let totalLateMins = 0;
+      let lateJustified = 0;
+      let absentDays = 0;
+      let absentJustified = 0;
+
+      studentMonthRecs.forEach((r) => {
+        if (r.status === 'PRESENT') presentDays++;
+        if (r.status === 'LATE') {
+          lateCount++;
+          totalLateMins += r.late_minutes || 0;
+          if (r.is_justified) lateJustified++;
+        }
+        if (r.status === 'ABSENT') {
+          absentDays++;
+          if (r.is_justified) absentJustified++;
+        }
+        if (r.status === 'EXCUSED') {
+          absentDays++;
+          absentJustified++;
+        }
+      });
+
+      const totalRecordedDays = presentDays + lateCount + absentDays;
+      const assiduityRate = totalRecordedDays > 0 ? Math.round(((presentDays + lateCount) / totalRecordedDays) * 100) : 100;
+
+      return {
+        student,
+        totalRecordedDays,
+        presentDays,
+        lateCount,
+        totalLateMins,
+        totalLateFormatted: formatDelayDuration(totalLateMins),
+        lateJustified,
+        lateUnjustified: lateCount - lateJustified,
+        absentDays,
+        absentJustified,
+        absentUnjustified: absentDays - absentJustified,
+        assiduityRate,
+      };
+    });
+  }, [filteredStudents, attendanceRecords, selectedMonth]);
+
+  // 3. Semester Summary per Student
+  const semesterStudentSummary = useMemo(() => {
+    const semesterMonths =
+      selectedSemester === 'S1'
+        ? ['-09-', '-10-', '-11-', '-12-', '-01-']
+        : ['-02-', '-03-', '-04-', '-05-', '-06-'];
+
+    const semesterRecords = attendanceRecords.filter((r) =>
+      semesterMonths.some((m) => r.date.includes(m))
+    );
+
+    return filteredStudents.map((student) => {
+      const studentRecs = semesterRecords.filter((r) => r.student_id === student.id);
+
+      let presentDays = 0;
+      let lateCount = 0;
+      let totalLateMins = 0;
+      let lateJustified = 0;
+      let absentDays = 0;
+      let absentJustified = 0;
+
+      studentRecs.forEach((r) => {
+        if (r.status === 'PRESENT') presentDays++;
+        if (r.status === 'LATE') {
+          lateCount++;
+          totalLateMins += r.late_minutes || 0;
+          if (r.is_justified) lateJustified++;
+        }
+        if (r.status === 'ABSENT') {
+          absentDays++;
+          if (r.is_justified) absentJustified++;
+        }
+        if (r.status === 'EXCUSED') {
+          absentDays++;
+          absentJustified++;
+        }
+      });
+
+      const totalRecordedDays = presentDays + lateCount + absentDays;
+      const assiduityRate = totalRecordedDays > 0 ? Math.round(((presentDays + lateCount) / totalRecordedDays) * 100) : 100;
+
+      return {
+        student,
+        totalRecordedDays,
+        presentDays,
+        lateCount,
+        totalLateMins,
+        totalLateFormatted: formatDelayDuration(totalLateMins),
+        lateJustified,
+        lateUnjustified: lateCount - lateJustified,
+        absentDays,
+        absentJustified,
+        absentUnjustified: absentDays - absentJustified,
+        assiduityRate,
+      };
+    });
+  }, [filteredStudents, attendanceRecords, selectedSemester]);
+
+  // Export Daily CSV
+  const handleExportDailyCSV = () => {
+    const headers = ['Matricule', 'Nom', 'Prenom', 'Classe', 'Statut', 'Heure Arrivee', 'Retard (Minutes)', 'Duree Retard', 'Justifie', 'Motif Justification', 'Contact Parent'];
+    const rows = filteredStudents.map((student) => {
+      const rec = dailyRecordMap[student.id];
+      const status = rec?.status || 'PRESENT';
+      return [
+        `"${student.student_code}"`,
+        `"${student.last_name}"`,
+        `"${student.first_name}"`,
+        `"${student.class?.name || 'Non assigné'}"`,
+        `"${status}"`,
+        `"${rec?.check_in_time || '08:00'}"`,
+        `"${rec?.late_minutes || 0}"`,
+        `"${formatDelayDuration(rec?.late_minutes || 0)}"`,
+        `"${rec?.is_justified ? 'OUI' : 'NON'}"`,
+        `"${rec?.justification_reason || ''}"`,
+        `"${student.phone || ''}"`,
+      ];
+    });
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `Pointage_Eleves_${selectedDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    notify({
+      title: 'Export Réussi',
+      message: `Pointage élèves du ${selectedDate} téléchargé en CSV.`,
+      type: 'success',
+    });
+  };
+
+  // Export Monthly CSV
+  const handleExportMonthlyCSV = () => {
+    const headers = ['Matricule', 'Nom Complet', 'Classe', 'Jours Presents', 'Total Retards (Nombre)', 'Duree Totale Retards', 'Retards Justifies', 'Retards Injustifies', 'Absences Totales (Jours)', 'Absences Justifiees', 'Absences Injustifiees', 'Taux Assiduite'];
+    const rows = monthlyStudentSummary.map((item) => [
+      `"${item.student.student_code}"`,
+      `"${item.student.first_name} ${item.student.last_name}"`,
+      `"${item.student.class?.name || 'Non assigné'}"`,
+      `"${item.presentDays}"`,
+      `"${item.lateCount}"`,
+      `"${item.totalLateFormatted}"`,
+      `"${item.lateJustified}"`,
+      `"${item.lateUnjustified}"`,
+      `"${item.absentDays}"`,
+      `"${item.absentJustified}"`,
+      `"${item.absentUnjustified}"`,
+      `"${item.assiduityRate}%"`,
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `Rapport_Assiduite_Eleves_${selectedMonth}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    notify({
+      title: 'Export Mensuel Réussi',
+      message: `Rapport mensuel élèves ${selectedMonth} téléchargé.`,
+      type: 'success',
+    });
+  };
+
+  return (
+    <DashboardLayout>
+      {/* Official Print Stylesheet */}
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: A4 landscape !important;
+            margin: 10mm !important;
+          }
+          body, html {
+            background: #ffffff !important;
+            color: #000000 !important;
+          }
+          header, aside, nav, .print\\:hidden {
+            display: none !important;
+          }
+          .print-student-attendance-sheet {
+            display: block !important;
+            width: 100% !important;
+          }
+        }
+      `}</style>
+
+      <div className="space-y-6">
+        {/* Printable Official Header */}
+        <div className="hidden print:flex print:items-center print:justify-between print:pb-4 print:mb-4 print:border-b-2 print:border-slate-900">
+          <div className="flex items-center gap-3.5">
+            <img
+              src="/logo.png"
+              alt="Logo GM"
+              className="w-14 h-14 object-contain shrink-0"
+            />
+            <div>
+              <h1 className="text-base font-black uppercase text-slate-900 leading-tight">
+                GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES
+              </h1>
+              <p className="text-[10px] text-slate-700 font-bold">
+                Registre Officiel de Présence, Pointage &amp; Assiduité des Élèves
+              </p>
+              <p className="text-[9px] text-slate-500 font-semibold">
+                Année Scolaire 2025-2026 &bull; Direction Pédagogique
+              </p>
+            </div>
+          </div>
+          <div className="text-right border-2 border-slate-900 px-3 py-1.5 rounded-lg bg-slate-50">
+            <div className="font-black text-xs">POINTAGE ÉLÈVES</div>
+            <div className="text-[9pt] font-bold">Date : {new Date().toLocaleDateString('fr-FR')}</div>
+          </div>
+        </div>
+
+        {/* Top Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+              <ClipboardCheck className="w-4 h-4 shrink-0" />
+              <span>{t('student_attendance')}</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white truncate">
+              {t('student_attendance_page_title')}
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              {dir === 'rtl' ? 'تتبع حضور التلاميذ حسب الأقسام، وحساب دقيق للتأخرات ومبررات الغياب.' : "Suivi des présences par classe, calcul précis des retards (H/Min), justificatifs et bilans périodiques."}
+            </p>
+          </div>
+
+          {/* Quick Actions & Exports (Side by Side in flex-nowrap) */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => window.print()}
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs shadow-xs hover:bg-slate-50 dark:hover:bg-slate-700 transition-all cursor-pointer whitespace-nowrap"
+            >
+              <Printer className="w-4 h-4 text-blue-500 shrink-0" />
+              <span>{dir === 'rtl' ? 'طباعة / PDF' : 'Imprimer / PDF'}</span>
+            </button>
+
+            {activeTab === 'pointage' || activeTab === 'daily_report' ? (
+              <button
+                onClick={handleExportDailyCSV}
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-300 font-bold text-xs hover:bg-emerald-100 transition-all cursor-pointer whitespace-nowrap"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{dir === 'rtl' ? 'تصدير CSV اليوم' : 'Exporter CSV Jour'}</span>
+              </button>
+            ) : (
+              <button
+                onClick={handleExportMonthlyCSV}
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-300 font-bold text-xs hover:bg-emerald-100 transition-all cursor-pointer whitespace-nowrap"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{dir === 'rtl' ? 'تصدير CSV الفترة' : 'Exporter CSV Période'}</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* View Tabs */}
+        <div className="flex bg-white dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs print:hidden">
+          <button
+            onClick={() => setActiveTab('pointage')}
+            className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              activeTab === 'pointage'
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Clock className="w-4 h-4" />
+            <span>{dir === 'rtl' ? '1. تسجيل الحضور اليومي' : '1. Pointage Quotidien'}</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('daily_report')}
+            className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              activeTab === 'daily_report'
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            <span>{dir === 'rtl' ? '2. التقرير اليومي' : '2. Rapport Journalier'}</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('monthly_report')}
+            className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              activeTab === 'monthly_report'
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Calendar className="w-4 h-4" />
+            <span>{dir === 'rtl' ? '3. التقرير الشهري' : '3. Rapport Mensuel'}</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('semester_report')}
+            className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              activeTab === 'semester_report'
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <TrendingUp className="w-4 h-4" />
+            <span>4. Rapport Semestriel</span>
+          </button>
+        </div>
+
+        {/* Global KPI Summary Bar */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 print:hidden">
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex items-center gap-3.5">
+            <div className="p-2.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+              <UserCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-2xl font-black text-slate-900 dark:text-white">
+                {dailyStats.presentCount} <span className="text-xs text-slate-400 font-semibold">/ {dailyStats.totalStudents}</span>
+              </div>
+              <div className="text-xs font-bold text-slate-500 dark:text-slate-400">Présents à l&apos;heure ({dailyStats.rate}%)</div>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex items-center gap-3.5">
+            <div className="p-2.5 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-2xl font-black text-amber-600 dark:text-amber-400">
+                {dailyStats.lateCount} <span className="text-xs text-slate-400 font-semibold font-mono">({dailyStats.totalLateFormatted})</span>
+              </div>
+              <div className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                Retards ({dailyStats.lateJustifiedCount} justifié{dailyStats.lateJustifiedCount > 1 ? 's' : ''})
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex items-center gap-3.5">
+            <div className="p-2.5 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400">
+              <UserX className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-2xl font-black text-rose-600 dark:text-rose-400">
+                {dailyStats.absentCount}
+              </div>
+              <div className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                Absences ({dailyStats.absentJustifiedCount} justifiée{dailyStats.absentJustifiedCount > 1 ? 's' : ''})
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex items-center gap-3.5">
+            <div className="p-2.5 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400">
+              <Award className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-2xl font-black text-purple-600 dark:text-purple-400">
+                {dailyStats.lateJustifiedCount + dailyStats.absentJustifiedCount}
+              </div>
+              <div className="text-xs font-bold text-slate-500 dark:text-slate-400">Total Justifiés (Motif validé)</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Filter & Selector Ribbon: Continuous Single Row with Responsive Scaling */}
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm print:hidden">
+          <div className="flex flex-wrap items-center gap-2.5 w-full">
+            {/* Cycle Selector */}
+            <div className="flex items-center gap-1.5 flex-1 min-w-[140px]">
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-400 whitespace-nowrap flex items-center gap-1 shrink-0">
+                <Layers className="w-3.5 h-3.5 text-blue-500" />
+                <span>Cycle :</span>
+              </label>
+              <select
+                value={selectedCycle}
+                onChange={(e) => {
+                  const newCycle = e.target.value;
+                  setSelectedCycle(newCycle);
+                  if (selectedClassId !== 'ALL') {
+                    const currentCls = classes.find((c) => c.id === selectedClassId);
+                    if (currentCls && !isClassInCycle(currentCls.level || currentCls.name, newCycle)) {
+                      setSelectedClassId('ALL');
+                    }
+                  }
+                }}
+                className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs truncate"
+              >
+                <option value="ALL">Tous les Cycles</option>
+                <option value="MATERNELLE">🧸 Maternelle</option>
+                <option value="PRIMAIRE">📚 Primaire</option>
+                <option value="COLLEGE">📐 Collège</option>
+                <option value="LYCEE">🎓 Lycée</option>
+              </select>
+            </div>
+
+            {/* Class Selector (Filtered dynamically by cycle) */}
+            <div className="flex items-center gap-1.5 flex-1 min-w-[150px]">
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-400 whitespace-nowrap flex items-center gap-1 shrink-0">
+                <GraduationCap className="w-3.5 h-3.5 text-blue-500" />
+                <span>Classe :</span>
+              </label>
+              <select
+                value={selectedClassId}
+                onChange={(e) => setSelectedClassId(e.target.value)}
+                className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs truncate"
+              >
+                <option value="ALL">
+                  {selectedCycle === 'ALL' ? 'Toutes les classes' : `Toutes les classes du cycle (${filteredClasses.length})`}
+                </option>
+                {filteredClasses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.level})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Date / Month / Semester Selector */}
+            {activeTab === 'pointage' || activeTab === 'daily_report' ? (
+              <div className="flex items-center gap-1.5 flex-1 min-w-[130px]">
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs"
+                />
+              </div>
+            ) : activeTab === 'monthly_report' ? (
+              <div className="flex items-center gap-1.5 flex-1 min-w-[130px]">
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 whitespace-nowrap">Mois :</label>
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs"
+                />
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 flex-1 min-w-[150px]">
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 whitespace-nowrap">Semestre :</label>
+                <select
+                  value={selectedSemester}
+                  onChange={(e) => setSelectedSemester(e.target.value as 'S1' | 'S2')}
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white cursor-pointer shadow-xs truncate"
+                >
+                  <option value="S1">Semestre 1 (Sept - Janv)</option>
+                  <option value="S2">Semestre 2 (Févr - Juin)</option>
+                </select>
+              </div>
+            )}
+
+            {/* Quick Action: Mark all present */}
+            {activeTab === 'pointage' && (
+              <button
+                type="button"
+                onClick={handleMarkAllPresent}
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer whitespace-nowrap shrink-0"
+              >
+                Tout pointer Présent
+              </button>
+            )}
+
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[140px]">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Rechercher élève..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* ------------------------------------------------------------- */}
+        {/* TAB 1: POINTAGE QUOTIDIEN ÉLÈVES (Fixed Responsive Grid)     */}
+        {/* ------------------------------------------------------------- */}
+        {activeTab === 'pointage' && (
+          <div className="space-y-3 animate-in fade-in duration-300 print:hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs table-fixed min-w-[760px]">
+                  <colgroup>
+                    <col className="w-[11%]" />
+                    <col className="w-[24%]" />
+                    <col className="w-[20%]" />
+                    <col className="w-[27%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[8%]" />
+                  </colgroup>
+                  <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-bold uppercase tracking-wider">
+                    <tr>
+                      <th className="py-3 px-3">Matricule</th>
+                      <th className="py-3 px-3">Élève</th>
+                      <th className="py-3 px-3">Classe &amp; Niveau</th>
+                      <th className="py-3 px-3 text-center">Pointage &amp; Statut</th>
+                      <th className="py-3 px-3 text-center">Retard</th>
+                      <th className="py-3 px-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                    {filteredStudents.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-12 text-center text-slate-400 font-semibold">
+                          Aucun élève trouvé pour cette sélection.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredStudents.map((student) => {
+                        const rec = dailyRecordMap[student.id];
+                        const status = rec?.status || 'PRESENT';
+                        const lateMins = rec?.late_minutes || 0;
+                        const isJustified = rec?.is_justified || false;
+
+                        return (
+                          <tr key={student.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
+                            {/* Matricule */}
+                            <td className="py-2.5 px-3 font-mono font-bold text-slate-500 dark:text-slate-400 truncate">
+                              {student.student_code}
+                            </td>
+
+                            {/* Élève */}
+                            <td className="py-2.5 px-3 overflow-hidden">
+                              <div className="font-bold text-slate-900 dark:text-white text-xs truncate" title={`${student.first_name} ${student.last_name}`}>
+                                {student.first_name} {student.last_name}
+                              </div>
+                              <div className="text-[10px] text-slate-400 truncate font-normal">
+                                {student.phone || student.email || 'Élève inscrit'}
+                              </div>
+                            </td>
+
+                            {/* Classe & Niveau Badge */}
+                            <td className="py-2.5 px-3 overflow-hidden">
+                              <span
+                                className="inline-block max-w-full truncate px-2 py-0.5 rounded-lg text-[10px] font-bold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 align-middle"
+                                title={`${student.class?.name || 'Non assigné'} (${student.class?.level || '-'})`}
+                              >
+                                {student.class?.name || 'Non assigné'} &bull; {student.class?.level || '-'}
+                              </span>
+                            </td>
+
+                            {/* Status Pill Box (Responsive Grid 4 columns) */}
+                            <td className="py-2.5 px-3 text-center">
+                              <div className="inline-grid grid-cols-4 gap-0.5 p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 w-full max-w-[250px]">
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickStatusChange(student, 'PRESENT')}
+                                  className={`px-1 py-1 rounded-lg text-[10px] font-bold truncate transition-all cursor-pointer ${
+                                    status === 'PRESENT'
+                                      ? 'bg-emerald-500 text-white shadow-xs'
+                                      : 'text-slate-600 dark:text-slate-400 hover:text-emerald-600'
+                                  }`}
+                                >
+                                  Présent
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickStatusChange(student, 'LATE')}
+                                  className={`px-1 py-1 rounded-lg text-[10px] font-bold truncate transition-all cursor-pointer ${
+                                    status === 'LATE'
+                                      ? 'bg-amber-500 text-white shadow-xs'
+                                      : 'text-slate-600 dark:text-slate-400 hover:text-amber-600'
+                                  }`}
+                                >
+                                  Retard
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickStatusChange(student, 'ABSENT')}
+                                  className={`px-1 py-1 rounded-lg text-[10px] font-bold truncate transition-all cursor-pointer ${
+                                    status === 'ABSENT'
+                                      ? 'bg-rose-500 text-white shadow-xs'
+                                      : 'text-slate-600 dark:text-slate-400 hover:text-rose-600'
+                                  }`}
+                                >
+                                  Absent
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickStatusChange(student, 'EXCUSED')}
+                                  className={`px-1 py-1 rounded-lg text-[10px] font-bold truncate transition-all cursor-pointer ${
+                                    status === 'EXCUSED'
+                                      ? 'bg-purple-500 text-white shadow-xs'
+                                      : 'text-slate-600 dark:text-slate-400 hover:text-purple-600'
+                                  }`}
+                                >
+                                  Justifié
+                                </button>
+                              </div>
+                            </td>
+
+                            {/* Delay Duration */}
+                            <td className="py-2.5 px-3 text-center overflow-hidden">
+                              {status === 'LATE' ? (
+                                <span className="inline-block max-w-full truncate px-1.5 py-0.5 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-mono text-[10px] font-bold">
+                                  {formatDelayDuration(lateMins)}
+                                </span>
+                              ) : status === 'EXCUSED' || isJustified ? (
+                                <span className="inline-block max-w-full truncate px-1.5 py-0.5 rounded-lg bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 text-[10px] font-bold">
+                                  Justifié
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 font-mono text-[11px]">0 min</span>
+                              )}
+                            </td>
+
+                            {/* Edit Action Button */}
+                            <td className="py-2.5 px-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => openEditModal(student)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold transition-colors cursor-pointer"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                                <span>Éditer</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* TAB 2: RAPPORT JOURNALIER (Daily Detailed Report)            */}
+        {/* ------------------------------------------------------------- */}
+        {activeTab === 'daily_report' && (
+          <div className="space-y-4 animate-in fade-in duration-300 print:hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                    Rapport Quotidien du Pointage des Élèves &bull; {selectedDate}
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Bilan d&apos;assiduité journalier, liste des élèves en retard et motifs d&apos;absence.
+                  </p>
+                </div>
+
+                <div className="text-right">
+                  <div className="text-xs font-bold text-slate-400 uppercase">Taux de Présence Globale</div>
+                  <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{dailyStats.rate}%</div>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs table-fixed min-w-[760px]">
+                  <colgroup>
+                    <col className="w-[20%]" />
+                    <col className="w-[18%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[12%]" />
+                  </colgroup>
+                  <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 font-bold uppercase">
+                    <tr>
+                      <th className="p-3">Élève</th>
+                      <th className="p-3">Classe</th>
+                      <th className="p-3">Arrivée</th>
+                      <th className="p-3">Statut</th>
+                      <th className="p-3">Retard Constaté</th>
+                      <th className="p-3">Justification</th>
+                      <th className="p-3">Motif</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {filteredStudents.map((student) => {
+                      const rec = dailyRecordMap[student.id];
+                      const status = rec?.status || 'PRESENT';
+                      const lateMins = rec?.late_minutes || 0;
+
+                      return (
+                        <tr key={student.id} className="hover:bg-slate-50/50">
+                          <td className="p-3 font-bold text-slate-900 dark:text-white truncate" title={`${student.first_name} ${student.last_name}`}>
+                            {student.first_name} {student.last_name}
+                          </td>
+                          <td className="p-3 text-slate-500 truncate" title={student.class?.name || 'Non assigné'}>
+                            {student.class?.name || 'Non assigné'}
+                          </td>
+                          <td className="p-3 font-mono">{rec?.check_in_time || '08:00'}</td>
+                          <td className="p-3">
+                            <span
+                              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold ${
+                                status === 'PRESENT'
+                                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                  : status === 'LATE'
+                                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+                                  : status === 'ABSENT'
+                                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                                  : 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
+                              }`}
+                            >
+                              {status}
+                            </span>
+                          </td>
+                          <td className="p-3 font-mono font-bold text-amber-600 dark:text-amber-400">
+                            {status === 'LATE' ? formatDelayDuration(lateMins) : <span className="text-slate-400 font-normal">0 min</span>}
+                          </td>
+                          <td className="p-3">
+                            {rec?.is_justified || status === 'EXCUSED' ? (
+                              <span className="text-emerald-600 font-bold">Oui</span>
+                            ) : status === 'LATE' || status === 'ABSENT' ? (
+                              <span className="text-rose-500 font-bold">Non</span>
+                            ) : (
+                              <span className="text-slate-400 font-normal">Non concerné</span>
+                            )}
+                          </td>
+                          <td className="p-3 text-slate-600 dark:text-slate-400 truncate" title={rec?.justification_reason || rec?.notes || ''}>
+                            {rec?.justification_reason || rec?.notes || <span className="text-slate-400">Aucun</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* TAB 3: RAPPORT MENSUEL (Monthly Consolidated Report)         */}
+        {/* ------------------------------------------------------------- */}
+        {activeTab === 'monthly_report' && (
+          <div className="space-y-4 animate-in fade-in duration-300 print:hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                    Bilan Mensuel d&apos;Assiduité des Élèves &bull; {selectedMonth}
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Total cumulé des retards en heures et minutes, décompte des absences justifiées vs non justifiées.
+                  </p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs table-fixed min-w-[760px]">
+                  <colgroup>
+                    <col className="w-[18%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[12%]" />
+                  </colgroup>
+                  <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 font-bold uppercase">
+                    <tr>
+                      <th className="p-3">Élève</th>
+                      <th className="p-3">Classe</th>
+                      <th className="p-3 text-center">Présence</th>
+                      <th className="p-3 text-center">Retards</th>
+                      <th className="p-3 text-center font-bold">Cumul H/Min</th>
+                      <th className="p-3 text-center">Injustifiés</th>
+                      <th className="p-3 text-center">Absences</th>
+                      <th className="p-3 text-right">Taux Assiduité</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                    {monthlyStudentSummary.map((item) => (
+                      <tr key={item.student.id} className="hover:bg-slate-50/50">
+                        <td className="p-3 font-bold text-slate-900 dark:text-white truncate" title={`${item.student.first_name} ${item.student.last_name}`}>
+                          {item.student.first_name} {item.student.last_name}
+                        </td>
+                        <td className="p-3 text-slate-500 truncate" title={item.student.class?.name || 'Non assigné'}>
+                          {item.student.class?.name || 'Non assigné'}
+                        </td>
+                        <td className="p-3 text-center font-bold text-emerald-600">{item.presentDays} j</td>
+                        <td className="p-3 text-center">{item.lateCount}</td>
+                        <td className="p-3 text-center font-mono font-bold">
+                          {item.totalLateMins > 0 ? (
+                            <span className="text-amber-600 dark:text-amber-400">{item.totalLateFormatted}</span>
+                          ) : (
+                            <span className="text-slate-400 font-normal">0 min</span>
+                          )}
+                        </td>
+                        <td className="p-3 text-center">
+                          {item.lateUnjustified > 0 ? (
+                            <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-bold text-[10px]">
+                              {item.lateUnjustified}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">0</span>
+                          )}
+                        </td>
+                        <td className="p-3 text-center font-bold text-rose-600">{item.absentDays} j</td>
+                        <td className="p-3 text-right font-black text-xs">
+                          <span
+                            className={
+                              item.assiduityRate >= 95
+                                ? 'text-emerald-600'
+                                : item.assiduityRate >= 85
+                                ? 'text-amber-600'
+                                : 'text-rose-600'
+                            }
+                          >
+                            {item.assiduityRate}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* TAB 4: RAPPORT SEMESTRIEL (Semester Report & KPI)             */}
+        {/* ------------------------------------------------------------- */}
+        {activeTab === 'semester_report' && (
+          <div className="space-y-4 animate-in fade-in duration-300 print:hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                    Bilan Semestriel Consolidé des Élèves &bull; {selectedSemester === 'S1' ? 'Semestre 1 (S1)' : 'Semestre 2 (S2)'}
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Analyse semestrielle de l&apos;assiduité scolaire, heures de retard cumulées, volume des absences.
+                  </p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs table-fixed min-w-[760px]">
+                  <colgroup>
+                    <col className="w-[18%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[12%]" />
+                  </colgroup>
+                  <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 font-bold uppercase">
+                    <tr>
+                      <th className="p-3">Élève</th>
+                      <th className="p-3">Classe</th>
+                      <th className="p-3 text-center">Présence</th>
+                      <th className="p-3 text-center">Retards</th>
+                      <th className="p-3 text-center font-bold">Cumul H/Min</th>
+                      <th className="p-3 text-center">Injustifiés</th>
+                      <th className="p-3 text-center">Absences</th>
+                      <th className="p-3 text-right">Taux Semestriel</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                    {semesterStudentSummary.map((item) => (
+                      <tr key={item.student.id} className="hover:bg-slate-50/50">
+                        <td className="p-3 font-bold text-slate-900 dark:text-white truncate" title={`${item.student.first_name} ${item.student.last_name}`}>
+                          {item.student.first_name} {item.student.last_name}
+                        </td>
+                        <td className="p-3 text-slate-500 truncate" title={item.student.class?.name || 'Non assigné'}>
+                          {item.student.class?.name || 'Non assigné'}
+                        </td>
+                        <td className="p-3 text-center font-bold text-emerald-600">{item.presentDays} j</td>
+                        <td className="p-3 text-center">{item.lateCount}</td>
+                        <td className="p-3 text-center font-mono font-bold">
+                          {item.totalLateMins > 0 ? (
+                            <span className="text-amber-600 dark:text-amber-400">{item.totalLateFormatted}</span>
+                          ) : (
+                            <span className="text-slate-400 font-normal">0 min</span>
+                          )}
+                        </td>
+                        <td className="p-3 text-center">
+                          {item.lateUnjustified > 0 ? (
+                            <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-bold text-[10px]">
+                              {item.lateUnjustified}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">0</span>
+                          )}
+                        </td>
+                        <td className="p-3 text-center font-bold text-rose-600">{item.absentDays} j</td>
+                        <td className="p-3 text-right font-black text-xs">
+                          <span
+                            className={
+                              item.assiduityRate >= 95
+                                ? 'text-emerald-600'
+                                : item.assiduityRate >= 85
+                                ? 'text-amber-600'
+                                : 'text-rose-600'
+                            }
+                          >
+                            {item.assiduityRate}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* PRINTABLE OFFICIAL REPORT SHEET                                */}
+        {/* ------------------------------------------------------------- */}
+        <div className="hidden print:block print-student-attendance-sheet">
+          <div className="border-b-2 border-slate-900 pb-3 mb-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-base font-black uppercase text-slate-900">
+                  {settings.school_name || 'GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES'}
+                </h1>
+                <p className="text-[10pt] font-bold text-slate-700 mt-0.5">
+                  FEUILLE OFFICIELLE D&apos;APPEL ET D&apos;ASSIDUITÉ DES ÉLÈVES
+                </p>
+                <p className="text-[8pt] text-slate-600">
+                  Année Scolaire : {settings.academic_year || '2025-2026'} &bull; Établissement Privé
+                </p>
+              </div>
+
+              <div className="text-right border border-slate-400 p-2 rounded">
+                <div className="text-[9pt] font-black">Date : {selectedDate}</div>
+                <div className="text-[8pt] text-slate-700">Taux de présence : {dailyStats.rate}%</div>
+                <div className="text-[7.5pt] text-slate-500">Retards cumulés : {dailyStats.totalLateFormatted}</div>
+              </div>
+            </div>
+          </div>
+
+          <table className="w-full text-left border-collapse text-[8pt] mb-6">
+            <thead>
+              <tr className="bg-slate-100 border border-slate-400 font-bold">
+                <th className="p-2 border border-slate-400">Matricule</th>
+                <th className="p-2 border border-slate-400">Nom &amp; Prénom Élève</th>
+                <th className="p-2 border border-slate-400">Classe</th>
+                <th className="p-2 border border-slate-400 text-center">Arrivée</th>
+                <th className="p-2 border border-slate-400 text-center">Statut</th>
+                <th className="p-2 border border-slate-400 text-center">Retard (H/Min)</th>
+                <th className="p-2 border border-slate-400 text-center">Justifié</th>
+                <th className="p-2 border border-slate-400">Motif / Justification</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredStudents.map((student, idx) => {
+                const rec = dailyRecordMap[student.id];
+                const status = rec?.status || 'PRESENT';
+                const lateMins = rec?.late_minutes || 0;
+
+                return (
+                  <tr key={idx} className="border border-slate-400">
+                    <td className="p-2 border border-slate-400 font-mono font-bold">{student.student_code}</td>
+                    <td className="p-2 border border-slate-400 font-bold">
+                      {student.last_name.toUpperCase()} {student.first_name}
+                    </td>
+                    <td className="p-2 border border-slate-400">{student.class?.name || '-'}</td>
+                    <td className="p-2 border border-slate-400 text-center font-mono">{rec?.check_in_time || '08:00'}</td>
+                    <td className="p-2 border border-slate-400 text-center font-bold">{status}</td>
+                    <td className="p-2 border border-slate-400 text-center font-mono font-bold">
+                      {status === 'LATE' ? formatDelayDuration(lateMins) : '-'}
+                    </td>
+                    <td className="p-2 border border-slate-400 text-center font-bold">
+                      {rec?.is_justified || status === 'EXCUSED' ? 'OUI' : status === 'LATE' || status === 'ABSENT' ? 'NON' : '-'}
+                    </td>
+                    <td className="p-2 border border-slate-400">{rec?.justification_reason || rec?.notes || '-'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          <div className="flex justify-between items-center text-[8pt] pt-6 border-t border-slate-300 mt-6">
+            <div>
+              <p className="font-bold">Visa du Responsable Pédagogique / Direction</p>
+              <div className="h-14"></div>
+            </div>
+            <div className="text-right">
+              <p className="font-bold">Signature du Surveillant Général / Vie Scolaire</p>
+              <div className="h-14"></div>
+            </div>
+          </div>
+        </div>
+
+        {/* ------------------------------------------------------------- */}
+        {/* MODAL: EDIT RETARD / JUSTIFICATION ÉLÈVE                     */}
+        {/* ------------------------------------------------------------- */}
+        {editingRecord && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in print:hidden">
+            <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                  <div className="p-2 rounded-xl bg-blue-500/15">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      Édition de Présence &amp; Justification Élève
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      {editingRecord.studentName} &bull; {editingRecord.className} &bull; {selectedDate}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setEditingRecord(null)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3.5">
+                {/* Status selector */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Statut de Présence de l&apos;Élève
+                  </label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {(['PRESENT', 'LATE', 'ABSENT', 'EXCUSED'] as AttendanceStatus[]).map((st) => (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => setEditingRecord({ ...editingRecord, status: st })}
+                        className={`py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                          editingRecord.status === st
+                            ? st === 'PRESENT'
+                              ? 'bg-emerald-500 text-white border-emerald-500 shadow-xs'
+                              : st === 'LATE'
+                              ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
+                              : st === 'ABSENT'
+                              ? 'bg-rose-500 text-white border-rose-500 shadow-xs'
+                              : 'bg-purple-500 text-white border-purple-500 shadow-xs'
+                            : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        {st}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Delay configuration if LATE */}
+                {editingRecord.status === 'LATE' && (
+                  <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 space-y-3">
+                    <div className="text-xs font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                      <Clock className="w-4 h-4" />
+                      <span>Calcul Précis du Retard de l&apos;Élève (Heures &amp; Minutes)</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                          Heure d&apos;Arrivée Réelle
+                        </label>
+                        <input
+                          type="time"
+                          value={editingRecord.checkInTime}
+                          onChange={(e) => {
+                            const newTime = e.target.value;
+                            const [h, m] = newTime.split(':').map(Number);
+                            const diffMins = Math.max(0, (h - 8) * 60 + m);
+                            setEditingRecord({
+                              ...editingRecord,
+                              checkInTime: newTime,
+                              lateMinutes: diffMins,
+                            });
+                          }}
+                          className="w-full px-3 py-2 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                          Durée Retard (en minutes)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="480"
+                          value={editingRecord.lateMinutes}
+                          onChange={(e) =>
+                            setEditingRecord({
+                              ...editingRecord,
+                              lateMinutes: Number(e.target.value) || 0,
+                            })
+                          }
+                          className="w-full px-3 py-2 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="text-xs font-bold text-amber-700 dark:text-amber-300">
+                      Durée convertie :{' '}
+                      <span className="font-black underline font-mono">
+                        {formatDelayDuration(editingRecord.lateMinutes)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Justification toggle */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        Justification du Retard / de l&apos;Absence
+                      </div>
+                      <div className="text-[11px] text-slate-400">
+                        Billet d&apos;entrée ou certificat médical fourni par les parents
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditingRecord({
+                          ...editingRecord,
+                          isJustified: !editingRecord.isJustified,
+                        })
+                      }
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        editingRecord.isJustified
+                          ? 'bg-emerald-500 text-white shadow-xs'
+                          : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                      }`}
+                    >
+                      {editingRecord.isJustified ? '✅ Justifié' : '❌ Non Justifié'}
+                    </button>
+                  </div>
+
+                  {editingRecord.isJustified && (
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Motif de Justification
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ex: Certificat médical, Motif familial exceptionnel, Panne de bus..."
+                        value={editingRecord.justificationReason}
+                        onChange={(e) =>
+                          setEditingRecord({
+                            ...editingRecord,
+                            justificationReason: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Additional Notes */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Notes / Remarques de la Vie Scolaire
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Remarques complémentaires, contact téléphonique parents..."
+                    value={editingRecord.notes}
+                    onChange={(e) =>
+                      setEditingRecord({ ...editingRecord, notes: e.target.value })
+                    }
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingRecord(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveModalRecord}
+                  className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-md transition-all cursor-pointer"
+                >
+                  Enregistrer
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </DashboardLayout>
+  );
+}

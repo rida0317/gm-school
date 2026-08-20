@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="100%" height="100%">
+  <defs>
+    <linearGradient id="defBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+    <linearGradient id="boxFront" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+  </defs>
+
+  <rect width="400" height="300" rx="24" fill="url(#defBg)"/>
+
+  <!-- Isometric School Box -->
+  <g transform="translate(200, 150)">
+    <!-- Top Face -->
+    <polygon points="0,-70 70,-35 0,0 -70,-35" fill="#7dd3fc"/>
+    <!-- Left Face -->
+    <polygon points="-70,-35 0,0 0,70 -70,35" fill="url(#boxFront)"/>
+    <!-- Right Face -->
+    <polygon points="0,0 70,-35 70,35 0,70" fill="#0369a1"/>
+    
+    <!-- Box Flaps / Tape -->
+    <polygon points="-20,-45 0,-35 20,-45 0,-55" fill="#f59e0b"/>
+  </g>
+
+  <!-- Title Badge -->
+  <g transform="translate(110, 240)">
+    <rect width="180" height="32" rx="16" fill="#ffffff" fill-opacity="0.1" stroke="#38bdf8" stroke-width="1.5"/>
+    <text x="90" y="20" fill="#38bdf8" font-size="11" font-weight="900" font-family="sans-serif" text-anchor="middle">📦 ARTICLE EN STOCK</text>
+  </g>
+</svg>
