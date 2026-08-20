@@ -374,43 +374,104 @@ export default function TimetablePage() {
     const origStart = currentDragged.start_time;
     const origEnd = currentDragged.end_time;
 
-    // Ensure we NEVER place two teachers in the same class at the same time:
-    const effectiveOccupantSlot =
-      targetSlot ||
-      slots.find(
-        (s) =>
-          s.id !== currentDragged.id &&
-          s.class_id === currentDragged.class_id &&
-          isSameSlotTime(s.day_of_week, s.start_time, targetDayId, targetPeriod.start)
+    // 1. Any slot currently in THIS class at (targetDayId, targetPeriod)
+    const slotInThisClassAtTarget = slots.find(
+      (s) =>
+        s.id !== currentDragged.id &&
+        s.class_id === currentDragged.class_id &&
+        isSameSlotTime(s.day_of_week, s.start_time, targetDayId, targetPeriod.start)
+    );
+
+    // 2. Any slot for this TEACHER in ANOTHER class at (targetDayId, targetPeriod)
+    const slotInOtherClassForTeacher = slots.find(
+      (s) =>
+        s.id !== currentDragged.id &&
+        s.teacher_id === currentDragged.teacher_id &&
+        s.class_id !== currentDragged.class_id &&
+        isSameSlotTime(s.day_of_week, s.start_time, targetDayId, targetPeriod.start)
+    );
+
+    const updatesToRun: { id: string; day_of_week: number; start_time: string; end_time: string }[] = [];
+
+    // A. currentDragged moves to (targetDayId, targetPeriod) -> Hadi khasha ta3mar!
+    updatesToRun.push({
+      id: currentDragged.id,
+      day_of_week: Number(targetDayId),
+      start_time: targetPeriod.start,
+      end_time: targetPeriod.end,
+    });
+
+    // B. If there is a slot in THIS class at target, move it to (origDay, origStart) to FILL the old slot!
+    if (slotInThisClassAtTarget) {
+      if (alternativeTargetSlot && targetSlot?.id === slotInThisClassAtTarget.id) {
+        updatesToRun.push({
+          id: slotInThisClassAtTarget.id,
+          day_of_week: Number(alternativeTargetSlot.dayId),
+          start_time: alternativeTargetSlot.period.start,
+          end_time: alternativeTargetSlot.period.end,
+        });
+      } else {
+        // Direct fill into origin slot so origin slot does NOT stay empty!
+        updatesToRun.push({
+          id: slotInThisClassAtTarget.id,
+          day_of_week: Number(origDay),
+          start_time: origStart,
+          end_time: origEnd,
+        });
+      }
+    }
+
+    // C. If teacher was teaching ANOTHER class at target (sa3a tania), move that other session to alternative closest free slot!
+    if (slotInOtherClassForTeacher) {
+      const altForOther = alternativeTargetSlot || findClosestAlternativeSlot(
+        slotInOtherClassForTeacher.class_id,
+        teachers.find((t) => t.id === slotInOtherClassForTeacher.teacher_id),
+        slots,
+        [currentDragged.id, slotInOtherClassForTeacher.id],
+        targetDayId,
+        targetPeriod.start
       );
+
+      if (altForOther) {
+        updatesToRun.push({
+          id: slotInOtherClassForTeacher.id,
+          day_of_week: Number(altForOther.dayId),
+          start_time: altForOther.period.start,
+          end_time: altForOther.period.end,
+        });
+      }
+    }
+
+    // D. If targetSlot was explicitly passed and not yet added:
+    if (targetSlot && !updatesToRun.some((u) => u.id === targetSlot.id)) {
+      if (alternativeTargetSlot) {
+        updatesToRun.push({
+          id: targetSlot.id,
+          day_of_week: Number(alternativeTargetSlot.dayId),
+          start_time: alternativeTargetSlot.period.start,
+          end_time: alternativeTargetSlot.period.end,
+        });
+      } else {
+        updatesToRun.push({
+          id: targetSlot.id,
+          day_of_week: Number(origDay),
+          start_time: origStart,
+          end_time: origEnd,
+        });
+      }
+    }
 
     // 1. Optimistic Local State Update (Instant UI Reaction)
     setSlots((prev) =>
       prev.map((s) => {
-        if (s.id === currentDragged.id) {
+        const update = updatesToRun.find((u) => u.id === s.id);
+        if (update) {
           return {
             ...s,
-            day_of_week: Number(targetDayId),
-            start_time: targetPeriod.start,
-            end_time: targetPeriod.end,
+            day_of_week: update.day_of_week,
+            start_time: update.start_time,
+            end_time: update.end_time,
           };
-        }
-        if (effectiveOccupantSlot && s.id === effectiveOccupantSlot.id) {
-          if (alternativeTargetSlot) {
-            return {
-              ...s,
-              day_of_week: Number(alternativeTargetSlot.dayId),
-              start_time: alternativeTargetSlot.period.start,
-              end_time: alternativeTargetSlot.period.end,
-            };
-          } else {
-            return {
-              ...s,
-              day_of_week: Number(origDay),
-              start_time: origStart,
-              end_time: origEnd,
-            };
-          }
         }
         return s;
       })
@@ -419,83 +480,24 @@ export default function TimetablePage() {
     try {
       const supabase = createClient();
 
-      if (effectiveOccupantSlot) {
-        if (alternativeTargetSlot) {
-          // Relocate displaced target slot to alternative free slot
-          await Promise.all([
-            supabase
-              .from('timetable_slots')
-              .update({
-                day_of_week: targetDayId,
-                start_time: targetPeriod.start,
-                end_time: targetPeriod.end,
-              })
-              .eq('id', currentDragged.id),
-            supabase
-              .from('timetable_slots')
-              .update({
-                day_of_week: alternativeTargetSlot.dayId,
-                start_time: alternativeTargetSlot.period.start,
-                end_time: alternativeTargetSlot.period.end,
-              })
-              .eq('id', effectiveOccupantSlot.id),
-          ]);
+      await Promise.all(
+        updatesToRun.map((u) =>
+          supabase
+            .from('timetable_slots')
+            .update({
+              day_of_week: u.day_of_week,
+              start_time: u.start_time,
+              end_time: u.end_time,
+            })
+            .eq('id', u.id)
+        )
+      );
 
-          const altDayName =
-            MOROCCAN_SCHOOL_DAYS.find((d) => d.id === alternativeTargetSlot.dayId)?.name || 'Jour';
-
-          notify({
-            title: 'Séances Déplacées & Réorganisées !',
-            message: `${currentDragged.subject?.name} a été placé au créneau demandé, et la séance de ${effectiveOccupantSlot.subject?.name} (${effectiveOccupantSlot.teacher?.first_name || 'Enseignant'}) a été déplacée au ${altDayName} à ${alternativeTargetSlot.period.start}.`,
-            type: 'success',
-          });
-        } else {
-          // Direct SWAP
-          await Promise.all([
-            supabase
-              .from('timetable_slots')
-              .update({
-                day_of_week: targetDayId,
-                start_time: targetPeriod.start,
-                end_time: targetPeriod.end,
-              })
-              .eq('id', currentDragged.id),
-            supabase
-              .from('timetable_slots')
-              .update({
-                day_of_week: origDay,
-                start_time: origStart,
-                end_time: origEnd,
-              })
-              .eq('id', effectiveOccupantSlot.id),
-          ]);
-
-          notify({
-            title: 'Séances Échangées (Swap) !',
-            message: `${currentDragged.subject?.name} ⇄ ${effectiveOccupantSlot.subject?.name} permutées avec succès.`,
-            type: 'success',
-          });
-        }
-      } else {
-        // MOVE to empty slot
-        const { error } = await supabase
-          .from('timetable_slots')
-          .update({
-            day_of_week: targetDayId,
-            start_time: targetPeriod.start,
-            end_time: targetPeriod.end,
-          })
-          .eq('id', currentDragged.id);
-
-        if (error) throw error;
-
-        const dayName = MOROCCAN_SCHOOL_DAYS.find((d) => d.id === targetDayId)?.name || 'Jour';
-        notify({
-          title: 'Séance Déplacée !',
-          message: `${currentDragged.subject?.name} déplacé au ${dayName} à ${targetPeriod.start}.`,
-          type: 'success',
-        });
-      }
+      notify({
+        title: 'Séances Déplacées & Réorganisées !',
+        message: `${currentDragged.subject?.name} a été placé avec succès et l'emploi du temps a été réorganisé sans aucun créneau vide.`,
+        type: 'success',
+      });
 
       await loadData();
     } catch (err: unknown) {
