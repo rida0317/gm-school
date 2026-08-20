@@ -228,12 +228,62 @@ export default function TimetablePage() {
     periodStart: string
   ): boolean => {
     if (!teacher || teacher.contract_type !== 'VACATAIRE') return true;
-    if (!Array.isArray(teacher.availability) || teacher.availability.length === 0) return false;
-    return teacher.availability.some(
-      (slot) =>
-        Number(slot.day_of_week) === dayId &&
-        (slot.period_id === periodId || slot.start_time?.slice(0, 5) === periodStart.slice(0, 5))
-    );
+    if (!Array.isArray(teacher.availability) || teacher.availability.length === 0) return true;
+    return teacher.availability.some((slot) => {
+      const slotDay = Number(slot.day_of_week);
+      const slotPeriod = String(slot.period_id || '').toUpperCase();
+      const slotStart = String(slot.start_time || '').slice(0, 5);
+      return (
+        slotDay === Number(dayId) &&
+        (slotPeriod === periodId.toUpperCase() || slotStart === periodStart.slice(0, 5))
+      );
+    });
+  };
+
+  // Helper to find an open available slot for a class and teacher
+  const findAlternativeSlot = (
+    classId: string,
+    teacher: Teacher | undefined,
+    currentSlots: TimetableSlot[],
+    excludeSlotIds: string[],
+    preferredDay?: number
+  ): { dayId: number; period: PeriodSlot } | null => {
+    const days = preferredDay
+      ? [preferredDay, ...MOROCCAN_SCHOOL_DAYS.map((d) => d.id).filter((d) => d !== preferredDay)]
+      : MOROCCAN_SCHOOL_DAYS.map((d) => d.id);
+
+    for (const dayId of days) {
+      for (const period of MOROCCAN_55MIN_PERIODS) {
+        if (dayId === 5 && period.isAfternoon) continue;
+
+        // Class is free
+        const classOccupied = currentSlots.some(
+          (s) =>
+            !excludeSlotIds.includes(s.id) &&
+            s.class_id === classId &&
+            s.day_of_week === dayId &&
+            s.start_time.slice(0, 5) === period.start
+        );
+        if (classOccupied) continue;
+
+        // Teacher is free
+        if (teacher) {
+          const teacherOccupied = currentSlots.some(
+            (s) =>
+              !excludeSlotIds.includes(s.id) &&
+              s.teacher_id === teacher.id &&
+              s.day_of_week === dayId &&
+              s.start_time.slice(0, 5) === period.start
+          );
+          if (teacherOccupied) continue;
+
+          if (!isVacataireAvailable(teacher, dayId, period.id, period.start)) continue;
+        }
+
+        return { dayId, period };
+      }
+    }
+    return null;
   };
 
   // Drag and drop handlers
@@ -255,48 +305,79 @@ export default function TimetablePage() {
     setDragOverCell(null);
   };
 
-  // Execute database move / swap
+  // Execute database move / swap / smart displacement
   const executeMoveOrSwap = async (
     currentDragged: TimetableSlot,
     targetDayId: number,
     targetPeriod: PeriodSlot,
-    targetSlot: TimetableSlot | undefined
+    targetSlot: TimetableSlot | undefined,
+    alternativeTargetSlot?: { dayId: number; period: PeriodSlot }
   ) => {
     try {
       const supabase = createClient();
+      const origDay = currentDragged.day_of_week;
+      const origStart = currentDragged.start_time;
+      const origEnd = currentDragged.end_time;
 
       if (targetSlot) {
-        // SWAP: Exchange draggedSlot and targetSlot
-        const origDay = currentDragged.day_of_week;
-        const origStart = currentDragged.start_time;
-        const origEnd = currentDragged.end_time;
+        if (alternativeTargetSlot) {
+          // Relocate displaced target slot to alternative free slot
+          await Promise.all([
+            supabase
+              .from('timetable_slots')
+              .update({
+                day_of_week: targetDayId,
+                start_time: targetPeriod.start,
+                end_time: targetPeriod.end,
+              })
+              .eq('id', currentDragged.id),
+            supabase
+              .from('timetable_slots')
+              .update({
+                day_of_week: alternativeTargetSlot.dayId,
+                start_time: alternativeTargetSlot.period.start,
+                end_time: alternativeTargetSlot.period.end,
+              })
+              .eq('id', targetSlot.id),
+          ]);
 
-        await Promise.all([
-          supabase
-            .from('timetable_slots')
-            .update({
-              day_of_week: targetDayId,
-              start_time: targetPeriod.start,
-              end_time: targetPeriod.end,
-            })
-            .eq('id', currentDragged.id),
-          supabase
-            .from('timetable_slots')
-            .update({
-              day_of_week: origDay,
-              start_time: origStart,
-              end_time: origEnd,
-            })
-            .eq('id', targetSlot.id),
-        ]);
+          const altDayName =
+            MOROCCAN_SCHOOL_DAYS.find((d) => d.id === alternativeTargetSlot.dayId)?.name || 'Jour';
 
-        notify({
-          title: 'Séances Échangées (Swap) !',
-          message: `${currentDragged.subject?.name} ⇄ ${targetSlot.subject?.name} permutées avec succès.`,
-          type: 'success',
-        });
+          notify({
+            title: 'Séances Déplacées & Réorganisées !',
+            message: `${currentDragged.subject?.name} a été placé au créneau demandé, et la séance de ${targetSlot.subject?.name} (${targetSlot.teacher?.first_name || 'Enseignant'}) a été déplacée au ${altDayName} à ${alternativeTargetSlot.period.start}.`,
+            type: 'success',
+          });
+        } else {
+          // Direct SWAP
+          await Promise.all([
+            supabase
+              .from('timetable_slots')
+              .update({
+                day_of_week: targetDayId,
+                start_time: targetPeriod.start,
+                end_time: targetPeriod.end,
+              })
+              .eq('id', currentDragged.id),
+            supabase
+              .from('timetable_slots')
+              .update({
+                day_of_week: origDay,
+                start_time: origStart,
+                end_time: origEnd,
+              })
+              .eq('id', targetSlot.id),
+          ]);
+
+          notify({
+            title: 'Séances Échangées (Swap) !',
+            message: `${currentDragged.subject?.name} ⇄ ${targetSlot.subject?.name} permutées avec succès.`,
+            type: 'success',
+          });
+        }
       } else {
-        // MOVE: Move draggedSlot to empty slot
+        // MOVE to empty slot
         const { error } = await supabase
           .from('timetable_slots')
           .update({
@@ -308,20 +389,22 @@ export default function TimetablePage() {
 
         if (error) throw error;
 
+        const dayName = MOROCCAN_SCHOOL_DAYS.find((d) => d.id === targetDayId)?.name || 'Jour';
         notify({
           title: 'Séance Déplacée !',
-          message: `${currentDragged.subject?.name} déplacé au ${MOROCCAN_SCHOOL_DAYS.find((d) => d.id === targetDayId)?.name} à ${targetPeriod.start}.`,
+          message: `${currentDragged.subject?.name} déplacé au ${dayName} à ${targetPeriod.start}.`,
           type: 'success',
         });
       }
 
-      loadData();
+      await loadData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erreur lors du déplacement';
       notify({ title: 'Erreur', message: msg, type: 'danger' });
     } finally {
       setDraggedSlot(null);
       setVacataireWarning(null);
+      setDragOverCell(null);
     }
   };
 
@@ -329,7 +412,7 @@ export default function TimetablePage() {
     e: React.DragEvent,
     targetDayId: number,
     targetPeriod: PeriodSlot,
-    targetSlot: TimetableSlot | undefined
+    cellSlot: TimetableSlot | undefined
   ) => {
     e.preventDefault();
     setDragOverCell(null);
@@ -356,7 +439,7 @@ export default function TimetablePage() {
       return;
     }
 
-    // Resolve the actual target slot of the CLASS at this time (vital for Teacher view & Class view)
+    // Identify what exists at the target slot for this Class or Teacher
     const classTargetSlot = slots.find(
       (s) =>
         s.class_id === draggedSlot.class_id &&
@@ -364,11 +447,23 @@ export default function TimetablePage() {
         s.start_time.slice(0, 5) === targetPeriod.start
     );
 
-    const resolvedTargetSlot = targetSlot || classTargetSlot;
+    const teacherTargetSlot = slots.find(
+      (s) =>
+        s.teacher_id === draggedSlot.teacher_id &&
+        s.day_of_week === targetDayId &&
+        s.start_time.slice(0, 5) === targetPeriod.start
+    );
 
-    // Check teacher conflict on the swapped session:
+    const resolvedTargetSlot = cellSlot || classTargetSlot || teacherTargetSlot;
+
+    let alternativeTargetPlacement: { dayId: number; period: PeriodSlot } | undefined = undefined;
+
     if (resolvedTargetSlot && resolvedTargetSlot.id !== draggedSlot.id) {
-      const swappedTeacherConflict = slots.find(
+      // Check if resolvedTargetSlot's teacher has a conflict moving to draggedSlot's original time
+      const targetTeacher =
+        teachers.find((t) => t.id === resolvedTargetSlot.teacher_id) || resolvedTargetSlot.teacher;
+
+      const targetTeacherOccupiedOnOrig = slots.some(
         (s) =>
           s.id !== draggedSlot.id &&
           s.id !== resolvedTargetSlot.id &&
@@ -377,47 +472,76 @@ export default function TimetablePage() {
           s.start_time.slice(0, 5) === draggedSlot.start_time.slice(0, 5)
       );
 
-      if (swappedTeacherConflict) {
-        notify({
-          title: 'Conflit Détecté lors de l\'Échange !',
-          message: `L'enseignant ${resolvedTargetSlot.teacher?.first_name} ${resolvedTargetSlot.teacher?.last_name} enseigne déjà dans la classe ${swappedTeacherConflict.class?.name} sur le créneau d'origine.`,
-          type: 'warning',
-        });
-        setDraggedSlot(null);
-        return;
+      const origPeriod =
+        MOROCCAN_55MIN_PERIODS.find((p) => p.start === draggedSlot.start_time.slice(0, 5)) ||
+        MOROCCAN_55MIN_PERIODS[0];
+
+      const targetTeacherAvailableOnOrig = isVacataireAvailable(
+        targetTeacher,
+        draggedSlot.day_of_week,
+        origPeriod.id,
+        origPeriod.start
+      );
+
+      // If target teacher is busy or not available at origin time, find an alternative slot for them!
+      if (targetTeacherOccupiedOnOrig || !targetTeacherAvailableOnOrig) {
+        const foundAlt = findAlternativeSlot(
+          resolvedTargetSlot.class_id,
+          targetTeacher,
+          slots,
+          [draggedSlot.id, resolvedTargetSlot.id],
+          targetDayId
+        );
+        if (foundAlt) {
+          alternativeTargetPlacement = foundAlt;
+        }
       }
     }
 
-    // 1. Check if the dragged teacher is a Vacataire and is NOT available during this target slot
-    const draggedTeacher = teachers.find((t) => t.id === draggedSlot.teacher_id) || draggedSlot.teacher;
-    const isDraggedAvailable = isVacataireAvailable(draggedTeacher, targetDayId, targetPeriod.id, targetPeriod.start);
+    // 1. Check Vacataire Availability for the dragged teacher
+    const draggedTeacher =
+      teachers.find((t) => t.id === draggedSlot.teacher_id) || draggedSlot.teacher;
+    const isDraggedAvailable = isVacataireAvailable(
+      draggedTeacher,
+      targetDayId,
+      targetPeriod.id,
+      targetPeriod.start
+    );
 
-    // 2. Check if swapping a vacataire into draggedSlot's original time
-    const targetTeacher = resolvedTargetSlot ? (teachers.find((t) => t.id === resolvedTargetSlot.teacher_id) || resolvedTargetSlot.teacher) : undefined;
-    const origPeriod = MOROCCAN_55MIN_PERIODS.find((p) => p.start === draggedSlot.start_time.slice(0, 5)) || MOROCCAN_55MIN_PERIODS[0];
-    const isTargetAvailable = resolvedTargetSlot ? isVacataireAvailable(targetTeacher, draggedSlot.day_of_week, origPeriod.id, origPeriod.start) : true;
-
-    if (!isDraggedAvailable || !isTargetAvailable) {
-      // Show Vacataire Non-Availability Warning Modal!
-      const unavailTeacher = !isDraggedAvailable ? draggedTeacher : targetTeacher;
-      const targetDayName = MOROCCAN_SCHOOL_DAYS.find((d) => d.id === (!isDraggedAvailable ? targetDayId : draggedSlot.day_of_week))?.name || 'Jour';
-      const targetTimeStr = !isDraggedAvailable ? targetPeriod.label : origPeriod.label;
-
+    if (!isDraggedAvailable) {
+      // Show Vacataire Non-Availability Warning Modal with force option
       const currentDraggedCopy = draggedSlot;
+      const targetDayName =
+        MOROCCAN_SCHOOL_DAYS.find((d) => d.id === targetDayId)?.name || 'Jour';
+
       setVacataireWarning({
         show: true,
-        teacherName: unavailTeacher ? `${unavailTeacher.first_name} ${unavailTeacher.last_name}` : 'Enseignant Vacataire',
+        teacherName: draggedTeacher
+          ? `${draggedTeacher.first_name} ${draggedTeacher.last_name}`
+          : 'Enseignant Vacataire',
         dayName: targetDayName,
-        timeLabel: targetTimeStr,
+        timeLabel: targetPeriod.label,
         onConfirm: async () => {
-          await executeMoveOrSwap(currentDraggedCopy, targetDayId, targetPeriod, resolvedTargetSlot);
+          await executeMoveOrSwap(
+            currentDraggedCopy,
+            targetDayId,
+            targetPeriod,
+            resolvedTargetSlot,
+            alternativeTargetPlacement
+          );
         },
       });
       return;
     }
 
-    // If fully available, execute move/swap directly
-    await executeMoveOrSwap(draggedSlot, targetDayId, targetPeriod, resolvedTargetSlot);
+    // If fully available, execute move / swap / smart displacement directly
+    await executeMoveOrSwap(
+      draggedSlot,
+      targetDayId,
+      targetPeriod,
+      resolvedTargetSlot,
+      alternativeTargetPlacement
+    );
   };
 
   const handleAddSlot = async (e: React.FormEvent) => {
