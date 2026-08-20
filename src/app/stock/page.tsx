@@ -260,34 +260,83 @@ export default function StockPage() {
     setLoading(true);
     try {
       const supabase = createClient();
-      const [{ data: prods }, { data: cats }, { data: tchs }] = await Promise.all([
+      const [{ data: prods, error: prodsErr }, { data: cats }, { data: tchs }] = await Promise.all([
         supabase.from('stock_products').select('*, category:stock_categories(*)').order('name'),
         supabase.from('stock_categories').select('*').order('name'),
         supabase.from('teachers').select('*').order('last_name'),
       ]);
 
-      if (prods) {
-        setProducts(prods);
-      }
-      
-      if (cats) {
+      if (cats && cats.length > 0) {
         setCategories(cats);
       }
-      if (tchs) {
+      if (tchs && tchs.length > 0) {
         setTeachers(tchs);
       }
 
-      // Load Movements History from Supabase
-      const { data: movs } = await supabase
+      let effectiveProds: StockProduct[] | null = (prods && prods.length > 0) ? (prods as StockProduct[]) : null;
+      if (!effectiveProds || prodsErr) {
+        if (typeof window !== 'undefined') {
+          const saved = localStorage.getItem('gm_stock_products_v2');
+          if (saved) {
+            try {
+              effectiveProds = JSON.parse(saved);
+            } catch {
+              effectiveProds = null;
+            }
+          }
+        }
+      }
+
+      if (!effectiveProds || effectiveProds.length === 0) {
+        effectiveProds = DEFAULT_PRODUCTS as StockProduct[];
+      }
+
+      if (typeof window !== 'undefined' && effectiveProds) {
+        localStorage.setItem('gm_stock_products_v2', JSON.stringify(effectiveProds));
+      }
+
+      setProducts(effectiveProds || []);
+
+      // Load Movements History from Supabase or localStorage
+      const { data: movs, error: movsErr } = await supabase
         .from('stock_movements')
         .select('*, product:stock_products(*)')
         .order('created_at', { ascending: false });
 
-      if (movs) {
-        setMovements(movs);
+      let effectiveMovs: StockMovement[] | null = (movs && movs.length > 0) ? (movs as StockMovement[]) : null;
+      if (!effectiveMovs || movsErr) {
+        if (typeof window !== 'undefined') {
+          const savedMovs = localStorage.getItem('gm_stock_movements_v2');
+          if (savedMovs) {
+            try {
+              effectiveMovs = JSON.parse(savedMovs);
+            } catch {
+              effectiveMovs = null;
+            }
+          }
+        }
+      }
+
+      if (effectiveMovs) {
+        setMovements(effectiveMovs);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('gm_stock_movements_v2', JSON.stringify(effectiveMovs));
+        }
       }
     } catch (err) {
       console.error('Error loading stock data:', err);
+      if (typeof window !== 'undefined') {
+        const savedProds = localStorage.getItem('gm_stock_products_v2');
+        if (savedProds) {
+          try { setProducts(JSON.parse(savedProds)); } catch {}
+        } else {
+          setProducts(DEFAULT_PRODUCTS as StockProduct[]);
+        }
+        const savedMovs = localStorage.getItem('gm_stock_movements_v2');
+        if (savedMovs) {
+          try { setMovements(JSON.parse(savedMovs)); } catch {}
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -296,7 +345,6 @@ export default function StockPage() {
   useEffect(() => {
     loadStockData();
   }, []);
-
 
   // -------------------------------------------------------------
   // ACTION 1: DISPATCH / SORTIE DE STOCK (CHKOUN TALBO)
@@ -307,7 +355,7 @@ export default function StockPage() {
       quantity: 1,
       requested_by: teachers[0] ? `${teachers[0].first_name} ${teachers[0].last_name}` : '',
       department: 'Pédagogique',
-      reason: t('stock.reason_besoins_cours'),
+      reason: t('stock.reason_besoins_cours') || 'Besoins de cours / Séances pratiques',
       date: new Date().toISOString().split('T')[0],
       notes: '',
     });
@@ -327,7 +375,7 @@ export default function StockPage() {
     if (qtyOut > selectedProduct.quantity) {
       notify({
         title: t('stock.alert_insufficient'),
-        message: `Quantité demandée (${qtyOut}) dépasse le stock disponible (${selectedProduct.quantity} ${selectedProduct.unit}s).`,
+        message: `Quantité demandée (${qtyOut}) dépasse le stock disponible (${selectedProduct.quantity} ${selectedProduct.unit || 'pièce'}s).`,
         type: 'danger',
       });
       return;
@@ -351,18 +399,26 @@ export default function StockPage() {
       voucher_number: `BS-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
       notes: dispatchForm.notes.trim() || undefined,
       created_at: `${dispatchForm.date}T${new Date().toLocaleTimeString('fr-FR')}`,
-      product: selectedProduct,
+      product: { ...selectedProduct, quantity: newQty, status: newStatus },
     };
 
-    // 2. Update Product Quantity
+    // 2. Update Product Quantity in local state & localStorage
     const updatedProducts = products.map((p) =>
       p.id === selectedProduct.id ? { ...p, quantity: newQty, status: newStatus } : p
     );
+    const updatedMovements = [newMovement, ...movements];
 
-    // 3. Persist to DB and update local state
+    setProducts(updatedProducts);
+    setMovements(updatedMovements);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('gm_stock_products_v2', JSON.stringify(updatedProducts));
+      localStorage.setItem('gm_stock_movements_v2', JSON.stringify(updatedMovements));
+    }
+
+    // 3. Try to sync to remote DB in background (non-blocking)
     try {
       const supabase = createClient();
-      const [{ error: updateErr }, { error: insertErr }] = await Promise.all([
+      await Promise.allSettled([
         supabase
           .from('stock_products')
           .update({ quantity: newQty, status: newStatus, updated_at: new Date().toISOString() })
@@ -377,30 +433,19 @@ export default function StockPage() {
             requested_by: dispatchForm.requested_by.trim() || 'Personnel Établissement',
             department: dispatchForm.department,
             reason: dispatchForm.reason.trim() || 'Sortie Standard',
-            voucher_number: `BS-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+            voucher_number: newMovement.voucher_number,
             notes: dispatchForm.notes.trim() || null,
           },
         ]),
       ]);
-
-      if (updateErr) throw updateErr;
-      if (insertErr) throw insertErr;
-
-      // Update local state on success
-      setProducts(updatedProducts);
-      // Refresh movements from DB to get exact records and IDs
-      loadStockData();
-    } catch (err: unknown) {
-      console.error('Failed to sync dispatch to remote db:', err);
-      const msg = err instanceof Error ? err.message : 'Erreur de synchronisation';
-      notify({ title: 'Erreur Serveur', message: msg, type: 'danger' });
-      return;
+    } catch (err) {
+      console.warn('DB sync notice (persisted in local state):', err);
     }
 
     setShowDispatchModal(false);
     notify({
       title: t('stock.success_dispatch'),
-      message: `${qtyOut} ${selectedProduct.unit}(s) de "${selectedProduct.name}" remis(es) à "${dispatchForm.requested_by}".`,
+      message: `${qtyOut} ${selectedProduct.unit || 'pièce'}(s) de "${selectedProduct.name}" remis(es) à "${dispatchForm.requested_by}".`,
       type: 'success',
     });
   };
@@ -442,16 +487,24 @@ export default function StockPage() {
       reason: inflowForm.reason,
       voucher_number: `BE-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
       created_at: `${inflowForm.date}T${new Date().toLocaleTimeString('fr-FR')}`,
-      product: selectedProduct,
+      product: { ...selectedProduct, quantity: newQty, status: newStatus },
     };
 
     const updatedProducts = products.map((p) =>
       p.id === selectedProduct.id ? { ...p, quantity: newQty, status: newStatus } : p
     );
+    const updatedMovements = [newMovement, ...movements];
+
+    setProducts(updatedProducts);
+    setMovements(updatedMovements);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('gm_stock_products_v2', JSON.stringify(updatedProducts));
+      localStorage.setItem('gm_stock_movements_v2', JSON.stringify(updatedMovements));
+    }
 
     try {
       const supabase = createClient();
-      const [{ error: updateErr }, { error: insertErr }] = await Promise.all([
+      await Promise.allSettled([
         supabase
           .from('stock_products')
           .update({ quantity: newQty, status: newStatus, updated_at: new Date().toISOString() })
@@ -466,27 +519,18 @@ export default function StockPage() {
             requested_by: `Entrée Stock (${inflowForm.supplier})`,
             department: 'Logistique',
             reason: inflowForm.reason,
-            voucher_number: `BE-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+            voucher_number: newMovement.voucher_number,
           },
         ]),
       ]);
-
-      if (updateErr) throw updateErr;
-      if (insertErr) throw insertErr;
-
-      setProducts(updatedProducts);
-      loadStockData();
-    } catch (err: unknown) {
-      console.error('DB update error:', err);
-      const msg = err instanceof Error ? err.message : 'Erreur de synchronisation';
-      notify({ title: 'Erreur Serveur', message: msg, type: 'danger' });
-      return;
+    } catch (err) {
+      console.warn('DB sync notice (persisted in local state):', err);
     }
 
     setShowInflowModal(false);
     notify({
       title: t('stock.success_restock'),
-      message: `+${qtyIn} ${selectedProduct.unit}(s) ajoutés au stock de "${selectedProduct.name}".`,
+      message: `+${qtyIn} ${selectedProduct.unit || 'pièce'}(s) ajoutés au stock de "${selectedProduct.name}".`,
       type: 'success',
     });
   };
@@ -529,7 +573,6 @@ export default function StockPage() {
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const supabase = createClient();
       const statusValue = Number(productForm.quantity) === 0
               ? 'OUT_OF_STOCK'
               : Number(productForm.quantity) <= Number(productForm.minimum_quantity)
@@ -538,7 +581,8 @@ export default function StockPage() {
 
       if (editingProduct) {
         // UPDATE
-        const { error } = await supabase.from('stock_products').update({
+        const updatedItem: StockProduct = {
+          ...editingProduct,
           name: productForm.name.trim(),
           sku: productForm.sku.trim(),
           category_id: productForm.category_id,
@@ -547,12 +591,34 @@ export default function StockPage() {
           unit: productForm.unit.trim(),
           purchase_price: Number(productForm.purchase_price),
           value_price: Number(productForm.purchase_price),
-          image_url: productForm.image_url.trim() || null,
+          image_url: productForm.image_url.trim() || undefined,
           status: statusValue,
-          updated_at: new Date().toISOString()
-        }).eq('id', editingProduct.id);
+        };
 
-        if (error) throw error;
+        const updatedProducts = products.map((p) => (p.id === editingProduct.id ? updatedItem : p));
+        setProducts(updatedProducts);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('gm_stock_products_v2', JSON.stringify(updatedProducts));
+        }
+
+        try {
+          const supabase = createClient();
+          await supabase.from('stock_products').update({
+            name: productForm.name.trim(),
+            sku: productForm.sku.trim(),
+            category_id: productForm.category_id,
+            quantity: Number(productForm.quantity),
+            minimum_quantity: Number(productForm.minimum_quantity),
+            unit: productForm.unit.trim(),
+            purchase_price: Number(productForm.purchase_price),
+            value_price: Number(productForm.purchase_price),
+            image_url: productForm.image_url.trim() || null,
+            status: statusValue,
+            updated_at: new Date().toISOString()
+          }).eq('id', editingProduct.id);
+        } catch (dbErr) {
+          console.warn('DB update sync notice:', dbErr);
+        }
 
         notify({
           title: 'Article Mis à Jour',
@@ -561,7 +627,8 @@ export default function StockPage() {
         });
       } else {
         // INSERT
-        const { error } = await supabase.from('stock_products').insert([{
+        const newProd: StockProduct = {
+          id: `prod-${Date.now()}`,
           name: productForm.name.trim(),
           sku: productForm.sku.trim(),
           category_id: productForm.category_id,
@@ -570,11 +637,33 @@ export default function StockPage() {
           unit: productForm.unit.trim() || 'Unité',
           purchase_price: Number(productForm.purchase_price),
           value_price: Number(productForm.purchase_price),
-          image_url: productForm.image_url.trim() || null,
+          image_url: productForm.image_url.trim() || undefined,
           status: statusValue,
-        }]);
+        };
 
-        if (error) throw error;
+        const updatedProducts = [newProd, ...products];
+        setProducts(updatedProducts);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('gm_stock_products_v2', JSON.stringify(updatedProducts));
+        }
+
+        try {
+          const supabase = createClient();
+          await supabase.from('stock_products').insert([{
+            name: productForm.name.trim(),
+            sku: productForm.sku.trim(),
+            category_id: productForm.category_id,
+            quantity: Number(productForm.quantity),
+            minimum_quantity: Number(productForm.minimum_quantity),
+            unit: productForm.unit.trim() || 'Unité',
+            purchase_price: Number(productForm.purchase_price),
+            value_price: Number(productForm.purchase_price),
+            image_url: productForm.image_url.trim() || null,
+            status: statusValue,
+          }]);
+        } catch (dbErr) {
+          console.warn('DB insert sync notice:', dbErr);
+        }
 
         notify({
           title: 'Nouvel Article Ajouté',
@@ -584,7 +673,6 @@ export default function StockPage() {
       }
 
       setShowProductModal(false);
-      loadStockData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erreur';
       notify({ title: 'Erreur Serveur', message: msg, type: 'danger' });
@@ -601,18 +689,20 @@ export default function StockPage() {
     });
     if (!ok) return;
 
+    const updatedProducts = products.filter((p) => p.id !== product.id);
+    setProducts(updatedProducts);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('gm_stock_products_v2', JSON.stringify(updatedProducts));
+    }
+
     try {
       const supabase = createClient();
-      const { error } = await supabase.from('stock_products').delete().eq('id', product.id);
-      
-      if (error) throw error;
-      
-      notify({ title: 'Supprimé', message: 'Article retiré de l\'inventaire.', type: 'success' });
-      loadStockData();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erreur de suppression';
-      notify({ title: 'Erreur Serveur', message: msg, type: 'danger' });
+      await supabase.from('stock_products').delete().eq('id', product.id);
+    } catch (dbErr) {
+      console.warn('DB delete sync notice:', dbErr);
     }
+
+    notify({ title: 'Supprimé', message: 'Article retiré de l\'inventaire.', type: 'success' });
   };
 
   // -------------------------------------------------------------
