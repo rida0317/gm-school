@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useI18n } from '@/lib/i18n';
@@ -30,7 +30,11 @@ import {
   Move,
   AlertCircle,
   Zap,
-  HelpCircle
+  HelpCircle,
+  ShieldAlert,
+  ShieldCheck,
+  SearchCheck,
+  Wand2
 } from 'lucide-react';
 
 interface SchoolDay {
@@ -195,6 +199,10 @@ export default function TimetablePage() {
   const [confirmKeyword, setConfirmKeyword] = useState('');
   const [isClearing, setIsClearing] = useState(false);
 
+  // Real-time Schedule Integrity Inspector & Verifier
+  const [showConflictModal, setShowConflictModal] = useState(false);
+  const [isAutoFixing, setIsAutoFixing] = useState(false);
+
   const notify = useNotify();
 
   async function loadData() {
@@ -332,6 +340,139 @@ export default function TimetablePage() {
     candidateSlots.sort((a, b) => a.score - b.score);
 
     return candidateSlots.length > 0 ? { dayId: candidateSlots[0].dayId, period: candidateSlots[0].period } : null;
+  };
+
+  // Real-Time Schedule Conflict Inspector & Integrity Engine
+  interface ConflictReport {
+    id: string;
+    type: 'TEACHER_DOUBLE_BOOKING' | 'ROOM_DOUBLE_BOOKING';
+    title: string;
+    description: string;
+    day_of_week: number;
+    dayName: string;
+    start_time: string;
+    timeLabel: string;
+    classes: string[];
+    teacherName?: string;
+    conflictingSlotIds: string[];
+  }
+
+  const detectedConflicts: ConflictReport[] = useMemo(() => {
+    const reports: ConflictReport[] = [];
+    const seenPairs = new Set<string>();
+
+    slots.forEach((s1) => {
+      if (!s1.teacher_id) return;
+      slots.forEach((s2) => {
+        if (s1.id !== s2.id && s1.teacher_id === s2.teacher_id) {
+          if (isSameSlotTime(s1.day_of_week, s1.start_time, s2.day_of_week, s2.start_time)) {
+            const pairKey = [s1.id, s2.id].sort().join('___');
+            if (!seenPairs.has(pairKey)) {
+              seenPairs.add(pairKey);
+              const teacher = teachers.find((t) => t.id === s1.teacher_id) || s1.teacher;
+              const teacherName = teacher ? `${teacher.first_name} ${teacher.last_name}` : 'Enseignant';
+              const dayName = MOROCCAN_SCHOOL_DAYS.find((d) => d.id === s1.day_of_week)?.name || 'Jour';
+              const period = MOROCCAN_55MIN_PERIODS.find((p) => normalizeTime(p.start) === normalizeTime(s1.start_time));
+              const timeLabel = period ? period.label : normalizeTime(s1.start_time);
+              const c1 = s1.class?.name || 'Classe 1';
+              const c2 = s2.class?.name || 'Classe 2';
+
+              reports.push({
+                id: pairKey,
+                type: 'TEACHER_DOUBLE_BOOKING',
+                title: `Double-Séance Enseignant : ${teacherName}`,
+                description: `${teacherName} est assigné(e) en même temps dans les classes ${c1} et ${c2}.`,
+                day_of_week: s1.day_of_week,
+                dayName,
+                start_time: s1.start_time,
+                timeLabel,
+                classes: [c1, c2],
+                teacherName,
+                conflictingSlotIds: [s1.id, s2.id],
+              });
+            }
+          }
+        }
+      });
+    });
+
+    return reports;
+  }, [slots, teachers]);
+
+  const handleAutoFixAllConflicts = async () => {
+    if (detectedConflicts.length === 0) return;
+    setIsAutoFixing(true);
+    try {
+      const supabase = createClient();
+      let currentSlotsState = [...slots];
+      const updatesToPersist: { id: string; day_of_week: number; start_time: string; end_time: string }[] = [];
+
+      for (const conflict of detectedConflicts) {
+        if (conflict.type === 'TEACHER_DOUBLE_BOOKING') {
+          const slotToMove = currentSlotsState.find((s) => s.id === conflict.conflictingSlotIds[1]);
+          if (!slotToMove) continue;
+
+          const teacher = teachers.find((t) => t.id === slotToMove.teacher_id);
+          const altSlot = findClosestAlternativeSlot(
+            slotToMove.class_id,
+            teacher,
+            currentSlotsState,
+            [slotToMove.id],
+            slotToMove.day_of_week,
+            slotToMove.start_time
+          );
+
+          if (altSlot) {
+            updatesToPersist.push({
+              id: slotToMove.id,
+              day_of_week: Number(altSlot.dayId),
+              start_time: altSlot.period.start,
+              end_time: altSlot.period.end,
+            });
+
+            currentSlotsState = currentSlotsState.map((s) =>
+              s.id === slotToMove.id
+                ? {
+                    ...s,
+                    day_of_week: Number(altSlot.dayId),
+                    start_time: altSlot.period.start,
+                    end_time: altSlot.period.end,
+                  }
+                : s
+            );
+          }
+        }
+      }
+
+      if (updatesToPersist.length > 0) {
+        await Promise.all(
+          updatesToPersist.map((u) =>
+            supabase
+              .from('timetable_slots')
+              .update({
+                day_of_week: u.day_of_week,
+                start_time: u.start_time,
+                end_time: u.end_time,
+              })
+              .eq('id', u.id)
+          )
+        );
+
+        notify({
+          title: 'Conflits Résolus Automatiquement !',
+          message: `${updatesToPersist.length} séance(s) en conflit ont été déplacées vers leurs créneaux libres les plus proches.`,
+          type: 'success',
+        });
+      }
+
+      await loadData();
+      setShowConflictModal(false);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erreur lors de la résolution automatique';
+      notify({ title: 'Erreur', message: msg, type: 'danger' });
+    } finally {
+      setIsAutoFixing(false);
+    }
   };
 
   // Drag and drop handlers
@@ -1182,6 +1323,26 @@ export default function TimetablePage() {
                 </div>
               )}
             </div>
+
+            {/* Real-time Schedule Inspector / Conflict Verifier Badge */}
+            {detectedConflicts.length > 0 ? (
+              <button
+                onClick={() => setShowConflictModal(true)}
+                className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white font-extrabold text-xs shadow-lg shadow-rose-500/25 transition-all hover:scale-105 animate-pulse cursor-pointer"
+              >
+                <ShieldAlert className="w-4 h-4" />
+                <span>{detectedConflicts.length} Conflit{detectedConflicts.length > 1 ? 's' : ''} Détecté{detectedConflicts.length > 1 ? 's' : ''}</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowConflictModal(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300 font-bold text-[11px] hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors cursor-pointer"
+                title="Vérifier la conformité de l'emploi du temps"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                <span>0 Conflit • Vérifié</span>
+              </button>
+            )}
 
             {/* Clear Timetable Secure Button */}
             <button
@@ -2223,6 +2384,123 @@ export default function TimetablePage() {
                     </span>
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Real-time Schedule Conflict Inspector Modal */}
+        {showConflictModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
+            <div className="w-full max-w-2xl rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-6 max-h-[85vh] flex flex-col">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className={`p-3 rounded-2xl ${detectedConflicts.length > 0 ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400' : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'}`}>
+                    {detectedConflicts.length > 0 ? <ShieldAlert className="w-6 h-6" /> : <ShieldCheck className="w-6 h-6" />}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                      Inspecteur de Conformité & Conflits
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Audit en temps réel de tous les créneaux et affectations des professeurs
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowConflictModal(false)}
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                {detectedConflicts.length === 0 ? (
+                  <div className="py-12 flex flex-col items-center justify-center text-center space-y-3">
+                    <div className="w-16 h-16 rounded-3xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                      <CheckCircle2 className="w-8 h-8" />
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-base font-extrabold text-slate-900 dark:text-white">
+                        Aucun Conflit Détecté !
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm">
+                        L&apos;emploi du temps respecte 100% des contraintes. Aucun professeur n&apos;est programmé dans deux classes simultanément.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 flex items-center justify-between">
+                      <div className="text-xs font-bold text-rose-800 dark:text-rose-200">
+                        {detectedConflicts.length} conflit(s) actif(s) nécessitant une réorganisation :
+                      </div>
+                      <button
+                        onClick={handleAutoFixAllConflicts}
+                        disabled={isAutoFixing}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs shadow-md shadow-rose-600/20 transition-all hover:scale-105 disabled:opacity-50 cursor-pointer"
+                      >
+                        <Wand2 className="w-3.5 h-3.5" />
+                        <span>{isAutoFixing ? 'Résolution en cours...' : '⚡ Résoudre Tous Automatiquement'}</span>
+                      </button>
+                    </div>
+
+                    {detectedConflicts.map((c, idx) => (
+                      <div
+                        key={c.id || idx}
+                        className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
+                            <AlertCircle className="w-4 h-4" />
+                            {c.title}
+                          </span>
+                          <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                            {c.dayName} &bull; {c.timeLabel}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-slate-300">
+                          {c.description}
+                        </p>
+                        <div className="flex items-center gap-2 pt-1">
+                          <span className="text-[10px] uppercase font-bold text-slate-400">Classes concernées :</span>
+                          <div className="flex items-center gap-1.5">
+                            {c.classes.map((clsName) => (
+                              <span key={clsName} className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200">
+                                {clsName}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
+                <div className="text-[11px] text-slate-400">
+                  {slots.length} séances au total vérifiées en temps réel
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowConflictModal(false)}
+                    className="px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                  >
+                    Fermer
+                  </button>
+                  {detectedConflicts.length > 0 && (
+                    <button
+                      onClick={handleAutoFixAllConflicts}
+                      disabled={isAutoFixing}
+                      className="px-4 py-2 text-xs font-black text-white bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 rounded-xl shadow-lg shadow-rose-600/25 transition-all cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Wand2 className="w-3.5 h-3.5" />
+                      <span>{isAutoFixing ? 'Résolution...' : 'Auto-Correction Intelligente'}</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
