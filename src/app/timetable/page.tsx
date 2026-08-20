@@ -160,6 +160,18 @@ export default function TimetablePage() {
     onConfirm: () => Promise<void>;
   } | null>(null);
 
+  // Teacher Already Busy Conflict Modal State (Warranty / Avertissement de Conflit)
+  const [teacherConflictModal, setTeacherConflictModal] = useState<{
+    show: boolean;
+    teacherName: string;
+    conflictingClassName: string;
+    conflictingSubjectName: string;
+    targetClassName: string;
+    dayName: string;
+    timeLabel: string;
+    onSwapWithConflictingClass: () => Promise<void>;
+  } | null>(null);
+
   // PDF Export Mode: 'CURRENT' | 'ALL_CLASSES' | 'ALL_TEACHERS'
   const [printMode, setPrintMode] = useState<'CURRENT' | 'ALL_CLASSES' | 'ALL_TEACHERS'>('CURRENT');
   const [showExportDropdown, setShowExportDropdown] = useState(false);
@@ -439,6 +451,46 @@ export default function TimetablePage() {
       return;
     }
 
+    // 0. CHECK: Is the dragged teacher ALREADY teaching another class on this exact day & time?
+    const draggedTeacher =
+      teachers.find((t) => t.id === draggedSlot.teacher_id) || draggedSlot.teacher;
+
+    const teacherBusyConflict = slots.find(
+      (s) =>
+        s.id !== draggedSlot.id &&
+        s.teacher_id === draggedSlot.teacher_id &&
+        s.day_of_week === targetDayId &&
+        s.start_time.slice(0, 5) === targetPeriod.start &&
+        s.class_id !== draggedSlot.class_id
+    );
+
+    if (teacherBusyConflict) {
+      const currentDraggedCopy = draggedSlot;
+      const targetDayName =
+        MOROCCAN_SCHOOL_DAYS.find((d) => d.id === targetDayId)?.name || 'Jour';
+
+      setTeacherConflictModal({
+        show: true,
+        teacherName: draggedTeacher
+          ? `${draggedTeacher.first_name} ${draggedTeacher.last_name}`
+          : 'Enseignant',
+        conflictingClassName: teacherBusyConflict.class?.name || 'Autre Classe',
+        conflictingSubjectName: teacherBusyConflict.subject?.name || 'Matière',
+        targetClassName: draggedSlot.class?.name || 'Cette Classe',
+        dayName: targetDayName,
+        timeLabel: targetPeriod.label,
+        onSwapWithConflictingClass: async () => {
+          await executeMoveOrSwap(
+            currentDraggedCopy,
+            targetDayId,
+            targetPeriod,
+            teacherBusyConflict
+          );
+        },
+      });
+      return;
+    }
+
     // Identify what exists at the target slot for this Class or Teacher
     const classTargetSlot = slots.find(
       (s) =>
@@ -499,8 +551,6 @@ export default function TimetablePage() {
     }
 
     // 1. Check Vacataire Availability for the dragged teacher
-    const draggedTeacher =
-      teachers.find((t) => t.id === draggedSlot.teacher_id) || draggedSlot.teacher;
     const isDraggedAvailable = isVacataireAvailable(
       draggedTeacher,
       targetDayId,
@@ -1876,6 +1926,80 @@ export default function TimetablePage() {
                   className="px-5 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 rounded-xl shadow-lg shadow-amber-500/25 transition-all cursor-pointer"
                 >
                   Confirmer Malgré Tout
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal 4: Teacher Busy Conflict Modal (Garantie / Avertissement de Conflit d'Horaire Enseignant) */}
+        {teacherConflictModal && teacherConflictModal.show && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in print:hidden">
+            <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border-2 border-rose-500 dark:border-rose-500/60 animate-in zoom-in-95 space-y-4">
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800 text-rose-600 dark:text-rose-400">
+                <div className="p-2.5 rounded-2xl bg-rose-500/15 border border-rose-500/30">
+                  <AlertCircle className="w-6 h-6 text-rose-600 dark:text-rose-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                    Conflit d&apos;Horaire Enseignant
+                  </h3>
+                  <p className="text-[11px] text-rose-600 dark:text-rose-400 font-semibold">
+                    Enseignant déjà en cours sur ce créneau
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div className="p-3.5 rounded-2xl bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-slate-800 dark:text-slate-200 space-y-2">
+                  <p className="font-medium leading-relaxed">
+                    L&apos;enseignant <strong className="text-slate-950 dark:text-white font-extrabold">{teacherConflictModal.teacherName}</strong> enseigne déjà à cette même heure dans une autre classe :
+                  </p>
+                  
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-800 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 text-[10px] uppercase font-bold">Séance Occupée :</span>
+                      <span className="font-mono font-black text-rose-600 dark:text-rose-400">{teacherConflictModal.conflictingClassName}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 text-[10px] uppercase font-bold">Discipline :</span>
+                      <span className="font-bold text-slate-900 dark:text-white">{teacherConflictModal.conflictingSubjectName}</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800">
+                      <span className="text-slate-500 text-[10px] uppercase font-bold">Horaire :</span>
+                      <span className="font-extrabold text-amber-600 dark:text-amber-400">{teacherConflictModal.dayName} &bull; {teacherConflictModal.timeLabel}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+                  Vous ne pouvez pas assigner deux classes au même enseignant à la même heure. Vous pouvez annuler ou permuter automatiquement ses deux créneaux.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTeacherConflictModal(null);
+                    setDraggedSlot(null);
+                  }}
+                  className="px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                >
+                  Annuler
+                </button>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (teacherConflictModal.onSwapWithConflictingClass) {
+                      await teacherConflictModal.onSwapWithConflictingClass();
+                    }
+                  }}
+                  className="px-4 py-2.5 text-xs font-black text-white bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 rounded-xl shadow-lg shadow-rose-600/25 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Permuter les 2 Séances (Swap)</span>
                 </button>
               </div>
             </div>
