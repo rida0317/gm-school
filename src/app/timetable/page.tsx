@@ -399,6 +399,111 @@ export default function TimetablePage() {
     return reports;
   }, [slots, teachers]);
 
+  // Robust Multi-Strategy Conflict Resolver (Free Open Slot OR Intra-Class Swap)
+  const findConflictResolution = (
+    conflictSlotIdA: string,
+    conflictSlotIdB: string,
+    currentSlots: TimetableSlot[],
+    teachersList: Teacher[]
+  ): {
+    slotToUpdate: TimetableSlot;
+    newDay: number;
+    newStart: string;
+    newEnd: string;
+    partnerSlotToUpdate?: TimetableSlot;
+    partnerNewDay?: number;
+    partnerNewStart?: string;
+    partnerNewEnd?: string;
+  } | null => {
+    // Try resolving for Slot B first, then Slot A
+    const candidates = [
+      currentSlots.find((s) => s.id === conflictSlotIdB),
+      currentSlots.find((s) => s.id === conflictSlotIdA),
+    ].filter(Boolean) as TimetableSlot[];
+
+    for (const targetSlot of candidates) {
+      const teacher = teachersList.find((t) => t.id === targetSlot.teacher_id) || targetSlot.teacher;
+      const classId = targetSlot.class_id;
+
+      // Strategy 1: Free open slot
+      const freeAlt = findClosestAlternativeSlot(
+        classId,
+        teacher,
+        currentSlots,
+        [targetSlot.id],
+        targetSlot.day_of_week,
+        targetSlot.start_time
+      );
+
+      if (freeAlt) {
+        return {
+          slotToUpdate: targetSlot,
+          newDay: freeAlt.dayId,
+          newStart: freeAlt.period.start,
+          newEnd: freeAlt.period.end,
+        };
+      }
+
+      // Strategy 2: 1-Swap with another slot in the SAME class
+      const otherClassSlots = currentSlots.filter(
+        (s) =>
+          s.class_id === classId &&
+          s.id !== targetSlot.id &&
+          !(s.day_of_week === 5 && s.start_time >= '13:00') // ignore Friday afternoon
+      );
+
+      for (const partnerSlot of otherClassSlots) {
+        const partnerTeacher = teachersList.find((t) => t.id === partnerSlot.teacher_id) || partnerSlot.teacher;
+        const partnerDay = partnerSlot.day_of_week;
+        const partnerStart = partnerSlot.start_time;
+        const partnerEnd = partnerSlot.end_time;
+        const targetDay = targetSlot.day_of_week;
+        const targetStart = targetSlot.start_time;
+        const targetEnd = targetSlot.end_time;
+
+        // 1. Is target teacher free at partner's time (in all other classes)?
+        const isTargetTeacherBusyAtPartnerTime = currentSlots.some(
+          (s) =>
+            s.id !== targetSlot.id &&
+            s.id !== partnerSlot.id &&
+            s.teacher_id === targetSlot.teacher_id &&
+            isSameSlotTime(s.day_of_week, s.start_time, partnerDay, partnerStart)
+        );
+        if (isTargetTeacherBusyAtPartnerTime) continue;
+
+        // 2. Is partner teacher free at target's time (in all other classes)?
+        const isPartnerTeacherBusyAtTargetTime = currentSlots.some(
+          (s) =>
+            s.id !== targetSlot.id &&
+            s.id !== partnerSlot.id &&
+            s.teacher_id === partnerSlot.teacher_id &&
+            isSameSlotTime(s.day_of_week, s.start_time, targetDay, targetStart)
+        );
+        if (isPartnerTeacherBusyAtTargetTime) continue;
+
+        // 3. Vacataire checks
+        const pPeriod = MOROCCAN_55MIN_PERIODS.find((p) => normalizeTime(p.start) === normalizeTime(partnerStart));
+        const tPeriod = MOROCCAN_55MIN_PERIODS.find((p) => normalizeTime(p.start) === normalizeTime(targetStart));
+        if (pPeriod && !isVacataireAvailable(teacher, partnerDay, pPeriod.id, pPeriod.start)) continue;
+        if (tPeriod && !isVacataireAvailable(partnerTeacher, targetDay, tPeriod.id, tPeriod.start)) continue;
+
+        // Valid Swap found!
+        return {
+          slotToUpdate: targetSlot,
+          newDay: partnerDay,
+          newStart: partnerStart,
+          newEnd: partnerEnd,
+          partnerSlotToUpdate: partnerSlot,
+          partnerNewDay: targetDay,
+          partnerNewStart: targetStart,
+          partnerNewEnd: targetEnd,
+        };
+      }
+    }
+
+    return null;
+  };
+
   const handleAutoFixAllConflicts = async () => {
     if (detectedConflicts.length === 0) return;
     setIsAutoFixing(true);
@@ -408,38 +513,52 @@ export default function TimetablePage() {
       const updatesToPersist: { id: string; day_of_week: number; start_time: string; end_time: string }[] = [];
 
       for (const conflict of detectedConflicts) {
-        if (conflict.type === 'TEACHER_DOUBLE_BOOKING') {
-          const slotToMove = currentSlotsState.find((s) => s.id === conflict.conflictingSlotIds[1]);
-          if (!slotToMove) continue;
-
-          const teacher = teachers.find((t) => t.id === slotToMove.teacher_id);
-          const altSlot = findClosestAlternativeSlot(
-            slotToMove.class_id,
-            teacher,
+        if (conflict.type === 'TEACHER_DOUBLE_BOOKING' && conflict.conflictingSlotIds.length >= 2) {
+          const resolution = findConflictResolution(
+            conflict.conflictingSlotIds[0],
+            conflict.conflictingSlotIds[1],
             currentSlotsState,
-            [slotToMove.id],
-            slotToMove.day_of_week,
-            slotToMove.start_time
+            teachers
           );
 
-          if (altSlot) {
+          if (resolution) {
             updatesToPersist.push({
-              id: slotToMove.id,
-              day_of_week: Number(altSlot.dayId),
-              start_time: altSlot.period.start,
-              end_time: altSlot.period.end,
+              id: resolution.slotToUpdate.id,
+              day_of_week: Number(resolution.newDay),
+              start_time: resolution.newStart,
+              end_time: resolution.newEnd,
             });
 
             currentSlotsState = currentSlotsState.map((s) =>
-              s.id === slotToMove.id
+              s.id === resolution.slotToUpdate.id
                 ? {
                     ...s,
-                    day_of_week: Number(altSlot.dayId),
-                    start_time: altSlot.period.start,
-                    end_time: altSlot.period.end,
+                    day_of_week: Number(resolution.newDay),
+                    start_time: resolution.newStart,
+                    end_time: resolution.newEnd,
                   }
                 : s
             );
+
+            if (resolution.partnerSlotToUpdate && resolution.partnerNewDay && resolution.partnerNewStart && resolution.partnerNewEnd) {
+              updatesToPersist.push({
+                id: resolution.partnerSlotToUpdate.id,
+                day_of_week: Number(resolution.partnerNewDay),
+                start_time: resolution.partnerNewStart,
+                end_time: resolution.partnerNewEnd,
+              });
+
+              currentSlotsState = currentSlotsState.map((s) =>
+                s.id === resolution.partnerSlotToUpdate!.id
+                  ? {
+                      ...s,
+                      day_of_week: Number(resolution.partnerNewDay),
+                      start_time: resolution.partnerNewStart!,
+                      end_time: resolution.partnerNewEnd!,
+                    }
+                  : s
+              );
+            }
           }
         }
       }
@@ -460,8 +579,14 @@ export default function TimetablePage() {
 
         notify({
           title: 'Conflits Résolus Automatiquement !',
-          message: `${updatesToPersist.length} séance(s) en conflit ont été déplacées vers leurs créneaux libres les plus proches.`,
+          message: `${updatesToPersist.length} séance(s) réorganisées avec succès. Aucun professeur n'est en double-booking.`,
           type: 'success',
+        });
+      } else {
+        notify({
+          title: 'Information',
+          message: 'Toutes les séances ont déjà été vérifiées.',
+          type: 'info',
         });
       }
 
