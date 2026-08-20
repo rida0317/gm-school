@@ -149,6 +149,7 @@ export default function TimetablePage() {
 
   // Drag and Drop States
   const [draggedSlot, setDraggedSlot] = useState<TimetableSlot | null>(null);
+  const draggedSlotRef = React.useRef<TimetableSlot | null>(null);
   const [dragOverCell, setDragOverCell] = useState<{ day: number; start: string } | null>(null);
 
   // Vacataire Non-Availability Warning Modal State
@@ -314,14 +315,23 @@ export default function TimetablePage() {
 
   // Drag and drop handlers
   const handleDragStart = (e: React.DragEvent, slot: TimetableSlot) => {
+    draggedSlotRef.current = slot;
     setDraggedSlot(slot);
-    e.dataTransfer.setData('text/plain', slot.id);
-    e.dataTransfer.effectAllowed = 'move';
+    try {
+      e.dataTransfer.setData('text/plain', slot.id);
+      e.dataTransfer.effectAllowed = 'move';
+    } catch {
+      // ignore
+    }
   };
 
   const handleDragOver = (e: React.DragEvent, dayId: number, start: string) => {
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+    try {
+      e.dataTransfer.dropEffect = 'move';
+    } catch {
+      // ignore
+    }
     if (!dragOverCell || Number(dragOverCell.day) !== Number(dayId) || normalizeTime(dragOverCell.start) !== normalizeTime(start)) {
       setDragOverCell({ day: dayId, start });
     }
@@ -339,21 +349,54 @@ export default function TimetablePage() {
     targetSlot: TimetableSlot | undefined,
     alternativeTargetSlot?: { dayId: number; period: PeriodSlot }
   ) => {
+    const origDay = currentDragged.day_of_week;
+    const origStart = currentDragged.start_time;
+    const origEnd = currentDragged.end_time;
+
+    // Ensure we NEVER place two teachers in the same class at the same time:
+    const effectiveOccupantSlot =
+      targetSlot ||
+      slots.find(
+        (s) =>
+          s.id !== currentDragged.id &&
+          s.class_id === currentDragged.class_id &&
+          isSameSlotTime(s.day_of_week, s.start_time, targetDayId, targetPeriod.start)
+      );
+
+    // 1. Optimistic Local State Update (Instant UI Reaction)
+    setSlots((prev) =>
+      prev.map((s) => {
+        if (s.id === currentDragged.id) {
+          return {
+            ...s,
+            day_of_week: Number(targetDayId),
+            start_time: targetPeriod.start,
+            end_time: targetPeriod.end,
+          };
+        }
+        if (effectiveOccupantSlot && s.id === effectiveOccupantSlot.id) {
+          if (alternativeTargetSlot) {
+            return {
+              ...s,
+              day_of_week: Number(alternativeTargetSlot.dayId),
+              start_time: alternativeTargetSlot.period.start,
+              end_time: alternativeTargetSlot.period.end,
+            };
+          } else {
+            return {
+              ...s,
+              day_of_week: Number(origDay),
+              start_time: origStart,
+              end_time: origEnd,
+            };
+          }
+        }
+        return s;
+      })
+    );
+
     try {
       const supabase = createClient();
-      const origDay = currentDragged.day_of_week;
-      const origStart = currentDragged.start_time;
-      const origEnd = currentDragged.end_time;
-
-      // Ensure we NEVER place two teachers in the same class at the same time:
-      const effectiveOccupantSlot =
-        targetSlot ||
-        slots.find(
-          (s) =>
-            s.id !== currentDragged.id &&
-            s.class_id === currentDragged.class_id &&
-            isSameSlotTime(s.day_of_week, s.start_time, targetDayId, targetPeriod.start)
-        );
 
       if (effectiveOccupantSlot) {
         if (alternativeTargetSlot) {
@@ -437,7 +480,9 @@ export default function TimetablePage() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erreur lors du déplacement';
       notify({ title: 'Erreur', message: msg, type: 'danger' });
+      await loadData(); // rollback optimistic update on error
     } finally {
+      draggedSlotRef.current = null;
       setDraggedSlot(null);
       setVacataireWarning(null);
       setTeacherConflictModal(null);
@@ -454,7 +499,17 @@ export default function TimetablePage() {
     e.preventDefault();
     setDragOverCell(null);
 
-    if (!draggedSlot) return;
+    let slotId = '';
+    try {
+      slotId = e.dataTransfer.getData('text/plain');
+    } catch {
+      // ignore
+    }
+
+    const currentDragged =
+      draggedSlotRef.current || draggedSlot || (slotId ? slots.find((s) => s.id === slotId) : null);
+
+    if (!currentDragged) return;
 
     // Friday afternoon check
     if (targetDayId === 5 && targetPeriod.isAfternoon) {
@@ -463,30 +518,32 @@ export default function TimetablePage() {
         message: 'Le Vendredi après-midi (13h00 — 16h00) est réservé à la Prière du Vendredi.',
         type: 'warning',
       });
+      draggedSlotRef.current = null;
       setDraggedSlot(null);
       return;
     }
 
     // Dropping on the exact same position
-    if (isSameSlotTime(draggedSlot.day_of_week, draggedSlot.start_time, targetDayId, targetPeriod.start)) {
+    if (isSameSlotTime(currentDragged.day_of_week, currentDragged.start_time, targetDayId, targetPeriod.start)) {
+      draggedSlotRef.current = null;
       setDraggedSlot(null);
       return;
     }
 
     // 0. CHECK: Is the dragged teacher ALREADY teaching another class on this exact day & time?
     const draggedTeacher =
-      teachers.find((t) => t.id === draggedSlot.teacher_id) || draggedSlot.teacher;
+      teachers.find((t) => t.id === currentDragged.teacher_id) || currentDragged.teacher;
 
     const teacherBusyConflict = slots.find(
       (s) =>
-        s.id !== draggedSlot.id &&
-        s.teacher_id === draggedSlot.teacher_id &&
+        s.id !== currentDragged.id &&
+        s.teacher_id === currentDragged.teacher_id &&
         isSameSlotTime(s.day_of_week, s.start_time, targetDayId, targetPeriod.start) &&
-        s.class_id !== draggedSlot.class_id
+        s.class_id !== currentDragged.class_id
     );
 
     if (teacherBusyConflict) {
-      const currentDraggedCopy = draggedSlot;
+      const currentDraggedCopy = currentDragged;
       const targetDayName =
         MOROCCAN_SCHOOL_DAYS.find((d) => d.id === targetDayId)?.name || 'Jour';
 
@@ -497,7 +554,7 @@ export default function TimetablePage() {
           : 'Enseignant',
         conflictingClassName: teacherBusyConflict.class?.name || 'Autre Classe',
         conflictingSubjectName: teacherBusyConflict.subject?.name || 'Matière',
-        targetClassName: draggedSlot.class?.name || 'Cette Classe',
+        targetClassName: currentDragged.class?.name || 'Cette Classe',
         dayName: targetDayName,
         timeLabel: targetPeriod.label,
         onSwapWithConflictingClass: async () => {
@@ -515,15 +572,15 @@ export default function TimetablePage() {
     // Identify what exists at the target slot for this Class or Teacher
     const classTargetSlot = slots.find(
       (s) =>
-        s.id !== draggedSlot.id &&
-        s.class_id === draggedSlot.class_id &&
+        s.id !== currentDragged.id &&
+        s.class_id === currentDragged.class_id &&
         isSameSlotTime(s.day_of_week, s.start_time, targetDayId, targetPeriod.start)
     );
 
     const teacherTargetSlot = slots.find(
       (s) =>
-        s.id !== draggedSlot.id &&
-        s.teacher_id === draggedSlot.teacher_id &&
+        s.id !== currentDragged.id &&
+        s.teacher_id === currentDragged.teacher_id &&
         isSameSlotTime(s.day_of_week, s.start_time, targetDayId, targetPeriod.start)
     );
 
@@ -531,26 +588,26 @@ export default function TimetablePage() {
 
     let alternativeTargetPlacement: { dayId: number; period: PeriodSlot } | undefined = undefined;
 
-    if (resolvedTargetSlot && resolvedTargetSlot.id !== draggedSlot.id) {
+    if (resolvedTargetSlot && resolvedTargetSlot.id !== currentDragged.id) {
       // Check if resolvedTargetSlot's teacher has a conflict moving to draggedSlot's original time
       const targetTeacher =
         teachers.find((t) => t.id === resolvedTargetSlot.teacher_id) || resolvedTargetSlot.teacher;
 
       const targetTeacherOccupiedOnOrig = slots.some(
         (s) =>
-          s.id !== draggedSlot.id &&
+          s.id !== currentDragged.id &&
           s.id !== resolvedTargetSlot.id &&
           s.teacher_id === resolvedTargetSlot.teacher_id &&
-          isSameSlotTime(s.day_of_week, s.start_time, draggedSlot.day_of_week, draggedSlot.start_time)
+          isSameSlotTime(s.day_of_week, s.start_time, currentDragged.day_of_week, currentDragged.start_time)
       );
 
       const origPeriod =
-        MOROCCAN_55MIN_PERIODS.find((p) => normalizeTime(p.start) === normalizeTime(draggedSlot.start_time)) ||
+        MOROCCAN_55MIN_PERIODS.find((p) => normalizeTime(p.start) === normalizeTime(currentDragged.start_time)) ||
         MOROCCAN_55MIN_PERIODS[0];
 
       const targetTeacherAvailableOnOrig = isVacataireAvailable(
         targetTeacher,
-        draggedSlot.day_of_week,
+        currentDragged.day_of_week,
         origPeriod.id,
         origPeriod.start
       );
@@ -561,7 +618,7 @@ export default function TimetablePage() {
           resolvedTargetSlot.class_id,
           targetTeacher,
           slots,
-          [draggedSlot.id, resolvedTargetSlot.id],
+          [currentDragged.id, resolvedTargetSlot.id],
           targetDayId
         );
         if (foundAlt) {
@@ -580,7 +637,7 @@ export default function TimetablePage() {
 
     if (!isDraggedAvailable) {
       // Show Vacataire Non-Availability Warning Modal with force option
-      const currentDraggedCopy = draggedSlot;
+      const currentDraggedCopy = currentDragged;
       const targetDayName =
         MOROCCAN_SCHOOL_DAYS.find((d) => d.id === targetDayId)?.name || 'Jour';
 
@@ -606,7 +663,7 @@ export default function TimetablePage() {
 
     // If fully available, execute move / swap / smart displacement directly
     await executeMoveOrSwap(
-      draggedSlot,
+      currentDragged,
       targetDayId,
       targetPeriod,
       resolvedTargetSlot,
