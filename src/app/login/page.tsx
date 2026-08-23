@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useNotify } from '@/lib/modal-service';
 import { useI18n } from '@/lib/i18n';
+import { logAuditEvent } from '@/lib/audit';
 import {
   Lock,
   Mail,
@@ -80,6 +81,16 @@ function LoginForm() {
           setLoading(false);
           return;
         }
+
+        logAuditEvent({
+          action: 'USER_LOGIN',
+          entity_type: 'auth',
+          user_id: data.user.id,
+          details: {
+            email: data.user.email,
+            role: profile?.role || 'UNKNOWN',
+          },
+        });
       }
 
       setSuccessMsg('Connexion réussie ! Redirection en cours...');

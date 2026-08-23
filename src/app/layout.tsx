@@ -17,7 +17,12 @@ export const metadata: Metadata = {
   title: "Groupe Scolaire Des Générations Montantes",
   description: "Portail de gestion et d'administration scolaire",
   icons: {
-    icon: '/logo.png',
+    icon: [
+      { url: '/logo.png', sizes: 'any' },
+      { url: '/icon.png', sizes: 'any' },
+    ],
+    shortcut: '/logo.png',
+    apple: '/logo.png',
   },
 };
 

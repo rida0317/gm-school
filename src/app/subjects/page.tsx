@@ -5,6 +5,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { createClient } from '@/lib/supabase/client';
 import { Subject, EducationCycle, CycleSubjectConfig } from '@/types/database';
 import { useConfirm, useNotify } from '@/lib/modal-service';
+import { logAuditEvent } from '@/lib/audit';
 import {
   BookOpen,
   Plus,
@@ -598,6 +599,17 @@ export default function SubjectsPage() {
       if (editingId) {
         const { error } = await supabase.from('subjects').update(newEntry).eq('id', editingId);
         if (error) throw error;
+
+        logAuditEvent({
+          action: 'SUBJECT_UPDATED',
+          entity_type: 'subjects',
+          entity_id: editingId,
+          details: {
+            name: newEntry.name,
+            code: newEntry.code,
+            cycles: newEntry.cycles,
+          },
+        });
         
         notify({
           title: 'Matière Modifiée',
@@ -607,6 +619,16 @@ export default function SubjectsPage() {
       } else {
         const { error } = await supabase.from('subjects').insert([newEntry]);
         if (error) throw error;
+
+        logAuditEvent({
+          action: 'SUBJECT_CREATED',
+          entity_type: 'subjects',
+          details: {
+            name: newEntry.name,
+            code: newEntry.code,
+            cycles: newEntry.cycles,
+          },
+        });
         
         notify({
           title: 'Matière Ajoutée',
@@ -639,6 +661,14 @@ export default function SubjectsPage() {
 
     const updated = subjects.filter((s) => s.id !== id);
     setSubjects(updated);
+
+    logAuditEvent({
+      action: 'SUBJECT_DELETED',
+      entity_type: 'subjects',
+      entity_id: id,
+      details: { name: name || id },
+    });
+
     notify({ title: 'Supprimée', message: 'Matière retirée du programme.', type: 'success' });
 
     try {

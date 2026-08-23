@@ -50,7 +50,7 @@ export function Topbar({ onOpenSidebar }: TopbarProps) {
 
   const roleLabels: Record<string, string> = {
     SUPER_ADMIN: 'Super Administrateur',
-    ADMIN: 'Administrateur',
+    ADMIN: 'Directeur',
     TEACHER: 'Enseignant',
     SUPERVISOR: 'Surveillant Général',
     STOCK_MANAGER: 'Gestionnaire Stock',
@@ -64,17 +64,22 @@ export function Topbar({ onOpenSidebar }: TopbarProps) {
     : user?.email?.[0]?.toUpperCase() || 'A';
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-4 md:px-8 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors print:hidden">
+    <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-3 sm:px-4 md:px-8 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors print:hidden">
       {/* Left section: Hamburger & Search */}
-      <div className="flex items-center gap-4 flex-1 max-w-xl">
+      <div className="flex items-center gap-2 sm:gap-4 flex-1 max-w-xl">
         <button
           type="button"
           onClick={onOpenSidebar}
-          className="lg:hidden p-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+          className="lg:hidden p-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
           aria-label="Toggle sidebar"
         >
           <Menu className="w-5 h-5" />
         </button>
+
+        <div className="flex items-center gap-2 lg:hidden">
+          <img src="/logo.png" alt="Logo GM" className="w-8 h-8 object-contain rounded-lg" />
+          <span className="font-bold text-xs text-slate-900 dark:text-white tracking-tight hidden xs:inline">GM School</span>
+        </div>
 
         <div className="relative w-full hidden sm:block">
           <Search className={`absolute ${dir === 'rtl' ? 'right-3' : 'left-3'} top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400`} />
@@ -87,7 +92,7 @@ export function Topbar({ onOpenSidebar }: TopbarProps) {
       </div>
 
       {/* Right section: Language Switcher, Notifications, User Badge */}
-      <div className="flex items-center gap-3 md:gap-4">
+      <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
         <LanguageSwitcher />
 
         {/* Notification Bell */}
@@ -102,7 +107,7 @@ export function Topbar({ onOpenSidebar }: TopbarProps) {
           </button>
 
           {showNotifications && (
-            <div className={`absolute ${dir === 'rtl' ? 'left-0' : 'right-0'} mt-2 w-80 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-4 z-50 animate-in fade-in zoom-in-95`}>
+            <div className={`absolute ${dir === 'rtl' ? 'left-0' : 'right-0'} mt-2 w-[calc(100vw-2rem)] max-w-sm bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-4 z-50 animate-in fade-in zoom-in-95`}>
               <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                 <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
                   Notifications Récentes
@@ -130,9 +135,9 @@ export function Topbar({ onOpenSidebar }: TopbarProps) {
           <button
             type="button"
             onClick={() => setShowUserMenu(!showUserMenu)}
-            className="flex items-center gap-3 pl-2 py-1 pr-2 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800/60 border border-transparent hover:border-slate-200 dark:hover:border-slate-700/60 transition-all cursor-pointer"
+            className="flex items-center gap-2 sm:gap-3 pl-1.5 sm:pl-2 py-1 pr-1.5 sm:pr-2 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800/60 border border-transparent hover:border-slate-200 dark:hover:border-slate-700/60 transition-all cursor-pointer"
           >
-            <div suppressHydrationWarning className="flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-sky-500 to-blue-600 text-white font-bold text-xs shadow-md shadow-sky-500/20">
+            <div suppressHydrationWarning className="flex items-center justify-center w-8 sm:w-9 h-8 sm:h-9 rounded-full bg-gradient-to-br from-sky-500 to-blue-600 text-white font-bold text-xs shadow-md shadow-sky-500/20 shrink-0">
               {initials}
             </div>
             <div className="hidden md:block text-left">
@@ -149,7 +154,7 @@ export function Topbar({ onOpenSidebar }: TopbarProps) {
 
           {/* User dropdown menu */}
           {showUserMenu && (
-            <div className={`absolute ${dir === 'rtl' ? 'left-0' : 'right-0'} mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2.5 z-50 animate-in fade-in zoom-in-95 space-y-2`}>
+            <div className={`absolute ${dir === 'rtl' ? 'left-0' : 'right-0'} mt-2 w-[calc(100vw-2rem)] max-w-xs bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2.5 z-50 animate-in fade-in zoom-in-95 space-y-2`}>
               {/* Account summary header */}
               <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-700/50">
                 <div className="text-xs font-bold text-slate-900 dark:text-white truncate">

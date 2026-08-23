@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { PurchaseOrder, Supplier, POStatus } from '@/types/database';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useNotify } from '@/lib/modal-service';
+import { logAuditEvent } from '@/lib/audit';
 import {
   ShoppingCart,
   Plus,
@@ -75,6 +76,17 @@ export default function PurchasesPage() {
         notify({ title: 'Erreur', message: error.message, type: 'danger' });
         return;
       }
+
+      logAuditEvent({
+        action: 'PURCHASE_ORDER_CREATED',
+        entity_type: 'purchase_orders',
+        details: {
+          order_number: orderNumber,
+          total_amount: formData.total_amount,
+          supplier_id: formData.supplier_id,
+        },
+      });
+
       setShowModal(false);
       notify({ title: 'Succès', message: 'Bon de commande créé avec succès !', type: 'success' });
       loadData();
@@ -88,6 +100,14 @@ export default function PurchasesPage() {
     try {
       const supabase = createClient();
       await supabase.from('purchase_orders').update({ status: newStatus }).eq('id', id);
+
+      logAuditEvent({
+        action: 'PURCHASE_ORDER_STATUS_UPDATED',
+        entity_type: 'purchase_orders',
+        entity_id: id,
+        details: { new_status: newStatus },
+      });
+
       notify({ title: 'Statut mis à jour', message: `Bon de commande passé à: ${newStatus}`, type: 'success' });
       loadData();
     } catch (err: unknown) {
@@ -186,8 +206,8 @@ export default function PurchasesPage() {
 
         {/* Modal Add Purchase */}
         {showModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-            <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
+            <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                   Nouveau Bon de Commande

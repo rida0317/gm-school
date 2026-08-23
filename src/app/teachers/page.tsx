@@ -5,6 +5,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { createClient } from '@/lib/supabase/client';
 import { Teacher, TeacherContractType, TeacherAvailabilitySlot, Subject } from '@/types/database';
 import { useConfirm, useNotify } from '@/lib/modal-service';
+import { logAuditEvent } from '@/lib/audit';
 
 import {
   Users,
@@ -328,6 +329,18 @@ export default function TeachersPage() {
           notify({ title: 'Erreur', message: error.message, type: 'danger' });
           return;
         }
+
+        logAuditEvent({
+          action: 'TEACHER_UPDATED',
+          entity_type: 'teachers',
+          entity_id: editingId,
+          details: {
+            name: `${formData.first_name} ${formData.last_name}`,
+            specialization: formData.specialization,
+            contract_type: formData.contract_type,
+          },
+        });
+
         notify({ title: 'Succès', message: 'Fiche enseignant modifiée avec succès !', type: 'success' });
       } else {
         // Create new teacher
@@ -351,6 +364,17 @@ export default function TeachersPage() {
           notify({ title: 'Erreur', message: error.message, type: 'danger' });
           return;
         }
+
+        logAuditEvent({
+          action: 'TEACHER_CREATED',
+          entity_type: 'teachers',
+          details: {
+            name: `${formData.first_name} ${formData.last_name}`,
+            specialization: formData.specialization,
+            contract_type: formData.contract_type,
+          },
+        });
+
         notify({ title: 'Succès', message: 'Enseignant ajouté avec succès !', type: 'success' });
       }
 
@@ -378,8 +402,19 @@ export default function TeachersPage() {
     try {
       const supabase = createClient();
       const { error } = await supabase.from('teachers').delete().eq('id', id);
-      if (error) throw error;
-      notify({ title: 'Supprimé', message: 'Enseignant supprimé.', type: 'success' });
+      if (error) {
+        notify({ title: 'Erreur', message: error.message, type: 'danger' });
+        return;
+      }
+
+      logAuditEvent({
+        action: 'TEACHER_DELETED',
+        entity_type: 'teachers',
+        entity_id: id,
+        details: { name: name || id },
+      });
+
+      notify({ title: 'Succès', message: 'Enseignant supprimé avec succès.', type: 'success' });
       loadTeachers();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erreur de suppression';

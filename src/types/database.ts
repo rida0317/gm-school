@@ -180,6 +180,11 @@ export interface TeacherAttendance {
 
 export type StaffCategory =
   | 'ENSEIGNANT'
+  | 'DIRECTION_ADMIN'
+  | 'DIRECTION_PEDAGOGIQUE'
+  | 'STAFF_MENAGE'
+  | 'TRANSPORTEUR'
+  | 'SURVEILLANCE'
   | 'ADMINISTRATION'
   | 'ASSISTANTE'
   | 'CHAUFFEUR'
@@ -196,8 +201,15 @@ export interface StaffMember {
   phone?: string;
   email?: string;
   contract_type?: string;
+  hire_date?: string;
   is_active: boolean;
   photo_url?: string;
+  notes?: string;
+  specialization?: string;
+  teaching_levels?: string[];
+  weekly_hours_target?: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface StaffAttendanceRecord {

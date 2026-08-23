@@ -302,7 +302,7 @@ export default function SignUpPage() {
                     onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
                     className="w-full pl-10 pr-3 py-2.5 bg-slate-950/60 border border-slate-700/80 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 transition-all cursor-pointer"
                   >
-                    <option value="ADMIN" className="bg-slate-900 text-white">Administrateur</option>
+                    <option value="ADMIN" className="bg-slate-900 text-white">Directeur</option>
                     <option value="SUPER_ADMIN" className="bg-slate-900 text-white">Super Administrateur</option>
                     <option value="TEACHER" className="bg-slate-900 text-white">Enseignant</option>
                     <option value="SUPERVISOR" className="bg-slate-900 text-white">Surveillant Général</option>

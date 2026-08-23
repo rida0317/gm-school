@@ -6,6 +6,7 @@ import { useI18n } from '@/lib/i18n';
 import { createClient } from '@/lib/supabase/client';
 import { Supplier } from '@/types/database';
 import { useConfirm, useNotify } from '@/lib/modal-service';
+import { logAuditEvent } from '@/lib/audit';
 import {
   Truck,
   Plus,
@@ -103,6 +104,17 @@ export default function SuppliersPage() {
 
         if (error) throw error;
 
+        logAuditEvent({
+          action: 'SUPPLIER_UPDATED',
+          entity_type: 'suppliers',
+          entity_id: editingSupplier.id,
+          details: {
+            name: formData.name,
+            company: formData.company,
+            phone: formData.phone,
+          },
+        });
+
         notify({
           title: 'Fournisseur Mis à Jour',
           message: `Les coordonnées de "${formData.name}" ont été modifiées avec succès.`,
@@ -123,6 +135,16 @@ export default function SuppliersPage() {
         ]);
 
         if (error) throw error;
+
+        logAuditEvent({
+          action: 'SUPPLIER_CREATED',
+          entity_type: 'suppliers',
+          details: {
+            name: formData.name,
+            company: formData.company,
+            phone: formData.phone,
+          },
+        });
 
         notify({
           title: 'Nouveau Fournisseur Enregistré',
@@ -154,6 +176,16 @@ export default function SuppliersPage() {
         prev.map((s) => (s.id === supplier.id ? { ...s, status: nextStatus } : s))
       );
 
+      logAuditEvent({
+        action: 'SUPPLIER_STATUS_TOGGLED',
+        entity_type: 'suppliers',
+        entity_id: supplier.id,
+        details: {
+          supplier: supplier.name,
+          new_status: nextStatus,
+        },
+      });
+
       notify({
         title: nextStatus === 'ACTIVE' ? 'Fournisseur Activé' : 'Fournisseur Désactivé',
         message: `Le fournisseur "${supplier.name}" est désormais ${nextStatus === 'ACTIVE' ? 'Actif (🟢)' : 'Désactivé (🔴)'}.`,
@@ -181,6 +213,14 @@ export default function SuppliersPage() {
       const supabase = createClient();
       const { error } = await supabase.from('suppliers').delete().eq('id', id);
       if (error) throw error;
+
+      logAuditEvent({
+        action: 'SUPPLIER_DELETED',
+        entity_type: 'suppliers',
+        entity_id: id,
+        details: { name: name || id },
+      });
+
       notify({ title: 'Supprimé', message: 'Fournisseur supprimé avec succès.', type: 'success' });
       loadSuppliers();
     } catch (err: unknown) {

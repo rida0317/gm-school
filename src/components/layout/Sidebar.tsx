@@ -29,6 +29,8 @@ import {
   ShieldCheck,
   Settings,
   Clock,
+  Briefcase,
+  Shield,
   X,
   LogOut,
   type LucideIcon
@@ -127,6 +129,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       items: [
         { href: '/attendance/students', label: t('student_attendance'), icon: ClipboardCheck },
         { href: '/attendance/staff', label: t('teacher_attendance'), icon: Clock },
+        { href: '/gardes', label: t('gardes_planning'), icon: Shield, badge: 'Auto', highlight: true },
         { href: '/substitutions', label: t('substitutions'), icon: Repeat, badge: t('smart') },
       ],
     },
@@ -140,6 +143,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     {
       title: t('group_admin'),
       items: [
+        { href: '/staff', label: t('staff'), icon: Briefcase },
         {
           href: '/users',
           label: t('users'),
@@ -167,12 +171,12 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       {isOpen && (
         <div
           onClick={onClose}
-          className="fixed inset-0 z-30 bg-slate-900/50 backdrop-blur-sm lg:hidden transition-opacity"
+          className="fixed inset-0 z-40 bg-slate-950/70 backdrop-blur-sm lg:hidden transition-opacity animate-in fade-in"
         />
       )}
 
       <aside
-        className={`fixed top-0 bottom-0 z-30 flex flex-col w-72 bg-gradient-to-b from-slate-950 via-[#0a1426] to-slate-950 text-slate-100 shadow-2xl transition-transform duration-300 ease-in-out print:hidden ${
+        className={`fixed top-0 bottom-0 z-50 lg:z-30 flex flex-col w-72 bg-gradient-to-b from-slate-950 via-[#0a1426] to-slate-950 text-slate-100 shadow-2xl transition-transform duration-300 ease-in-out print:hidden ${
           dir === 'rtl'
             ? `right-0 border-l border-sky-900/30 ${isOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}`
             : `left-0 border-r border-sky-900/30 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`

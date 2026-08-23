@@ -16,6 +16,7 @@ export const translations = {
     group_admin: 'Administration & Sécurité',
     dashboard: 'Tableau de Bord',
     students: 'Élèves',
+    staff: 'Personnel & RH',
     teachers: 'Enseignants',
     classes: 'Classes',
     subjects: 'Programme Pédagogique',
@@ -25,6 +26,9 @@ export const translations = {
     attendance: 'Présence & Assiduité',
     student_attendance: 'Présence Élèves',
     teacher_attendance: 'Pointage Personnel',
+    gardes_planning: 'Planning des Gardes',
+    staff_attendance_page_title: 'Pointage & Assiduité du Personnel',
+    student_attendance_page_title: 'Présence & Assiduité des Élèves',
     substitutions: 'Remplacements',
     stock: 'Gestion du Stock',
     suppliers: 'Fournisseurs',
@@ -124,7 +128,7 @@ export const translations = {
 
     // Topbar & Roles
     super_admin: 'Super Administrateur',
-    admin: 'Administrateur',
+    admin: 'Directeur',
     teacher: 'Enseignant',
     supervisor: 'Surveillant Général',
     stock_manager: 'Gestionnaire Stock',
@@ -205,6 +209,7 @@ export const translations = {
     group_admin: 'الإدارة والأمان',
     dashboard: 'لوحة التحكم',
     students: 'التلاميذ',
+    staff: 'الموظفون والموارد البشرية',
     teachers: 'الأساتذة',
     classes: 'الأقسام',
     subjects: 'المواد الدراسية',
@@ -214,6 +219,9 @@ export const translations = {
     attendance: 'الحضور والغياب',
     student_attendance: 'غياب التلاميذ',
     teacher_attendance: 'حضور ومواظبة الموظفين',
+    gardes_planning: 'تخطيط وتوزيع الحراسة',
+    staff_attendance_page_title: 'تسجيل الحضور والمواظبة للموظفين',
+    student_attendance_page_title: 'تسجيل الحضور والمواظبة للتلاميذ',
     substitutions: 'تعويض الأساتذة',
     stock: 'إدارة المخزون',
     suppliers: 'الموردون',
@@ -313,7 +321,7 @@ export const translations = {
 
     // Topbar & Roles
     super_admin: 'المشرف العام (Super Admin)',
-    admin: 'المدير / الإداري',
+    admin: 'المدير',
     teacher: 'الأستاذ',
     supervisor: 'الحارس العام',
     stock_manager: 'مسؤول المخزون',
@@ -419,7 +427,15 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   const dir = locale === 'ar' ? 'rtl' : 'ltr';
 
   const t = (key: any): string => {
-    return (translations[locale] as any)?.[key as keyof typeof translations['fr']] || (translations.fr as any)[key as keyof typeof translations['fr']] || key;
+    const val = (translations[locale] as any)?.[key as keyof typeof translations['fr']] || (translations.fr as any)[key as keyof typeof translations['fr']];
+    if (val) return val;
+    if (typeof key === 'string') {
+      return key
+        .split('_')
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+    }
+    return String(key || '');
   };
 
   return (

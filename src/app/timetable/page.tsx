@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client';
 import { ClassEntity, Teacher, Room, Subject, TimetableSlot } from '@/types/database';
 import { useNotify } from '@/lib/modal-service';
 import { useSettings } from '@/lib/settings';
+import { logAuditEvent } from '@/lib/audit';
 import {
   CalendarDays,
   Sparkles,
@@ -34,7 +35,9 @@ import {
   ShieldAlert,
   ShieldCheck,
   SearchCheck,
-  Wand2
+  Wand2,
+  Table,
+  LayoutGrid,
 } from 'lucide-react';
 
 interface SchoolDay {
@@ -136,6 +139,32 @@ const MOROCCAN_55MIN_PERIODS: PeriodSlot[] = [
   },
 ];
 
+export function getSubjectAbbreviation(subject?: { code?: string; name?: string } | null): string {
+  if (!subject) return '';
+  const code = (subject.code || '').toUpperCase().trim();
+  if (code && code !== 'MATIERE' && code !== 'MAT') {
+    if (code === 'ISLAM') return 'ISL';
+    if (code === 'PHY') return 'PC';
+    return code;
+  }
+  const name = (subject.name || '').toLowerCase();
+  if (name.includes('arab')) return 'AR';
+  if (name.includes('fran')) return 'FR';
+  if (name.includes('angl') || name.includes('eng')) return 'ENG';
+  if (name.includes('math')) return 'MATH';
+  if (name.includes('terre') || name.includes('svt') || name.includes('scien')) return 'SVT';
+  if (name.includes('phys') || name.includes('chim') || name.includes('pc')) return 'PC';
+  if (name.includes('hist') || name.includes('géo') || name.includes('geo')) return 'HIST';
+  if (name.includes('islam') || name.includes('isl')) return 'ISL';
+  if (name.includes('physique') || name.includes('eps') || name.includes('sport') || name.includes('éduc')) return 'EPS';
+  if (name.includes('info')) return 'INFO';
+  if (name.includes('esp')) return 'ESP';
+  if (name.includes('phil')) return 'PHILO';
+  if (name.includes('art') || name.includes('dessin')) return 'ARTS';
+  if (name.includes('mus')) return 'MUS';
+  return (subject.name || '').slice(0, 4).toUpperCase();
+}
+
 export default function TimetablePage() {
   const { t, dir } = useI18n();
   const { settings } = useSettings();
@@ -145,8 +174,8 @@ export default function TimetablePage() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [slots, setSlots] = useState<TimetableSlot[]>([]);
   
-  // View mode: 'CLASS' vs 'TEACHER'
-  const [viewMode, setViewMode] = useState<'CLASS' | 'TEACHER'>('CLASS');
+  // View mode: 'CLASS' vs 'TEACHER' vs 'MASTER_GRID'
+  const [viewMode, setViewMode] = useState<'CLASS' | 'TEACHER' | 'MASTER_GRID'>('CLASS');
   const [selectedClassId, setSelectedClassId] = useState<string>('');
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -178,8 +207,8 @@ export default function TimetablePage() {
     onSwapWithConflictingClass?: () => Promise<void>;
   } | null>(null);
 
-  // PDF Export Mode: 'CURRENT' | 'ALL_CLASSES' | 'ALL_TEACHERS'
-  const [printMode, setPrintMode] = useState<'CURRENT' | 'ALL_CLASSES' | 'ALL_TEACHERS'>('CURRENT');
+  // PDF Export Mode: 'CURRENT' | 'ALL_CLASSES' | 'ALL_TEACHERS' | 'MASTER_GRID'
+  const [printMode, setPrintMode] = useState<'CURRENT' | 'ALL_CLASSES' | 'ALL_TEACHERS' | 'MASTER_GRID'>('CURRENT');
   const [showExportDropdown, setShowExportDropdown] = useState(false);
 
   // Add Slot Modal
@@ -202,6 +231,8 @@ export default function TimetablePage() {
   // Real-time Schedule Integrity Inspector & Verifier
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [isAutoFixing, setIsAutoFixing] = useState(false);
+  // Pinned / Anchor slots that MUST NOT be reverted or moved by auto-correction
+  const [pinnedSlotIds, setPinnedSlotIds] = useState<Set<string>>(new Set());
 
   const notify = useNotify();
 
@@ -345,7 +376,7 @@ export default function TimetablePage() {
   // Real-Time Schedule Conflict Inspector & Integrity Engine
   interface ConflictReport {
     id: string;
-    type: 'TEACHER_DOUBLE_BOOKING' | 'ROOM_DOUBLE_BOOKING';
+    type: 'TEACHER_DOUBLE_BOOKING' | 'CLASS_DOUBLE_BOOKING' | 'ROOM_DOUBLE_BOOKING' | 'CLASS_SCHEDULE_HOLE' | 'VACATAIRE_UNAVAILABLE_SLOT';
     title: string;
     description: string;
     day_of_week: number;
@@ -357,19 +388,58 @@ export default function TimetablePage() {
     conflictingSlotIds: string[];
   }
 
-  const detectedConflicts: ConflictReport[] = useMemo(() => {
+  // Standalone Pure Conflict Auditing Engine
+  const auditScheduleConflicts = (
+    slotsList: TimetableSlot[],
+    teachersList: Teacher[],
+    classesList: SchoolClass[]
+  ): ConflictReport[] => {
     const reports: ConflictReport[] = [];
     const seenPairs = new Set<string>();
 
-    slots.forEach((s1) => {
+    // 0. CLASS DOUBLE BOOKING (Two sessions in the same class at the same time)
+    slotsList.forEach((s1) => {
+      slotsList.forEach((s2) => {
+        if (s1.id !== s2.id && s1.class_id === s2.class_id) {
+          if (isSameSlotTime(s1.day_of_week, s1.start_time, s2.day_of_week, s2.start_time)) {
+            const pairKey = [s1.id, s2.id].sort().join('___');
+            if (!seenPairs.has(pairKey)) {
+              seenPairs.add(pairKey);
+              const className = s1.class?.name || 'Classe';
+              const dayName = MOROCCAN_SCHOOL_DAYS.find((d) => d.id === s1.day_of_week)?.name || 'Jour';
+              const period = MOROCCAN_55MIN_PERIODS.find((p) => normalizeTime(p.start) === normalizeTime(s1.start_time));
+              const timeLabel = period ? period.label : normalizeTime(s1.start_time);
+              const subj1 = s1.subject?.name || 'Matière 1';
+              const subj2 = s2.subject?.name || 'Matière 2';
+
+              reports.push({
+                id: `class_double_${pairKey}`,
+                type: 'CLASS_DOUBLE_BOOKING',
+                title: `Chevauchement de Cours : ${className}`,
+                description: `Deux matières (${subj1} et ${subj2}) sont programmées en même temps dans la classe ${className} le ${dayName} (${timeLabel}).`,
+                day_of_week: s1.day_of_week,
+                dayName,
+                start_time: s1.start_time,
+                timeLabel,
+                classes: [className],
+                conflictingSlotIds: [s1.id, s2.id],
+              });
+            }
+          }
+        }
+      });
+    });
+
+    // 1. TEACHER DOUBLE BOOKING
+    slotsList.forEach((s1) => {
       if (!s1.teacher_id) return;
-      slots.forEach((s2) => {
+      slotsList.forEach((s2) => {
         if (s1.id !== s2.id && s1.teacher_id === s2.teacher_id) {
           if (isSameSlotTime(s1.day_of_week, s1.start_time, s2.day_of_week, s2.start_time)) {
             const pairKey = [s1.id, s2.id].sort().join('___');
             if (!seenPairs.has(pairKey)) {
               seenPairs.add(pairKey);
-              const teacher = teachers.find((t) => t.id === s1.teacher_id) || s1.teacher;
+              const teacher = teachersList.find((t) => t.id === s1.teacher_id) || s1.teacher;
               const teacherName = teacher ? `${teacher.first_name} ${teacher.last_name}` : 'Enseignant';
               const dayName = MOROCCAN_SCHOOL_DAYS.find((d) => d.id === s1.day_of_week)?.name || 'Jour';
               const period = MOROCCAN_55MIN_PERIODS.find((p) => normalizeTime(p.start) === normalizeTime(s1.start_time));
@@ -378,7 +448,7 @@ export default function TimetablePage() {
               const c2 = s2.class?.name || 'Classe 2';
 
               reports.push({
-                id: pairKey,
+                id: `teacher_double_${pairKey}`,
                 type: 'TEACHER_DOUBLE_BOOKING',
                 title: `Double-Séance Enseignant : ${teacherName}`,
                 description: `${teacherName} est assigné(e) en même temps dans les classes ${c1} et ${c2}.`,
@@ -396,15 +466,99 @@ export default function TimetablePage() {
       });
     });
 
-    return reports;
-  }, [slots, teachers]);
+    // 2. CLASS SCHEDULE HOLES / GAPS (Heures Creuses Isolées / Sawaye3 Khawyin f West Nhar)
+    classesList.forEach((cls) => {
+      MOROCCAN_SCHOOL_DAYS.forEach((day) => {
+        const classDaySlots = slotsList.filter((s) => s.class_id === cls.id && s.day_of_week === day.id);
+        if (classDaySlots.length === 0) return;
 
-  // Robust Multi-Strategy Conflict Resolver (Free Open Slot OR Intra-Class Swap)
+        // Morning check: P1, P2, P3, P4
+        const morningPeriods = MOROCCAN_55MIN_PERIODS.slice(0, 4);
+        const morningSlotsByPeriod = morningPeriods.map((p) =>
+          classDaySlots.find((s) => normalizeTime(s.start_time) === normalizeTime(p.start))
+        );
+        const occupiedMorningIndexes = morningSlotsByPeriod
+          .map((s, idx) => (s ? idx : -1))
+          .filter((idx) => idx !== -1);
+
+        if (occupiedMorningIndexes.length > 0) {
+          const maxOccupied = Math.max(...occupiedMorningIndexes);
+          for (let pIdx = 0; pIdx < maxOccupied; pIdx++) {
+            if (!morningSlotsByPeriod[pIdx]) {
+              const emptyPeriod = morningPeriods[pIdx];
+              const laterOccupiedSlot = morningSlotsByPeriod[maxOccupied];
+              const laterSubj = laterOccupiedSlot?.subject?.name || 'Cours';
+              const laterTeacher = laterOccupiedSlot?.teacher
+                ? `${laterOccupiedSlot.teacher.first_name} ${laterOccupiedSlot.teacher.last_name}`
+                : '';
+
+              reports.push({
+                id: `gap_morning_${cls.id}_${day.id}_${emptyPeriod.id}`,
+                type: 'CLASS_SCHEDULE_HOLE',
+                title: `Heure Creuse Isolée : ${cls.name}`,
+                description: `La classe ${cls.name} a un trou vide (${emptyPeriod.label}) le ${day.name} alors qu'une séance (${laterSubj}${laterTeacher ? ` - ${laterTeacher}` : ''}) est programmée après.`,
+                day_of_week: day.id,
+                dayName: day.name,
+                start_time: emptyPeriod.start,
+                timeLabel: emptyPeriod.label,
+                classes: [cls.name],
+                conflictingSlotIds: classDaySlots.map((s) => s.id),
+              });
+            }
+          }
+        }
+
+        // Afternoon check (for Mon-Thu): P5, P6, P7
+        if (day.id !== 5) {
+          const afternoonPeriods = MOROCCAN_55MIN_PERIODS.slice(4);
+          const afternoonSlotsByPeriod = afternoonPeriods.map((p) =>
+            classDaySlots.find((s) => normalizeTime(s.start_time) === normalizeTime(p.start))
+          );
+          const occupiedAfternoonIndexes = afternoonSlotsByPeriod
+            .map((s, idx) => (s ? idx : -1))
+            .filter((idx) => idx !== -1);
+
+          if (occupiedAfternoonIndexes.length > 0) {
+            const maxOccupied = Math.max(...occupiedAfternoonIndexes);
+            for (let pIdx = 0; pIdx < maxOccupied; pIdx++) {
+              if (!afternoonSlotsByPeriod[pIdx]) {
+                const emptyPeriod = afternoonPeriods[pIdx];
+                const laterOccupiedSlot = afternoonSlotsByPeriod[maxOccupied];
+                const laterSubj = laterOccupiedSlot?.subject?.name || 'Cours';
+
+                reports.push({
+                  id: `gap_afternoon_${cls.id}_${day.id}_${emptyPeriod.id}`,
+                  type: 'CLASS_SCHEDULE_HOLE',
+                  title: `Heure Creuse Isolée : ${cls.name}`,
+                  description: `La classe ${cls.name} a un trou vide (${emptyPeriod.label}) le ${day.name} en après-midi suivi de cours (${laterSubj}).`,
+                  day_of_week: day.id,
+                  dayName: day.name,
+                  start_time: emptyPeriod.start,
+                  timeLabel: emptyPeriod.label,
+                  classes: [cls.name],
+                  conflictingSlotIds: classDaySlots.map((s) => s.id),
+                });
+              }
+            }
+          }
+        }
+      });
+    });
+
+    return reports;
+  };
+
+  const detectedConflicts: ConflictReport[] = useMemo(() => {
+    return auditScheduleConflicts(slots, teachers, classes);
+  }, [slots, teachers, classes]);
+
+  // Robust Multi-Strategy Conflict Resolver (Free Open Slot, 2-Way Swap, 3-Way Cycle, & Global Relocation)
   const findConflictResolution = (
     conflictSlotIdA: string,
     conflictSlotIdB: string,
     currentSlots: TimetableSlot[],
-    teachersList: Teacher[]
+    teachersList: Teacher[],
+    pinnedIds: Set<string> = new Set()
   ): {
     slotToUpdate: TimetableSlot;
     newDay: number;
@@ -414,18 +568,33 @@ export default function TimetablePage() {
     partnerNewDay?: number;
     partnerNewStart?: string;
     partnerNewEnd?: string;
+    thirdSlotToUpdate?: TimetableSlot;
+    thirdNewDay?: number;
+    thirdNewStart?: string;
+    thirdNewEnd?: string;
   } | null => {
-    // Try resolving for Slot B first, then Slot A
-    const candidates = [
-      currentSlots.find((s) => s.id === conflictSlotIdB),
-      currentSlots.find((s) => s.id === conflictSlotIdA),
-    ].filter(Boolean) as TimetableSlot[];
+    const isPinnedA = pinnedIds.has(conflictSlotIdA);
+    const isPinnedB = pinnedIds.has(conflictSlotIdB);
+
+    // If one is pinned by user, prioritize moving the other!
+    let candidateIds: string[];
+    if (isPinnedA && !isPinnedB) {
+      candidateIds = [conflictSlotIdB];
+    } else if (isPinnedB && !isPinnedA) {
+      candidateIds = [conflictSlotIdA];
+    } else {
+      candidateIds = [conflictSlotIdB, conflictSlotIdA];
+    }
+
+    const candidates = candidateIds
+      .map((id) => currentSlots.find((s) => s.id === id))
+      .filter(Boolean) as TimetableSlot[];
 
     for (const targetSlot of candidates) {
       const teacher = teachersList.find((t) => t.id === targetSlot.teacher_id) || targetSlot.teacher;
       const classId = targetSlot.class_id;
 
-      // Strategy 1: Free open slot
+      // Strategy 1: Free open slot in the class schedule
       const freeAlt = findClosestAlternativeSlot(
         classId,
         teacher,
@@ -444,12 +613,13 @@ export default function TimetablePage() {
         };
       }
 
-      // Strategy 2: 1-Swap with another slot in the SAME class
+      // Strategy 2: 1-Swap with another non-pinned slot in the SAME class
       const otherClassSlots = currentSlots.filter(
         (s) =>
           s.class_id === classId &&
           s.id !== targetSlot.id &&
-          !(s.day_of_week === 5 && s.start_time >= '13:00') // ignore Friday afternoon
+          !pinnedIds.has(s.id) &&
+          !(s.day_of_week === 5 && normalizeTime(s.start_time) >= '13:00')
       );
 
       for (const partnerSlot of otherClassSlots) {
@@ -461,7 +631,7 @@ export default function TimetablePage() {
         const targetStart = targetSlot.start_time;
         const targetEnd = targetSlot.end_time;
 
-        // 1. Is target teacher free at partner's time (in all other classes)?
+        // 1. Is target teacher free at partner's time?
         const isTargetTeacherBusyAtPartnerTime = currentSlots.some(
           (s) =>
             s.id !== targetSlot.id &&
@@ -471,7 +641,7 @@ export default function TimetablePage() {
         );
         if (isTargetTeacherBusyAtPartnerTime) continue;
 
-        // 2. Is partner teacher free at target's time (in all other classes)?
+        // 2. Is partner teacher free at target's time?
         const isPartnerTeacherBusyAtTargetTime = currentSlots.some(
           (s) =>
             s.id !== targetSlot.id &&
@@ -487,7 +657,7 @@ export default function TimetablePage() {
         if (pPeriod && !isVacataireAvailable(teacher, partnerDay, pPeriod.id, pPeriod.start)) continue;
         if (tPeriod && !isVacataireAvailable(partnerTeacher, targetDay, tPeriod.id, tPeriod.start)) continue;
 
-        // Valid Swap found!
+        // Valid 2-Way Swap found!
         return {
           slotToUpdate: targetSlot,
           newDay: partnerDay,
@@ -499,75 +669,683 @@ export default function TimetablePage() {
           partnerNewEnd: targetEnd,
         };
       }
+
+      // Strategy 3: 3-Way Kempe Permutation Cycle (target -> P1 -> P2 -> target)
+      for (const p1 of otherClassSlots) {
+        const t1 = teachersList.find((t) => t.id === p1.teacher_id) || p1.teacher;
+        const isTargetFreeAtP1 = !currentSlots.some(
+          (s) =>
+            s.id !== targetSlot.id &&
+            s.id !== p1.id &&
+            s.teacher_id === targetSlot.teacher_id &&
+            isSameSlotTime(s.day_of_week, s.start_time, p1.day_of_week, p1.start_time)
+        );
+        if (!isTargetFreeAtP1) continue;
+
+        for (const p2 of otherClassSlots) {
+          if (p2.id === p1.id) continue;
+          const t2 = teachersList.find((t) => t.id === p2.teacher_id) || p2.teacher;
+
+          // t1 must be free at p2's slot
+          const isT1FreeAtP2 = !currentSlots.some(
+            (s) =>
+              s.id !== p1.id &&
+              s.id !== p2.id &&
+              s.teacher_id === p1.teacher_id &&
+              isSameSlotTime(s.day_of_week, s.start_time, p2.day_of_week, p2.start_time)
+          );
+          if (!isT1FreeAtP2) continue;
+
+          // t2 must be free at target's original slot
+          const isT2FreeAtTarget = !currentSlots.some(
+            (s) =>
+              s.id !== p2.id &&
+              s.id !== targetSlot.id &&
+              s.teacher_id === p2.teacher_id &&
+              isSameSlotTime(s.day_of_week, s.start_time, targetSlot.day_of_week, targetSlot.start_time)
+          );
+          if (!isT2FreeAtTarget) continue;
+
+          if (!isVacataireAvailable(teacher, p1.day_of_week, '', p1.start_time)) continue;
+          if (!isVacataireAvailable(t1, p2.day_of_week, '', p2.start_time)) continue;
+          if (!isVacataireAvailable(t2, targetSlot.day_of_week, '', targetSlot.start_time)) continue;
+
+          // 3-Way Cycle Found!
+          return {
+            slotToUpdate: targetSlot,
+            newDay: p1.day_of_week,
+            newStart: p1.start_time,
+            newEnd: p1.end_time,
+            partnerSlotToUpdate: p1,
+            partnerNewDay: p2.day_of_week,
+            partnerNewStart: p2.start_time,
+            partnerNewEnd: p2.end_time,
+            thirdSlotToUpdate: p2,
+            thirdNewDay: targetSlot.day_of_week,
+            thirdNewStart: targetSlot.start_time,
+            thirdNewEnd: targetSlot.end_time,
+          };
+        }
+      }
+
+      // Strategy 4: Global Free Slot Cascade Relocation
+      // Find ANY day & period across the entire week where targetTeacher is completely free
+      for (const day of MOROCCAN_SCHOOL_DAYS) {
+        const periods = day.id === 5 ? MOROCCAN_55MIN_PERIODS.slice(0, 4) : MOROCCAN_55MIN_PERIODS;
+        for (const p of periods) {
+          const isTargetTeacherFree = !currentSlots.some(
+            (s) =>
+              s.id !== targetSlot.id &&
+              s.teacher_id === targetSlot.teacher_id &&
+              isSameSlotTime(s.day_of_week, s.start_time, day.id, p.start)
+          );
+          if (!isTargetTeacherFree) continue;
+          if (!isVacataireAvailable(teacher, day.id, p.id, p.start)) continue;
+
+          // Check who is in this class at (day, p.start)
+          const occupantInClass = currentSlots.find(
+            (s) =>
+              s.id !== targetSlot.id &&
+              s.class_id === classId &&
+              isSameSlotTime(s.day_of_week, s.start_time, day.id, p.start)
+          );
+
+          if (!occupantInClass) {
+            // Free slot in class!
+            return {
+              slotToUpdate: targetSlot,
+              newDay: day.id,
+              newStart: p.start,
+              newEnd: p.end,
+            };
+          }
+
+          if (pinnedIds.has(occupantInClass.id)) continue;
+          const occTeacher = teachersList.find((t) => t.id === occupantInClass.teacher_id) || occupantInClass.teacher;
+
+          // Can occupantInClass go to target's slot?
+          const isOccFreeAtTarget = !currentSlots.some(
+            (s) =>
+              s.id !== occupantInClass.id &&
+              s.id !== targetSlot.id &&
+              s.teacher_id === occupantInClass.teacher_id &&
+              isSameSlotTime(s.day_of_week, s.start_time, targetSlot.day_of_week, targetSlot.start_time)
+          );
+
+          if (isOccFreeAtTarget && isVacataireAvailable(occTeacher, targetSlot.day_of_week, '', targetSlot.start_time)) {
+            return {
+              slotToUpdate: targetSlot,
+              newDay: day.id,
+              newStart: p.start,
+              newEnd: p.end,
+              partnerSlotToUpdate: occupantInClass,
+              partnerNewDay: targetSlot.day_of_week,
+              partnerNewStart: targetSlot.start_time,
+              partnerNewEnd: targetSlot.end_time,
+            };
+          }
+        }
+      }
     }
 
     return null;
   };
 
+  // Iterative Auto-Conflict Solver (Runs in a loop up to 10 attempts until 0 conflicts remain!)
   const handleAutoFixAllConflicts = async () => {
     if (detectedConflicts.length === 0) return;
     setIsAutoFixing(true);
     try {
       const supabase = createClient();
       let currentSlotsState = [...slots];
-      const updatesToPersist: { id: string; day_of_week: number; start_time: string; end_time: string }[] = [];
+      const updatedMap = new Map<string, { id: string; day_of_week: number; start_time: string; end_time: string }>();
 
-      for (const conflict of detectedConflicts) {
-        if (conflict.type === 'TEACHER_DOUBLE_BOOKING' && conflict.conflictingSlotIds.length >= 2) {
-          const resolution = findConflictResolution(
-            conflict.conflictingSlotIds[0],
-            conflict.conflictingSlotIds[1],
-            currentSlotsState,
-            teachers
-          );
+      const MAX_ATTEMPTS = 10;
+      let attempt = 0;
+      let resolvedCleanly = false;
 
-          if (resolution) {
-            updatesToPersist.push({
-              id: resolution.slotToUpdate.id,
-              day_of_week: Number(resolution.newDay),
-              start_time: resolution.newStart,
-              end_time: resolution.newEnd,
-            });
+      while (attempt < MAX_ATTEMPTS) {
+        attempt++;
 
-            currentSlotsState = currentSlotsState.map((s) =>
-              s.id === resolution.slotToUpdate.id
-                ? {
-                    ...s,
-                    day_of_week: Number(resolution.newDay),
-                    start_time: resolution.newStart,
-                    end_time: resolution.newEnd,
+        // Audit remaining conflicts at this iteration
+        const activeConflicts = auditScheduleConflicts(currentSlotsState, teachers, classes);
+        if (activeConflicts.length === 0) {
+          resolvedCleanly = true;
+          break;
+        }
+
+        let changesInThisPass = 0;
+
+        // =========================================================================
+        // PASS 0: RESOLVE CLASS DOUBLE BOOKINGS (Same class overlapping at same time)
+        // =========================================================================
+        const classDoubleBookingConflicts = activeConflicts.filter((c) => c.type === 'CLASS_DOUBLE_BOOKING');
+        for (const conflict of classDoubleBookingConflicts) {
+          if (conflict.conflictingSlotIds.length >= 2) {
+            const slotA = currentSlotsState.find((s) => s.id === conflict.conflictingSlotIds[0]);
+            const slotB = currentSlotsState.find((s) => s.id === conflict.conflictingSlotIds[1]);
+            if (!slotA || !slotB) continue;
+
+            const isPinnedA = pinnedSlotIds.has(slotA.id);
+            const isPinnedB = pinnedSlotIds.has(slotB.id);
+
+            let candidates: TimetableSlot[];
+            if (isPinnedA && !isPinnedB) {
+              candidates = [slotB];
+            } else if (isPinnedB && !isPinnedA) {
+              candidates = [slotA];
+            } else {
+              candidates = [slotB, slotA];
+            }
+
+            const classId = slotA.class_id;
+            let resolved = false;
+
+            for (const cand of candidates) {
+              if (resolved) break;
+              const candTeacher = teachers.find((t) => t.id === cand.teacher_id) || cand.teacher;
+
+              // Strategy A: Move into an empty slot (or an existing schedule hole in this class!)
+              for (const day of MOROCCAN_SCHOOL_DAYS) {
+                if (resolved) break;
+                const periods = day.id === 5 ? MOROCCAN_55MIN_PERIODS.slice(0, 4) : MOROCCAN_55MIN_PERIODS;
+                for (const p of periods) {
+                  const isClassSlotFree = !currentSlotsState.some(
+                    (s) =>
+                      s.id !== cand.id &&
+                      s.class_id === classId &&
+                      s.day_of_week === day.id &&
+                      normalizeTime(s.start_time) === normalizeTime(p.start)
+                  );
+                  const isTeacherFree = !currentSlotsState.some(
+                    (s) =>
+                      s.id !== cand.id &&
+                      s.teacher_id === cand.teacher_id &&
+                      s.day_of_week === day.id &&
+                      normalizeTime(s.start_time) === normalizeTime(p.start)
+                  );
+                  const isVacOk = candTeacher ? isVacataireAvailable(candTeacher, day.id, p.id, p.start) : true;
+
+                  if (isClassSlotFree && isTeacherFree && isVacOk) {
+                    updatedMap.set(cand.id, {
+                      id: cand.id,
+                      day_of_week: day.id,
+                      start_time: p.start,
+                      end_time: p.end,
+                    });
+
+                    currentSlotsState = currentSlotsState.map((s) =>
+                      s.id === cand.id
+                        ? { ...s, day_of_week: day.id, start_time: p.start, end_time: p.end }
+                        : s
+                    );
+                    resolved = true;
+                    changesInThisPass++;
+                    break;
                   }
-                : s
-            );
+                }
+              }
 
-            if (resolution.partnerSlotToUpdate && resolution.partnerNewDay && resolution.partnerNewStart && resolution.partnerNewEnd) {
-              updatesToPersist.push({
-                id: resolution.partnerSlotToUpdate.id,
-                day_of_week: Number(resolution.partnerNewDay),
-                start_time: resolution.partnerNewStart,
-                end_time: resolution.partnerNewEnd,
-              });
+              // Strategy B: 1-Swap with another non-pinned slot in the SAME class
+              if (!resolved) {
+                const otherClassSlots = currentSlotsState.filter(
+                  (s) =>
+                    s.class_id === classId &&
+                    s.id !== slotA.id &&
+                    s.id !== slotB.id &&
+                    !pinnedSlotIds.has(s.id) &&
+                    !(s.day_of_week === 5 && normalizeTime(s.start_time) >= '13:00')
+                );
 
-              currentSlotsState = currentSlotsState.map((s) =>
-                s.id === resolution.partnerSlotToUpdate!.id
-                  ? {
-                      ...s,
-                      day_of_week: Number(resolution.partnerNewDay),
-                      start_time: resolution.partnerNewStart!,
-                      end_time: resolution.partnerNewEnd!,
-                    }
-                  : s
-              );
+                for (const partnerSlot of otherClassSlots) {
+                  const partnerTeacher = teachers.find((t) => t.id === partnerSlot.teacher_id) || partnerSlot.teacher;
+                  const pDay = partnerSlot.day_of_week;
+                  const pStart = partnerSlot.start_time;
+                  const pEnd = partnerSlot.end_time;
+                  const origDay = cand.day_of_week;
+                  const origStart = cand.start_time;
+                  const origEnd = cand.end_time;
+
+                  const isCandTeacherFreeAtPartner = !currentSlotsState.some(
+                    (s) =>
+                      s.id !== cand.id &&
+                      s.id !== partnerSlot.id &&
+                      s.teacher_id === cand.teacher_id &&
+                      s.day_of_week === pDay &&
+                      normalizeTime(s.start_time) === normalizeTime(pStart)
+                  );
+
+                  const isPartnerTeacherFreeAtOrig = !currentSlotsState.some(
+                    (s) =>
+                      s.id !== cand.id &&
+                      s.id !== partnerSlot.id &&
+                      s.teacher_id === partnerSlot.teacher_id &&
+                      s.day_of_week === origDay &&
+                      normalizeTime(s.start_time) === normalizeTime(origStart)
+                  );
+
+                  const isCandVacOk = candTeacher ? isVacataireAvailable(candTeacher, pDay, '', pStart) : true;
+                  const isPartnerVacOk = partnerTeacher ? isVacataireAvailable(partnerTeacher, origDay, '', origStart) : true;
+
+                  if (isCandTeacherFreeAtPartner && isPartnerTeacherFreeAtOrig && isCandVacOk && isPartnerVacOk) {
+                    updatedMap.set(cand.id, {
+                      id: cand.id,
+                      day_of_week: pDay,
+                      start_time: pStart,
+                      end_time: pEnd,
+                    });
+                    updatedMap.set(partnerSlot.id, {
+                      id: partnerSlot.id,
+                      day_of_week: origDay,
+                      start_time: origStart,
+                      end_time: origEnd,
+                    });
+
+                    currentSlotsState = currentSlotsState.map((s) => {
+                      if (s.id === cand.id) return { ...s, day_of_week: pDay, start_time: pStart, end_time: pEnd };
+                      if (s.id === partnerSlot.id) return { ...s, day_of_week: origDay, start_time: origStart, end_time: origEnd };
+                      return s;
+                    });
+
+                    resolved = true;
+                    changesInThisPass++;
+                    break;
+                  }
+                }
+              }
             }
           }
         }
+
+        // =========================================================================
+        // PASS 1: RESOLVE TEACHER DOUBLE BOOKINGS
+        // =========================================================================
+        const doubleBookingConflicts = activeConflicts.filter((c) => c.type === 'TEACHER_DOUBLE_BOOKING');
+        for (const conflict of doubleBookingConflicts) {
+          if (conflict.conflictingSlotIds.length >= 2) {
+            const resolution = findConflictResolution(
+              conflict.conflictingSlotIds[0],
+              conflict.conflictingSlotIds[1],
+              currentSlotsState,
+              teachers,
+              pinnedSlotIds
+            );
+
+            if (resolution) {
+              updatedMap.set(resolution.slotToUpdate.id, {
+                id: resolution.slotToUpdate.id,
+                day_of_week: Number(resolution.newDay),
+                start_time: resolution.newStart,
+                end_time: resolution.newEnd,
+              });
+
+              currentSlotsState = currentSlotsState.map((s) =>
+                s.id === resolution.slotToUpdate.id
+                  ? {
+                      ...s,
+                      day_of_week: Number(resolution.newDay),
+                      start_time: resolution.newStart,
+                      end_time: resolution.newEnd,
+                    }
+                  : s
+              );
+
+              if (
+                resolution.partnerSlotToUpdate &&
+                resolution.partnerNewDay &&
+                resolution.partnerNewStart &&
+                resolution.partnerNewEnd
+              ) {
+                updatedMap.set(resolution.partnerSlotToUpdate.id, {
+                  id: resolution.partnerSlotToUpdate.id,
+                  day_of_week: Number(resolution.partnerNewDay),
+                  start_time: resolution.partnerNewStart,
+                  end_time: resolution.partnerNewEnd,
+                });
+
+                currentSlotsState = currentSlotsState.map((s) =>
+                  s.id === resolution.partnerSlotToUpdate!.id
+                    ? {
+                        ...s,
+                        day_of_week: Number(resolution.partnerNewDay),
+                        start_time: resolution.partnerNewStart!,
+                        end_time: resolution.partnerNewEnd!,
+                      }
+                    : s
+                );
+              }
+
+              if (
+                resolution.thirdSlotToUpdate &&
+                resolution.thirdNewDay &&
+                resolution.thirdNewStart &&
+                resolution.thirdNewEnd
+              ) {
+                updatedMap.set(resolution.thirdSlotToUpdate.id, {
+                  id: resolution.thirdSlotToUpdate.id,
+                  day_of_week: Number(resolution.thirdNewDay),
+                  start_time: resolution.thirdNewStart,
+                  end_time: resolution.thirdNewEnd,
+                });
+
+                currentSlotsState = currentSlotsState.map((s) =>
+                  s.id === resolution.thirdSlotToUpdate!.id
+                    ? {
+                        ...s,
+                        day_of_week: Number(resolution.thirdNewDay),
+                        start_time: resolution.thirdNewStart!,
+                        end_time: resolution.thirdNewEnd!,
+                      }
+                    : s
+                );
+              }
+              changesInThisPass++;
+            } else {
+              // Secondary Solver: Try swapping with any non-pinned slot in either conflicting class
+              const isPinned0 = pinnedSlotIds.has(conflict.conflictingSlotIds[0]);
+              const isPinned1 = pinnedSlotIds.has(conflict.conflictingSlotIds[1]);
+
+              let slotsToTryIds: string[];
+              if (isPinned0 && !isPinned1) {
+                slotsToTryIds = [conflict.conflictingSlotIds[1]];
+              } else if (isPinned1 && !isPinned0) {
+                slotsToTryIds = [conflict.conflictingSlotIds[0]];
+              } else {
+                slotsToTryIds = [conflict.conflictingSlotIds[1], conflict.conflictingSlotIds[0]];
+              }
+
+              const slotsToTry = slotsToTryIds
+                .map((id) => currentSlotsState.find((s) => s.id === id))
+                .filter(Boolean) as TimetableSlot[];
+
+              for (const candSlot of slotsToTry) {
+                const candClassId = candSlot.class_id;
+                const candTeacher = teachers.find((t) => t.id === candSlot.teacher_id) || candSlot.teacher;
+
+                const otherClassSlots = currentSlotsState.filter(
+                  (s) =>
+                    s.class_id === candClassId &&
+                    s.id !== candSlot.id &&
+                    !pinnedSlotIds.has(s.id) &&
+                    !(s.day_of_week === 5 && normalizeTime(s.start_time) >= '13:00')
+                );
+
+                let swapResolved = false;
+                for (const partnerSlot of otherClassSlots) {
+                  const partnerTeacher = teachers.find((t) => t.id === partnerSlot.teacher_id) || partnerSlot.teacher;
+                  const pDay = partnerSlot.day_of_week;
+                  const pStart = partnerSlot.start_time;
+                  const pEnd = partnerSlot.end_time;
+                  const origDay = candSlot.day_of_week;
+                  const origStart = candSlot.start_time;
+                  const origEnd = candSlot.end_time;
+
+                  const isCandTeacherFreeAtPartner = !currentSlotsState.some(
+                    (s) =>
+                      s.id !== candSlot.id &&
+                      s.id !== partnerSlot.id &&
+                      s.teacher_id === candSlot.teacher_id &&
+                      s.day_of_week === pDay &&
+                      normalizeTime(s.start_time) === normalizeTime(pStart)
+                  );
+
+                  const isPartnerTeacherFreeAtOrig = !currentSlotsState.some(
+                    (s) =>
+                      s.id !== candSlot.id &&
+                      s.id !== partnerSlot.id &&
+                      s.teacher_id === partnerSlot.teacher_id &&
+                      s.day_of_week === origDay &&
+                      normalizeTime(s.start_time) === normalizeTime(origStart)
+                  );
+
+                  const isCandVacOk = candTeacher ? isVacataireAvailable(candTeacher, pDay, '', pStart) : true;
+                  const isPartnerVacOk = partnerTeacher ? isVacataireAvailable(partnerTeacher, origDay, '', origStart) : true;
+
+                  if (isCandTeacherFreeAtPartner && isPartnerTeacherFreeAtOrig && isCandVacOk && isPartnerVacOk) {
+                    updatedMap.set(candSlot.id, {
+                      id: candSlot.id,
+                      day_of_week: pDay,
+                      start_time: pStart,
+                      end_time: pEnd,
+                    });
+                    updatedMap.set(partnerSlot.id, {
+                      id: partnerSlot.id,
+                      day_of_week: origDay,
+                      start_time: origStart,
+                      end_time: origEnd,
+                    });
+
+                    currentSlotsState = currentSlotsState.map((s) => {
+                      if (s.id === candSlot.id) return { ...s, day_of_week: pDay, start_time: pStart, end_time: pEnd };
+                      if (s.id === partnerSlot.id) return { ...s, day_of_week: origDay, start_time: origStart, end_time: origEnd };
+                      return s;
+                    });
+
+                    swapResolved = true;
+                    changesInThisPass++;
+                    break;
+                  }
+                }
+                if (swapResolved) break;
+              }
+            }
+          }
+        }
+
+        // =========================================================================
+        // PASS 2: COMPACT & ELIMINATE ALL CLASS SCHEDULE GAPS (Trous / Sawaye3 Khawyin)
+        // =========================================================================
+        classes.forEach((cls) => {
+          MOROCCAN_SCHOOL_DAYS.forEach((day) => {
+            // 1. Compact Morning (P1 -> P2 -> P3 -> P4)
+            const morningPeriods = MOROCCAN_55MIN_PERIODS.slice(0, 4);
+            for (let pIdx = 0; pIdx < morningPeriods.length; pIdx++) {
+              const expectedPeriod = morningPeriods[pIdx];
+              const slotAtExpected = currentSlotsState.find(
+                (s) =>
+                  s.class_id === cls.id &&
+                  s.day_of_week === day.id &&
+                  normalizeTime(s.start_time) === normalizeTime(expectedPeriod.start)
+              );
+
+              if (!slotAtExpected) {
+                const laterSlot = currentSlotsState.find((s) => {
+                  if (s.class_id !== cls.id || s.day_of_week !== day.id) return false;
+                  if (pinnedSlotIds.has(s.id)) return false; // Never move a user-pinned slot away!
+                  const sIdx = morningPeriods.findIndex(
+                    (p) => normalizeTime(p.start) === normalizeTime(s.start_time)
+                  );
+                  return sIdx > pIdx;
+                });
+
+                if (laterSlot) {
+                  const teacher = teachers.find((t) => t.id === laterSlot.teacher_id) || laterSlot.teacher;
+                  const isTeacherBusyAtExpected = currentSlotsState.some(
+                    (s) =>
+                      s.id !== laterSlot.id &&
+                      s.teacher_id === laterSlot.teacher_id &&
+                      s.day_of_week === day.id &&
+                      normalizeTime(s.start_time) === normalizeTime(expectedPeriod.start)
+                  );
+                  const isVacOk = teacher
+                    ? isVacataireAvailable(teacher, day.id, expectedPeriod.id, expectedPeriod.start)
+                    : true;
+
+                  if (!isTeacherBusyAtExpected && isVacOk) {
+                    updatedMap.set(laterSlot.id, {
+                      id: laterSlot.id,
+                      day_of_week: day.id,
+                      start_time: expectedPeriod.start,
+                      end_time: expectedPeriod.end,
+                    });
+
+                    currentSlotsState = currentSlotsState.map((s) =>
+                      s.id === laterSlot.id
+                        ? {
+                            ...s,
+                            day_of_week: day.id,
+                            start_time: expectedPeriod.start,
+                            end_time: expectedPeriod.end,
+                          }
+                        : s
+                    );
+
+                    changesInThisPass++;
+                    continue;
+                  }
+                }
+
+                const anySwappableSlot = currentSlotsState.find((s) => {
+                  if (s.class_id !== cls.id) return false;
+                  if (pinnedSlotIds.has(s.id)) return false; // Protect pinned slot
+                  const sTeacher = teachers.find((t) => t.id === s.teacher_id) || s.teacher;
+                  const isTeacherBusyAtExpected = currentSlotsState.some(
+                    (other) =>
+                      other.id !== s.id &&
+                      other.teacher_id === s.teacher_id &&
+                      other.day_of_week === day.id &&
+                      normalizeTime(other.start_time) === normalizeTime(expectedPeriod.start)
+                  );
+                  const isVacOk = sTeacher ? isVacataireAvailable(sTeacher, day.id, expectedPeriod.id, expectedPeriod.start) : true;
+                  return !isTeacherBusyAtExpected && isVacOk;
+                });
+
+                if (anySwappableSlot && (anySwappableSlot.day_of_week !== day.id || normalizeTime(anySwappableSlot.start_time) !== normalizeTime(expectedPeriod.start))) {
+                  updatedMap.set(anySwappableSlot.id, {
+                    id: anySwappableSlot.id,
+                    day_of_week: day.id,
+                    start_time: expectedPeriod.start,
+                    end_time: expectedPeriod.end,
+                  });
+
+                  currentSlotsState = currentSlotsState.map((s) =>
+                    s.id === anySwappableSlot.id
+                      ? {
+                          ...s,
+                          day_of_week: day.id,
+                          start_time: expectedPeriod.start,
+                          end_time: expectedPeriod.end,
+                        }
+                      : s
+                  );
+
+                  changesInThisPass++;
+                }
+              }
+            }
+
+            // 2. Compact Afternoon (P5 -> P6 -> P7 for Mon-Thu)
+            if (day.id !== 5) {
+              const afternoonPeriods = MOROCCAN_55MIN_PERIODS.slice(4);
+              for (let pIdx = 0; pIdx < afternoonPeriods.length; pIdx++) {
+                const expectedPeriod = afternoonPeriods[pIdx];
+                const slotAtExpected = currentSlotsState.find(
+                  (s) =>
+                    s.class_id === cls.id &&
+                    s.day_of_week === day.id &&
+                    normalizeTime(s.start_time) === normalizeTime(expectedPeriod.start)
+                );
+
+                if (!slotAtExpected) {
+                  const laterSlot = currentSlotsState.find((s) => {
+                    if (s.class_id !== cls.id || s.day_of_week !== day.id) return false;
+                    if (pinnedSlotIds.has(s.id)) return false; // Protect pinned slot
+                    const sIdx = afternoonPeriods.findIndex(
+                      (p) => normalizeTime(p.start) === normalizeTime(s.start_time)
+                    );
+                    return sIdx > pIdx;
+                  });
+
+                  if (laterSlot) {
+                    const teacher = teachers.find((t) => t.id === laterSlot.teacher_id) || laterSlot.teacher;
+                    const isTeacherBusyAtExpected = currentSlotsState.some(
+                      (s) =>
+                        s.id !== laterSlot.id &&
+                        s.teacher_id === laterSlot.teacher_id &&
+                        s.day_of_week === day.id &&
+                        normalizeTime(s.start_time) === normalizeTime(expectedPeriod.start)
+                    );
+                    const isVacOk = teacher
+                      ? isVacataireAvailable(teacher, day.id, expectedPeriod.id, expectedPeriod.start)
+                      : true;
+
+                    if (!isTeacherBusyAtExpected && isVacOk) {
+                      updatedMap.set(laterSlot.id, {
+                        id: laterSlot.id,
+                        day_of_week: day.id,
+                        start_time: expectedPeriod.start,
+                        end_time: expectedPeriod.end,
+                      });
+
+                      currentSlotsState = currentSlotsState.map((s) =>
+                        s.id === laterSlot.id
+                          ? {
+                              ...s,
+                              day_of_week: day.id,
+                              start_time: expectedPeriod.start,
+                              end_time: expectedPeriod.end,
+                            }
+                          : s
+                      );
+
+                      changesInThisPass++;
+                      continue;
+                    }
+                  }
+
+                  const anyOtherSlot = currentSlotsState.find((s) => {
+                    if (s.class_id !== cls.id) return false;
+                    if (pinnedSlotIds.has(s.id)) return false; // Protect pinned slot
+                    const sTeacher = teachers.find((t) => t.id === s.teacher_id) || s.teacher;
+                    const isTeacherBusyAtExpected = currentSlotsState.some(
+                      (other) =>
+                        other.id !== s.id &&
+                        other.teacher_id === s.teacher_id &&
+                        other.day_of_week === day.id &&
+                        normalizeTime(other.start_time) === normalizeTime(expectedPeriod.start)
+                    );
+                    const isVacOk = sTeacher ? isVacataireAvailable(sTeacher, day.id, expectedPeriod.id, expectedPeriod.start) : true;
+                    return !isTeacherBusyAtExpected && isVacOk;
+                  });
+
+                  if (anyOtherSlot && (anyOtherSlot.day_of_week !== day.id || normalizeTime(anyOtherSlot.start_time) !== normalizeTime(expectedPeriod.start))) {
+                    updatedMap.set(anyOtherSlot.id, {
+                      id: anyOtherSlot.id,
+                      day_of_week: day.id,
+                      start_time: expectedPeriod.start,
+                      end_time: expectedPeriod.end,
+                    });
+
+                    currentSlotsState = currentSlotsState.map((s) =>
+                      s.id === anyOtherSlot.id
+                        ? { ...s, day_of_week: day.id, start_time: expectedPeriod.start, end_time: expectedPeriod.end }
+                        : s
+                    );
+
+                    changesInThisPass++;
+                  }
+                }
+              }
+            }
+          });
+        });
+
+        // If no changes occurred in this pass and conflicts remain, break to avoid infinite loop
+        if (changesInThisPass === 0) {
+          break;
+        }
       }
 
+      // Check final state
+      const finalConflicts = auditScheduleConflicts(currentSlotsState, teachers, classes);
+      const updatesToPersist = Array.from(updatedMap.values());
+
       if (updatesToPersist.length > 0) {
-        // Instant Optimistic local UI update
+        // Optimistic UI update
         setSlots(currentSlotsState);
 
-        await Promise.all(
+        // Batch Persist to Supabase Database
+        const results = await Promise.all(
           updatesToPersist.map((u) =>
             supabase
               .from('timetable_slots')
@@ -580,15 +1358,38 @@ export default function TimetablePage() {
           )
         );
 
-        notify({
-          title: 'Conflits Résolus Automatiquement !',
-          message: `${updatesToPersist.length} séance(s) réorganisées avec succès. Aucun professeur n'est en double-booking.`,
-          type: 'success',
+        const hasDbErrors = results.some((r) => r.error);
+        if (hasDbErrors) {
+          console.warn('Some slot updates returned error, reloading fresh data');
+        }
+
+        logAuditEvent({
+          action: 'TIMETABLE_AUTO_FIX_APPLIED',
+          entity_type: 'timetable_slots',
+          details: {
+            resolvedCount: updatesToPersist.length,
+            attemptsCount: attempt,
+            conflictsRemaining: finalConflicts.length,
+          },
         });
+
+        if (finalConflicts.length === 0) {
+          notify({
+            title: 'Emploi du Temps 100% Réorganisé & Sans Aucun Conflit !',
+            message: `Résolu avec succès en ${attempt} tentative(s). ${updatesToPersist.length} séance(s) réorganisées. 0 conflit restant.`,
+            type: 'success',
+          });
+        } else {
+          notify({
+            title: 'Réorganisation Partielle Appliquée',
+            message: `${updatesToPersist.length} séance(s) réorganisées en ${attempt} tentative(s). Il reste ${finalConflicts.length} conflit(s) nécessitant un arbitrage manuel.`,
+            type: 'info',
+          });
+        }
       } else {
         notify({
           title: 'Information',
-          message: 'Toutes les séances ont déjà été vérifiées.',
+          message: 'Toutes les séances ont déjà été vérifiées et sont conformes.',
           type: 'info',
         });
       }
@@ -758,7 +1559,8 @@ export default function TimetablePage() {
       }
     }
 
-    // 1. Optimistic Local State Update (Instant UI Reaction)
+    // 1. Optimistic Local State Update & Pin the moved slot as user anchor
+    setPinnedSlotIds((prev) => new Set([...prev, currentDragged.id]));
     setSlots((prev) =>
       prev.map((s) => {
         const update = updatesToRun.find((u) => u.id === s.id);
@@ -1132,6 +1934,16 @@ export default function TimetablePage() {
       }
 
       setShowAddModal(false);
+      logAuditEvent({
+        action: 'TIMETABLE_SLOT_ADDED',
+        entity_type: 'timetable_slots',
+        details: {
+          class_id: targetClass,
+          teacher_id: targetTeacher,
+          day: newSlot.day_of_week,
+          start: newSlot.start_time,
+        },
+      });
       notify({ title: 'Succès', message: 'Séance ajoutée avec succès !', type: 'success' });
       loadData();
     } catch (err: unknown) {
@@ -1144,6 +1956,11 @@ export default function TimetablePage() {
     try {
       const supabase = createClient();
       await supabase.from('timetable_slots').delete().eq('id', slotId);
+      logAuditEvent({
+        action: 'TIMETABLE_SLOT_DELETED',
+        entity_type: 'timetable_slots',
+        entity_id: slotId,
+      });
       notify({ title: 'Supprimé', message: 'Séance retirée de l\'emploi du temps.', type: 'info' });
       loadData();
     } catch (err) {
@@ -1195,22 +2012,30 @@ export default function TimetablePage() {
     }
   };
 
-  const triggerPrint = (mode: 'CURRENT' | 'ALL_CLASSES' | 'ALL_TEACHERS') => {
+  const triggerPrint = (mode: 'CURRENT' | 'ALL_CLASSES' | 'ALL_TEACHERS' | 'MASTER_GRID') => {
     setPrintMode(mode);
     setShowExportDropdown(false);
 
     const originalTitle = document.title;
-    let exportFileName = 'Emploi_du_Temps_GM';
+    const yearStr = (settings.academic_year || '2025-2026').trim().replace(/\s+/g, '_');
+    
+    let exportFileName = `Emploi_du_Temps_${yearStr}`;
     if (mode === 'CURRENT') {
       if (viewMode === 'CLASS') {
-        exportFileName = `Emploi_du_Temps_${selectedClass?.name || 'Classe'}_2025-2026`;
+        const clsName = (selectedClass?.name || 'Classe').trim().replace(/\s+/g, '_');
+        exportFileName = `Emploi_du_Temps_${clsName}_${yearStr}`;
+      } else if (viewMode === 'TEACHER') {
+        const teacherName = `${selectedTeacher?.first_name || ''}_${selectedTeacher?.last_name || 'Enseignant'}`.trim().replace(/\s+/g, '_');
+        exportFileName = `Planning_Service_${teacherName}_${yearStr}`;
       } else {
-        exportFileName = `Planning_Service_${selectedTeacher?.first_name || ''}_${selectedTeacher?.last_name || 'Enseignant'}_2025-2026`;
+        exportFileName = `Grille_Service_Globale_Tous_Enseignants_${yearStr}`;
       }
     } else if (mode === 'ALL_CLASSES') {
-      exportFileName = `Livret_Complet_Emplois_du_Temps_Toutes_Classes_2025-2026`;
+      exportFileName = `Livret_Complet_Emplois_du_Temps_Toutes_Classes_${yearStr}`;
+    } else if (mode === 'ALL_TEACHERS') {
+      exportFileName = `Plannings_Service_Tous_Enseignants_${yearStr}`;
     } else {
-      exportFileName = `Plannings_Service_Tous_Enseignants_2025-2026`;
+      exportFileName = `Grille_Service_Globale_Tous_Enseignants_${yearStr}`;
     }
 
     document.title = exportFileName;
@@ -1237,7 +2062,7 @@ export default function TimetablePage() {
         @media print {
           @page {
             size: A4 landscape !important;
-            margin: 4mm 6mm 4mm 6mm !important;
+            margin: 3mm 5mm 3mm 5mm !important;
           }
           body, html {
             background: #ffffff !important;
@@ -1263,20 +2088,152 @@ export default function TimetablePage() {
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }
+          .print-master-page {
+            width: 100% !important;
+            max-width: 100% !important;
+            height: 198mm !important;
+            max-height: 198mm !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
+          }
+          .print-master-table-wrapper {
+            flex: 1 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            min-height: 0 !important;
+            height: 163mm !important;
+            max-height: 163mm !important;
+            border: 1.5px solid #334155 !important;
+            border-radius: 4px !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
+          }
+          .print-master-table {
+            width: 100% !important;
+            height: 100% !important;
+            border-collapse: collapse !important;
+            table-layout: fixed !important;
+          }
+          .print-master-table thead tr {
+            height: 9mm !important;
+            background-color: #f1f5f9 !important;
+          }
+          .print-master-table th {
+            padding: 1px 1px !important;
+            font-size: 6.5pt !important;
+            line-height: 1.15 !important;
+            background-color: #f1f5f9 !important;
+            border-right: 1.6px solid #1e293b !important;
+            border-bottom: 2px solid #0f172a !important;
+            color: #0f172a !important;
+            font-weight: 900 !important;
+            vertical-align: middle !important;
+          }
+          .print-master-table th:last-child {
+            border-right: none !important;
+          }
+          .print-master-table tbody {
+            height: 148mm !important;
+          }
+          .print-master-table tbody tr {
+            height: calc(148mm / 32) !important;
+          }
+          .print-master-table td {
+            padding: 1px 1px !important;
+            font-size: 6.6pt !important;
+            line-height: 1.1 !important;
+            text-align: center !important;
+            border-right: 1.6px solid #1e293b !important;
+            border-bottom: 1px solid #cbd5e1 !important;
+            vertical-align: middle !important;
+            box-sizing: border-box !important;
+          }
+          .print-master-table td:last-child {
+            border-right: none !important;
+          }
+          .print-master-table tbody tr.print-master-day-end td {
+            border-bottom: 2.2px solid #0f172a !important;
+          }
+          .print-master-table td.print-master-day-header {
+            border-right: 2px solid #0f172a !important;
+            border-bottom: 2.2px solid #0f172a !important;
+          }
+          .print-master-badge {
+            padding: 1.5px 1px !important;
+            border-radius: 3px !important;
+            font-weight: 900 !important;
+            font-size: 6.4pt !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            text-align: center !important;
+            overflow: hidden !important;
+            white-space: nowrap !important;
+            text-overflow: ellipsis !important;
+            line-height: 1.1 !important;
+          }
+          .print-master-day-header {
+            background-color: #e2e8f0 !important;
+            font-weight: 900 !important;
+            font-size: 7.8pt !important;
+            text-align: center !important;
+            vertical-align: middle !important;
+            border-right: 2px solid #0f172a !important;
+            letter-spacing: 0.5px !important;
+          }
+          .print-master-table tfoot tr {
+            height: 6mm !important;
+            background-color: #e2e8f0 !important;
+          }
+          .print-master-table tfoot td {
+            font-size: 7pt !important;
+            font-weight: 900 !important;
+            padding: 1px 1px !important;
+            border-right: 1.6px solid #1e293b !important;
+            border-top: 2px solid #0f172a !important;
+          }
+          .print-master-table tfoot td:last-child {
+            border-right: none !important;
+          }
+          .print-full-container,
           .print-page-break {
-            page-break-after: always !important;
-            break-after: page !important;
-            height: 194mm !important;
-            max-height: 194mm !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            height: 198mm !important;
+            max-height: 198mm !important;
             display: flex !important;
             flex-direction: column !important;
             justify-content: space-between !important;
             overflow: hidden !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+            box-sizing: border-box !important;
           }
           .print-header-block {
-            margin-bottom: 5px !important;
-            padding-bottom: 5px !important;
+            margin-bottom: 3px !important;
+            padding-bottom: 3px !important;
             border-bottom: 2px solid #0f172a !important;
+          }
+          .print-table-wrapper {
+            flex: 1 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            min-height: 0 !important;
+            height: 164mm !important;
+            max-height: 164mm !important;
+            border: 1.5px solid #334155 !important;
+            border-radius: 6px !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
           }
           .print-table {
             width: 100% !important;
@@ -1285,19 +2242,48 @@ export default function TimetablePage() {
             border-collapse: collapse !important;
             table-layout: fixed !important;
           }
-          .print-table th {
-            padding: 4px 4px !important;
-            font-size: 9pt !important;
+          .print-table thead tr {
+            height: 8mm !important;
+            background-color: #f1f5f9 !important;
+          }
+          .print-table thead th {
+            padding: 2px 2px !important;
+            font-size: 8.5pt !important;
+            border-right: 1.5px solid #334155 !important;
+            border-bottom: 2px solid #0f172a !important;
+            font-weight: 900 !important;
+          }
+          .print-table thead th:last-child {
+            border-right: none !important;
+          }
+          .print-table tbody {
+            height: 156mm !important;
+          }
+          .print-table tbody tr {
+            height: 17.5mm !important;
+          }
+          .print-table tbody tr.print-recess-row {
+            height: 5mm !important;
+            padding: 1px !important;
+            font-size: 7.2pt !important;
+            font-weight: 800 !important;
           }
           .print-table td {
-            padding: 2.5px 3.5px !important;
+            padding: 1.5px 2px !important;
             vertical-align: middle !important;
+            border-right: 1.5px solid #334155 !important;
+            border-bottom: 1px solid #cbd5e1 !important;
+            box-sizing: border-box !important;
+          }
+          .print-table td:last-child {
+            border-right: none !important;
           }
           .print-card-slot {
-            padding: 3px 4px !important;
-            min-height: 48px !important;
-            max-height: 52px !important;
-            border-radius: 6px !important;
+            padding: 2.5px 3px !important;
+            height: 100% !important;
+            min-height: 16mm !important;
+            max-height: 17mm !important;
+            border-radius: 5px !important;
             box-shadow: none !important;
             display: flex !important;
             flex-direction: column !important;
@@ -1307,43 +2293,31 @@ export default function TimetablePage() {
             overflow: hidden !important;
           }
           .print-empty-slot {
-            height: 48px !important;
-            border-radius: 6px !important;
-            font-size: 9pt !important;
+            height: 100% !important;
+            min-height: 16mm !important;
+            max-height: 17mm !important;
+            border-radius: 5px !important;
+            border: 1.5px dashed #cbd5e1 !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            text-align: center !important;
+            color: #94a3b8 !important;
+            font-weight: bold !important;
           }
           .print-card-subject {
-            font-size: 9.5pt !important;
+            font-size: 8.5pt !important;
             font-weight: 900 !important;
-            line-height: 1.15 !important;
-            text-align: center !important;
-            width: 100% !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-            white-space: nowrap !important;
+            line-height: 1.1 !important;
           }
           .print-card-details {
-            font-size: 7.5pt !important;
+            font-size: 7.2pt !important;
             line-height: 1.1 !important;
-            text-align: center !important;
-            width: 100% !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-            white-space: nowrap !important;
-          }
-          .print-recess-row {
-            padding: 3px !important;
-            font-size: 8pt !important;
-            font-weight: 800 !important;
           }
           .print-signature-footer {
-            margin-top: 6px !important;
-            padding-top: 6px !important;
-            border-top: 1.5px solid #94a3b8 !important;
-            font-size: 8pt !important;
+            margin-top: 3px !important;
+            padding-top: 3px !important;
+            border-top: 1.5px solid #334155 !important;
+            font-size: 7.5pt !important;
           }
         }
       `}</style>
@@ -1394,6 +2368,18 @@ export default function TimetablePage() {
                 <User className="w-3.5 h-3.5" />
                 <span>{dir === 'rtl' ? 'حسب الأستاذ' : 'Par Enseignant'}</span>
               </button>
+
+              <button
+                onClick={() => setViewMode('MASTER_GRID')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  viewMode === 'MASTER_GRID'
+                    ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                }`}
+              >
+                <Table className="w-3.5 h-3.5" />
+                <span>{dir === 'rtl' ? 'الجدول الشامل للأساتذة' : 'Grille Globale Tous Profs'}</span>
+              </button>
             </div>
 
             {/* Export PDF Button */}
@@ -1408,7 +2394,7 @@ export default function TimetablePage() {
               </button>
 
               {showExportDropdown && (
-                <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl z-50 p-2 space-y-1 animate-in fade-in zoom-in-95">
+                <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl z-50 p-2 space-y-1 animate-in fade-in zoom-in-95">
                   <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                     Options d&apos;Impression PDF
                   </div>
@@ -1421,12 +2407,27 @@ export default function TimetablePage() {
                     <div>
                       <div>Imprimer la Vue Actuelle</div>
                       <div className="text-[10px] font-normal text-slate-400">
-                        {viewMode === 'CLASS' ? `Classe : ${selectedClass?.name}` : `Prof : ${selectedTeacher?.last_name}`}
+                        {viewMode === 'CLASS'
+                          ? `Classe : ${selectedClass?.name}`
+                          : viewMode === 'TEACHER'
+                          ? `Prof : ${selectedTeacher?.last_name}`
+                          : 'Grille Globale des Profs'}
                       </div>
                     </div>
                   </button>
 
                   <div className="h-[1px] bg-slate-100 dark:bg-slate-800 my-1" />
+
+                  <button
+                    onClick={() => triggerPrint('MASTER_GRID')}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left cursor-pointer"
+                  >
+                    <Table className="w-4 h-4 text-indigo-500" />
+                    <div>
+                      <div className="text-indigo-600 dark:text-indigo-400 font-black">Grille de Service Globale (1 Page A4)</div>
+                      <div className="text-[10px] font-normal text-slate-400">Tous les {teachers.length} profs &amp; toute la semaine sur 1 seule feuille</div>
+                    </div>
+                  </button>
 
                   <button
                     onClick={() => triggerPrint('ALL_CLASSES')}
@@ -1506,23 +2507,35 @@ export default function TimetablePage() {
         {/* Dynamic Dropdown Selector Bar */}
         <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
           <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-2xl ${viewMode === 'CLASS' ? 'bg-sky-500/15 text-sky-600 dark:text-sky-400' : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'} shrink-0`}>
-              {viewMode === 'CLASS' ? <Building2 className="w-5 h-5" /> : <User className="w-5 h-5" />}
+            <div className={`p-2.5 rounded-2xl ${
+              viewMode === 'CLASS'
+                ? 'bg-sky-500/15 text-sky-600 dark:text-sky-400'
+                : viewMode === 'TEACHER'
+                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                : 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400'
+            } shrink-0`}>
+              {viewMode === 'CLASS' ? <Building2 className="w-5 h-5" /> : viewMode === 'TEACHER' ? <User className="w-5 h-5" /> : <Table className="w-5 h-5" />}
             </div>
             <div>
               <div className="text-xs font-black text-slate-900 dark:text-white">
-                {viewMode === 'CLASS' ? 'Classe Affichée' : 'Enseignant Affiché'}
+                {viewMode === 'CLASS'
+                  ? 'Classe Affichée'
+                  : viewMode === 'TEACHER'
+                  ? 'Enseignant Affiché'
+                  : 'Tableau de Service Global des Enseignants'}
               </div>
               <div className="text-[11px] text-slate-400">
                 {viewMode === 'CLASS'
                   ? 'Sélectionnez la division pour consulter ou modifier son planning'
-                  : 'Sélectionnez un enseignant pour afficher son emploi du temps individuel'}
+                  : viewMode === 'TEACHER'
+                  ? 'Sélectionnez un enseignant pour afficher son emploi du temps individuel'
+                  : 'Vue d\'ensemble de tous les créneaux de la semaine pour l\'ensemble des professeurs sur une seule page'}
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-3 w-full sm:w-auto">
-            {viewMode === 'CLASS' ? (
+            {viewMode === 'CLASS' && (
               <select
                 value={selectedClassId}
                 onChange={(e) => setSelectedClassId(e.target.value)}
@@ -1537,7 +2550,9 @@ export default function TimetablePage() {
                   );
                 })}
               </select>
-            ) : (
+            )}
+
+            {viewMode === 'TEACHER' && (
               <select
                 value={selectedTeacherId}
                 onChange={(e) => setSelectedTeacherId(e.target.value)}
@@ -1553,272 +2568,428 @@ export default function TimetablePage() {
                 })}
               </select>
             )}
+
+            {viewMode === 'MASTER_GRID' && (
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 font-bold text-xs">
+                  {teachers.length} Professeurs &bull; {slots.length} séances
+                </span>
+                <button
+                  onClick={() => triggerPrint('MASTER_GRID')}
+                  className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-md shadow-indigo-600/25 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Imprimer Grille (1 Page A4)</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
         {/* 1. SINGLE VIEW DISPLAY (Visible in Browser & When printMode === 'CURRENT') */}
-        <div className={printMode !== 'CURRENT' ? 'print:hidden' : ''}>
-          <div className="print-full-container">
-            {/* Printable Header */}
-            <div className="hidden print:block print-header-block">
-              <div className="flex items-center justify-between">
+        <div className={printMode !== 'CURRENT' && printMode !== 'MASTER_GRID' ? 'print:hidden' : ''}>
+          {viewMode === 'MASTER_GRID' ? (
+            /* ON-SCREEN MASTER TEACHERS RECAPITULATIVE GRID */
+            <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden print:hidden">
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <img
-                    src="/logo.png"
-                    alt="Logo GM"
-                    className="w-12 h-12 object-contain shrink-0"
-                  />
+                  <div className="p-2.5 rounded-2xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 shrink-0 flex items-center justify-center">
+                    <Table className="w-5 h-5 sm:w-6 sm:h-6" />
+                  </div>
                   <div>
-                    <h1 className="text-sm font-black uppercase text-slate-900 leading-tight">
-                      {settings.school_name || 'GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES'}
-                    </h1>
-                    <p className="text-[9px] text-slate-600 font-semibold">
-                      Année Scolaire : {settings.academic_year || '2025-2026'} &bull; {settings.current_term || 'Semestre 1'} &bull; Horaires Officiels (55 min / Séance)
+                    <div className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                      <span>Grille Récapitulative Globale de Tous les Enseignants</span>
+                      <span className="px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-xs font-extrabold">
+                        {teachers.length} Professeurs
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Vue complète de la semaine : créneaux occupés, matières dispensées et disponibilités.
                     </p>
                   </div>
                 </div>
 
-                <div className="text-right">
-                  <span className="px-3 py-1 rounded-lg bg-slate-900 text-white font-black text-xs inline-block">
-                    {viewMode === 'CLASS'
-                      ? `CLASSE : ${selectedClass?.name} (${selectedClass?.level})`
-                      : `ENSEIGNANT : ${selectedTeacher?.first_name} ${selectedTeacher?.last_name?.toUpperCase()} (${selectedTeacher?.specialization})`}
-                  </span>
-                  <p className="text-[8px] text-slate-500 mt-0.5 font-bold">
-                    {viewMode === 'CLASS' ? 'Emploi du Temps Officiel de la Classe' : `Planning de Service (${activeSlots.length}h / semaine)`}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Timetable Table with Drag & Drop */}
-            <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden print:border print:border-slate-300 print:shadow-none print:rounded-lg">
-              <div className="p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 print:hidden">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-2xl bg-sky-500/15 text-sky-600 dark:text-sky-400 shrink-0 flex items-center justify-center">
-                    <Clock className="w-5 h-5 sm:w-6 sm:h-6" />
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
-                    <span>
-                      {viewMode === 'CLASS' ? 'Emploi du temps de la classe :' : 'Emploi du temps de l\'enseignant :'}
-                    </span>
-                    <span className="px-2.5 py-0.5 rounded-lg bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300 font-extrabold text-sm">
-                      {viewMode === 'CLASS' ? selectedClass?.name : `${selectedTeacher?.first_name} ${selectedTeacher?.last_name}`}
-                    </span>
-                    {viewMode === 'TEACHER' && selectedTeacher?.specialization && (
-                      <span className="px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 text-xs font-bold">
-                        {selectedTeacher.specialization} &bull; {selectedTeacher.contract_type}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40 px-2.5 py-1 rounded-xl font-bold flex items-center gap-1.5 border border-sky-200 dark:border-sky-800">
-                    <Move className="w-3 h-3" />
-                    Glisser-déposer pour permuter / déplacer
-                  </span>
-                  <span className="text-xs text-slate-500 font-bold">
-                    {activeSlots.length} séances planifiées
-                  </span>
+                  <button
+                    onClick={() => triggerPrint('MASTER_GRID')}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-md shadow-indigo-600/25 transition-all flex items-center gap-2 cursor-pointer"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>Imprimer sur 1 Page A4</span>
+                  </button>
                 </div>
               </div>
 
-              <div className="w-full overflow-hidden print:overflow-visible">
-                <table className="w-full table-fixed text-center border-collapse print:table-fixed print-table">
+              <div className="w-full overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
+                <table className="w-full min-w-[1050px] text-center border-collapse text-xs">
                   <thead>
-                    <tr className="bg-slate-100/80 dark:bg-slate-800/50 print:bg-slate-100 text-[11px] print:text-[8pt] font-bold text-slate-700 dark:text-slate-300 print:text-black border-b border-slate-200 dark:border-slate-800 print:border-slate-400">
-                      <th className="p-2 sm:p-3 print:p-1 text-left w-[14%] sm:w-[13%] border-r border-slate-200 dark:border-slate-800 print:border-slate-300">
-                        <span className="hidden sm:inline">Horaire (55 min)</span>
-                        <span className="sm:hidden">Horaire</span>
-                      </th>
-                      {MOROCCAN_SCHOOL_DAYS.map((day) => (
-                        <th key={day.id} className="p-2 sm:p-3 print:p-1 w-[17.2%] sm:w-[17.4%] border-r border-slate-200 dark:border-slate-800 print:border-slate-300 last:border-r-0">
-                          <div className="font-extrabold text-slate-900 dark:text-white print:text-black text-[11px] sm:text-xs lg:text-sm print:text-[8.5pt]">{day.name}</div>
-                          {day.isHalfDay && (
-                            <span className="text-[9px] sm:text-[10px] print:text-[7pt] text-orange-600 dark:text-orange-400 print:text-slate-600 font-normal block truncate">
-                              Matinée (Fin 12h20)
+                    <tr className="bg-slate-100/90 dark:bg-slate-800 text-[11px] font-black text-slate-800 dark:text-slate-200 border-b-2 border-slate-300 dark:border-slate-600">
+                      <th className="p-3 text-center w-20 border-r-2 border-slate-300 dark:border-slate-600">Jour</th>
+                      <th className="p-3 text-center w-28 border-r-2 border-slate-300 dark:border-slate-600">Horaire</th>
+                      {teachers.map((tch) => {
+                        const count = slots.filter((s) => s.teacher_id === tch.id).length;
+                        return (
+                          <th key={tch.id} className="p-2.5 border-r-2 border-slate-300 dark:border-slate-600 last:border-r-0 text-center min-w-[100px]">
+                            <div className="font-black text-slate-900 dark:text-white text-xs leading-tight">
+                              {tch.last_name?.toUpperCase()} {tch.first_name}
+                            </div>
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold truncate mt-0.5">
+                              {tch.specialization || 'Enseignant'}
+                            </div>
+                            <span className="inline-block mt-1 px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-mono text-[9.5px] font-bold">
+                              {count}h / sem.
                             </span>
-                          )}
-                        </th>
-                      ))}
+                          </th>
+                        );
+                      })}
                     </tr>
                   </thead>
 
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 print:divide-slate-300 text-xs">
-                    {MOROCCAN_55MIN_PERIODS.map((period) => {
-                      const isRecessAfterP2 = period.id === 'P2';
-                      const isLunchBreakAfterP4 = period.id === 'P4';
-                      const isRecessAfterP6 = period.id === 'P6';
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {MOROCCAN_SCHOOL_DAYS.map((day) => {
+                      const dayPeriods = day.id === 5 ? MOROCCAN_55MIN_PERIODS.slice(0, 4) : MOROCCAN_55MIN_PERIODS;
+                      return dayPeriods.map((period, pIdx) => {
+                        const isFirst = pIdx === 0;
+                        const rowCount = dayPeriods.length;
+                        const isLastPeriodOfDay = pIdx === rowCount - 1;
 
-                      return (
-                        <React.Fragment key={period.id}>
-                          <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                            {/* Period Column */}
-                            <td className="p-1.5 sm:p-2.5 print:p-1 text-left font-mono font-bold text-slate-700 dark:text-slate-300 print:text-black bg-slate-50/60 dark:bg-slate-900/50 print:bg-slate-50 border-r border-slate-200 dark:border-slate-800 print:border-slate-300">
-                              <div className="text-[10px] sm:text-xs font-black text-sky-600 dark:text-sky-400 print:text-black leading-tight">{period.label}</div>
-                              <div className="text-[9px] sm:text-[10px] print:text-[6.5pt] text-slate-400 print:text-slate-500 font-sans font-normal truncate">{period.sessionName}</div>
+                        return (
+                          <tr
+                            key={`${day.id}_${period.id}`}
+                            className={`hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors ${
+                              isLastPeriodOfDay
+                                ? 'border-b-2 border-b-slate-700 dark:border-b-slate-300'
+                                : 'border-b border-slate-100 dark:border-slate-800'
+                            }`}
+                          >
+                            {isFirst && (
+                              <td
+                                rowSpan={rowCount}
+                                className={`p-3 font-black text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-900/80 border-r-2 border-slate-300 dark:border-slate-600 align-middle text-center ${
+                                  isLastPeriodOfDay ? 'border-b-2 border-b-slate-700 dark:border-b-slate-300' : ''
+                                }`}
+                              >
+                                <div className="text-xs font-black uppercase tracking-wider">{day.name}</div>
+                                {day.isHalfDay && (
+                                  <span className="text-[9px] text-orange-600 dark:text-orange-400 font-bold block mt-0.5">
+                                    Matinée
+                                  </span>
+                                )}
+                              </td>
+                            )}
+
+                            <td className="p-2 font-mono font-bold text-[11px] text-sky-600 dark:text-sky-400 bg-slate-50/50 dark:bg-slate-900/40 border-r-2 border-slate-300 dark:border-slate-600">
+                              <div className="font-black leading-tight">{period.label}</div>
+                              <div className="text-[9px] text-slate-400 font-sans font-normal">{period.sessionName}</div>
                             </td>
 
-                            {/* Day Columns */}
-                            {MOROCCAN_SCHOOL_DAYS.map((day) => {
-                              // Friday Afternoon check
-                              if (day.id === 5 && period.isAfternoon) {
-                                if (period.id === 'P5') {
-                                  return (
-                                    <td
-                                      key={day.id}
-                                      rowSpan={3}
-                                      className="p-2 print:p-1 bg-slate-100/70 dark:bg-slate-950/60 print:bg-slate-100 border-r border-slate-200 dark:border-slate-800 print:border-slate-300 align-middle text-center"
-                                    >
-                                      <div className="py-4 print:py-2 px-1 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 print:text-slate-700">
-                                        <span className="font-bold text-[10px] sm:text-xs print:text-[8pt] text-slate-700 dark:text-slate-300 print:text-black">
-                                          🕌 Après-midi Libre
-                                        </span>
-                                        <span className="text-[9px] sm:text-[10px] print:text-[7pt] text-slate-400 print:text-slate-600">Prière du Vendredi</span>
-                                      </div>
-                                    </td>
-                                  );
-                                }
-                                return null;
-                              }
-
-                              const slot = activeSlots.find((s) =>
-                                isSameSlotTime(s.day_of_week, s.start_time, day.id, period.start)
+                            {teachers.map((tch) => {
+                              const tSlot = slots.find(
+                                (s) =>
+                                  s.teacher_id === tch.id &&
+                                  isSameSlotTime(s.day_of_week, s.start_time, day.id, period.start)
                               );
 
-                              const isDragOver =
-                                dragOverCell?.day === day.id &&
-                                dragOverCell?.start === period.start;
-
                               return (
-                                <td
-                                  key={day.id}
-                                  onDragOver={(e) => handleDragOver(e, day.id, period.start)}
-                                  onDragLeave={handleDragLeave}
-                                  onDrop={(e) => handleDropOnCell(e, day.id, period, slot)}
-                                  className={`p-1 sm:p-1.5 print:p-0.5 border-r border-slate-200 dark:border-slate-800 print:border-slate-300 last:border-r-0 align-middle transition-all ${
-                                    isDragOver
-                                      ? 'bg-sky-100/70 dark:bg-sky-900/40 ring-2 ring-sky-500 ring-inset scale-[1.01]'
-                                      : ''
-                                  }`}
-                                >
-                                  {slot ? (
+                                <td key={tch.id} className="p-1.5 border-r-2 border-slate-200 dark:border-slate-700 last:border-r-0 align-middle">
+                                  {tSlot ? (
                                     <div
-                                      draggable={true}
-                                      onDragStart={(e) => handleDragStart(e, slot)}
-                                      onDragEnd={() => {
-                                        setDraggedSlot(null);
-                                        setDragOverCell(null);
-                                      }}
-                                      className={`w-full p-1 sm:p-1.5 lg:p-2 rounded-xl sm:rounded-2xl print:rounded text-white shadow-xs relative group transition-all flex flex-col items-center justify-center text-center min-h-[58px] sm:min-h-[66px] lg:min-h-[74px] print:min-h-[48px] print:max-h-[52px] print-card-slot cursor-grab active:cursor-grabbing hover:shadow-md overflow-hidden ${
-                                        draggedSlot?.id === slot.id
-                                          ? 'opacity-40 ring-2 ring-white scale-95'
-                                          : 'hover:scale-[1.01]'
-                                      }`}
-                                      style={{
-                                        backgroundColor: slot.subject?.color_code || '#0284c7',
-                                      }}
+                                      className="p-1.5 rounded-xl text-white shadow-2xs flex flex-col items-center justify-center text-center transition-transform hover:scale-105"
+                                      style={{ backgroundColor: tSlot.subject?.color_code || '#0284c7' }}
+                                      title={`${tSlot.class?.name || ''} - ${tSlot.subject?.name || ''} (Salle: ${tSlot.room?.name || tSlot.room?.room_number || 'N/A'})`}
                                     >
-                                      {/* Drag grip icon on top left hover */}
-                                      <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-75 transition-opacity print:hidden pointer-events-none">
-                                        <GripVertical className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
-                                      </div>
-
-                                      {/* Delete button on top right hover */}
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleDeleteSlot(slot.id);
-                                        }}
-                                        title="Supprimer la séance"
-                                        className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 hover:text-rose-200 transition-opacity p-0.5 print:hidden cursor-pointer"
-                                      >
-                                        <Trash2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
-                                      </button>
-
-                                      {/* Centered text content */}
-                                      <div className="w-full flex flex-col items-center justify-center text-center overflow-hidden">
-                                        <div className="font-black text-[10px] sm:text-xs lg:text-[13px] tracking-wide text-white text-center leading-tight truncate w-full px-0.5 print-card-subject">
-                                          {slot.subject?.name || 'Matière'}
-                                        </div>
-
-                                        <div className="text-[8.5px] sm:text-[9.5px] lg:text-[10.5px] print:text-[7.5pt] text-white/95 font-medium text-center truncate w-full mt-0.5 print-card-details">
-                                          {viewMode === 'CLASS'
-                                            ? slot.teacher
-                                              ? `${slot.teacher.first_name} ${slot.teacher.last_name}`
-                                              : 'Prof non assigné'
-                                            : slot.class
-                                              ? `Classe : ${slot.class.name} (${slot.class.level})`
-                                              : 'Classe'}
-                                        </div>
-
-                                        <div className="text-[7.5px] sm:text-[8.5px] lg:text-[9px] print:text-[7pt] text-white/90 font-bold bg-black/25 print:bg-transparent px-1.5 py-0.5 rounded text-center inline-block mt-0.5 sm:mt-1 print:mt-0 truncate max-w-[95%] print-card-details">
-                                          S: {slot.room?.name || slot.room?.room_number || 'N/A'}
-                                        </div>
-                                      </div>
+                                      <span className="text-[11px] font-black leading-tight">{tSlot.class?.name}</span>
+                                      <span className="text-[9.5px] font-black opacity-95 uppercase tracking-wide">
+                                        {getSubjectAbbreviation(tSlot.subject)}
+                                      </span>
                                     </div>
                                   ) : (
-                                    <div
-                                      className={`w-full min-h-[54px] sm:min-h-[62px] lg:min-h-[68px] print:h-12 print-empty-slot rounded-xl sm:rounded-2xl print:rounded border-2 border-dashed transition-all flex items-center justify-center text-[10px] sm:text-[11px] print:text-[8pt] font-medium ${
-                                        isDragOver
-                                          ? 'border-sky-500 bg-sky-500/20 text-sky-700 dark:text-sky-300 font-bold scale-102'
-                                          : 'border-slate-200 dark:border-slate-800 print:border-slate-300 text-slate-300 dark:text-slate-700 print:text-slate-400'
-                                      }`}
-                                    >
-                                      {isDragOver ? '+ Déposer' : '—'}
+                                    <div className="py-2 text-slate-300 dark:text-slate-700 font-bold text-center text-xs">
+                                      —
                                     </div>
                                   )}
                                 </td>
                               );
                             })}
                           </tr>
-
-                          {/* Recess & Lunch breaks */}
-                          {isRecessAfterP2 && (
-                            <tr className="bg-amber-500/10 dark:bg-amber-950/30 print:bg-amber-100/50 text-amber-800 dark:text-amber-300 print:text-amber-900 text-[11px] print:text-[7pt] font-bold print-recess-row">
-                              <td colSpan={6} className="py-1.5 print:py-0.5 px-4 text-center tracking-wider">
-                                🔔 Récréation du Matin (10 min) &bull; 10h20 &mdash; 10h30
-                              </td>
-                            </tr>
-                          )}
-
-                          {isLunchBreakAfterP4 && (
-                            <tr className="bg-gradient-to-r from-orange-500/15 via-amber-500/20 to-orange-500/15 print:bg-orange-100 text-orange-900 dark:text-orange-200 print:text-orange-950 text-xs print:text-[7.5pt] font-black print-recess-row">
-                              <td colSpan={6} className="py-2.5 print:py-0.5 px-4 text-center tracking-wider border-y border-orange-500/30 print:border-orange-300">
-                                🍽️ Pause Déjeuner &amp; Prière (40 min) &bull; 12h20 &mdash; 13h00
-                              </td>
-                            </tr>
-                          )}
-
-                          {isRecessAfterP6 && (
-                            <tr className="bg-amber-500/10 dark:bg-amber-950/30 print:bg-amber-100/50 text-amber-800 dark:text-amber-300 print:text-amber-900 text-[11px] print:text-[7pt] font-bold print-recess-row">
-                              <td colSpan={6} className="py-1.5 print:py-0.5 px-4 text-center tracking-wider">
-                                🔔 Pause de l&apos;Après-midi (10 min) &bull; 14h55 &mdash; 15h05 (Lundi au Jeudi)
-                              </td>
-                            </tr>
-                          )}
-                        </React.Fragment>
-                      );
+                        );
+                      });
                     })}
                   </tbody>
+
+                  <tfoot>
+                    <tr className="bg-slate-100 dark:bg-slate-800 text-xs font-black text-slate-900 dark:text-white border-t-2 border-slate-300 dark:border-slate-600">
+                      <td colSpan={2} className="p-3 text-center uppercase tracking-wider border-r-2 border-slate-300 dark:border-slate-600">
+                        Total Heures / Semaine
+                      </td>
+                      {teachers.map((tch) => {
+                        const count = slots.filter((s) => s.teacher_id === tch.id).length;
+                        return (
+                          <td key={tch.id} className="p-3 border-r-2 border-slate-300 dark:border-slate-600 last:border-r-0 text-center font-black text-indigo-600 dark:text-indigo-400">
+                            {count} séances
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>
+          ) : (
+            <div className="print-full-container">
+              {/* Printable Header */}
+              <div className="hidden print:block print-header-block">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src="/logo.png"
+                      alt="Logo GM"
+                      className="w-12 h-12 object-contain shrink-0"
+                    />
+                    <div>
+                      <h1 className="text-sm font-black uppercase text-slate-900 leading-tight">
+                        {settings.school_name || 'GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES'}
+                      </h1>
+                      <p className="text-[9px] text-slate-600 font-semibold">
+                        Année Scolaire : {settings.academic_year || '2025-2026'} &bull; {settings.current_term || 'Semestre 1'} &bull; Horaires Officiels (55 min / Séance)
+                      </p>
+                    </div>
+                  </div>
 
-            {/* Printable Signature Footer */}
-            <div className="hidden print:flex justify-between items-center print-signature-footer text-[7.5pt]">
-              <div>
-                <p className="font-bold text-slate-800">Cachet de l&apos;Établissement</p>
+                  <div className="text-right">
+                    <span className="px-3 py-1 rounded-lg bg-slate-900 text-white font-black text-xs inline-block">
+                      {viewMode === 'CLASS'
+                        ? `CLASSE : ${selectedClass?.name} (${selectedClass?.level})`
+                        : `ENSEIGNANT : ${selectedTeacher?.first_name} ${selectedTeacher?.last_name?.toUpperCase()} (${selectedTeacher?.specialization})`}
+                    </span>
+                    <p className="text-[8px] text-slate-500 mt-0.5 font-bold">
+                      {viewMode === 'CLASS' ? 'Emploi du Temps Officiel de la Classe' : `Planning de Service (${activeSlots.length}h / semaine)`}
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="text-center text-[7pt] text-slate-500 font-medium">
-                Document officiel généré par GM School Management System
+
+              {/* Timetable Table with Drag & Drop */}
+              <div className="print-table-wrapper rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden print:border print:border-slate-300 print:shadow-none print:rounded-lg">
+                <div className="p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 print:hidden">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-2xl bg-sky-500/15 text-sky-600 dark:text-sky-400 shrink-0 flex items-center justify-center">
+                      <Clock className="w-5 h-5 sm:w-6 sm:h-6" />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
+                      <span>
+                        {viewMode === 'CLASS' ? 'Emploi du temps de la classe :' : 'Emploi du temps de l\'enseignant :'}
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded-lg bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300 font-extrabold text-sm">
+                        {viewMode === 'CLASS' ? selectedClass?.name : `${selectedTeacher?.first_name} ${selectedTeacher?.last_name}`}
+                      </span>
+                      {viewMode === 'TEACHER' && selectedTeacher?.specialization && (
+                        <span className="px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 text-xs font-bold">
+                          {selectedTeacher.specialization} &bull; {selectedTeacher.contract_type}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40 px-2.5 py-1 rounded-xl font-bold flex items-center gap-1.5 border border-sky-200 dark:border-sky-800">
+                      <Move className="w-3 h-3" />
+                      Glisser-déposer pour permuter / déplacer
+                    </span>
+                    <span className="text-xs text-slate-500 font-bold">
+                      {activeSlots.length} séances planifiées
+                    </span>
+                  </div>
+                </div>
+
+                <div className="w-full overflow-x-auto print:overflow-visible scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
+                  <table className="w-full min-w-[700px] sm:min-w-full table-fixed text-center border-collapse print:table-fixed print-table">
+                    <thead>
+                      <tr className="bg-slate-100/80 dark:bg-slate-800/50 print:bg-slate-100 text-[11px] print:text-[8pt] font-bold text-slate-700 dark:text-slate-300 print:text-black border-b border-slate-200 dark:border-slate-800 print:border-slate-400">
+                        <th className="p-2 sm:p-3 print:p-1 text-left w-[14%] sm:w-[13%] border-r border-slate-200 dark:border-slate-800 print:border-slate-300">
+                          <span className="hidden sm:inline">Horaire (55 min)</span>
+                          <span className="sm:hidden">Horaire</span>
+                        </th>
+                        {MOROCCAN_SCHOOL_DAYS.map((day) => (
+                          <th key={day.id} className="p-2 sm:p-3 print:p-1 w-[17.2%] sm:w-[17.4%] border-r border-slate-200 dark:border-slate-800 print:border-slate-300 last:border-r-0">
+                            <div className="font-extrabold text-slate-900 dark:text-white print:text-black text-[11px] sm:text-xs lg:text-sm print:text-[8.5pt]">{day.name}</div>
+                            {day.isHalfDay && (
+                              <span className="text-[9px] sm:text-[10px] print:text-[7pt] text-orange-600 dark:text-orange-400 print:text-slate-600 font-normal block truncate">
+                                Matinée (Fin 12h20)
+                              </span>
+                            )}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 print:divide-slate-300 text-xs">
+                      {MOROCCAN_55MIN_PERIODS.map((period) => {
+                        const isRecessAfterP2 = period.id === 'P2';
+                        const isLunchBreakAfterP4 = period.id === 'P4';
+                        const isRecessAfterP6 = period.id === 'P6';
+
+                        return (
+                          <React.Fragment key={period.id}>
+                            <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                              {/* Period Column */}
+                              <td className="p-1.5 sm:p-2.5 print:p-1 text-left font-mono font-bold text-slate-700 dark:text-slate-300 print:text-black bg-slate-50/60 dark:bg-slate-900/50 print:bg-slate-50 border-r border-slate-200 dark:border-slate-800 print:border-slate-300">
+                                <div className="text-[10px] sm:text-xs font-black text-sky-600 dark:text-sky-400 print:text-black leading-tight">{period.label}</div>
+                                <div className="text-[9px] sm:text-[10px] print:text-[6.5pt] text-slate-400 print:text-slate-500 font-sans font-normal truncate">{period.sessionName}</div>
+                              </td>
+
+                              {/* Day Columns */}
+                              {MOROCCAN_SCHOOL_DAYS.map((day) => {
+                                // Friday Afternoon check
+                                if (day.id === 5 && period.isAfternoon) {
+                                  if (period.id === 'P5') {
+                                    return (
+                                      <td
+                                        key={day.id}
+                                        rowSpan={3}
+                                        className="p-2 print:p-1 bg-slate-100/70 dark:bg-slate-950/60 print:bg-slate-100 border-r border-slate-200 dark:border-slate-800 print:border-slate-300 align-middle text-center"
+                                      >
+                                        <div className="py-4 print:py-2 px-1 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 print:text-slate-700">
+                                          <span className="font-bold text-[10px] sm:text-xs print:text-[8pt] text-slate-700 dark:text-slate-300 print:text-black">
+                                            🕌 Après-midi Libre
+                                          </span>
+                                          <span className="text-[9px] sm:text-[10px] print:text-[7pt] text-slate-400 print:text-slate-600">Prière du Vendredi</span>
+                                        </div>
+                                      </td>
+                                    );
+                                  }
+                                  return null;
+                                }
+
+                                const slot = activeSlots.find((s) =>
+                                  isSameSlotTime(s.day_of_week, s.start_time, day.id, period.start)
+                                );
+
+                                const isDragOver =
+                                  dragOverCell?.day === day.id &&
+                                  dragOverCell?.start === period.start;
+
+                                return (
+                                  <td
+                                    key={day.id}
+                                    onDragOver={(e) => handleDragOver(e, day.id, period.start)}
+                                    onDragLeave={handleDragLeave}
+                                    onDrop={(e) => handleDropOnCell(e, day.id, period, slot)}
+                                    className={`p-1 sm:p-1.5 print:p-0.5 border-r border-slate-200 dark:border-slate-800 print:border-slate-300 last:border-r-0 align-middle transition-all ${
+                                      isDragOver
+                                        ? 'bg-sky-100/70 dark:bg-sky-900/40 ring-2 ring-sky-500 ring-inset scale-[1.01]'
+                                        : ''
+                                    }`}
+                                  >
+                                    {slot ? (
+                                      <div
+                                        draggable={true}
+                                        onDragStart={(e) => handleDragStart(e, slot)}
+                                        onDragEnd={() => {
+                                          setDraggedSlot(null);
+                                          setDragOverCell(null);
+                                        }}
+                                        className={`w-full p-1 sm:p-1.5 lg:p-2 rounded-xl sm:rounded-2xl print:rounded text-white shadow-xs relative group transition-all flex flex-col items-center justify-center text-center min-h-[58px] sm:min-h-[66px] lg:min-h-[74px] print:min-h-[48px] print:max-h-[52px] print-card-slot cursor-grab active:cursor-grabbing hover:shadow-md overflow-hidden ${
+                                          draggedSlot?.id === slot.id
+                                            ? 'opacity-40 ring-2 ring-white scale-95'
+                                            : 'hover:scale-[1.01]'
+                                        }`}
+                                        style={{
+                                          backgroundColor: slot.subject?.color_code || '#0284c7',
+                                        }}
+                                      >
+                                        {/* Drag grip icon on top left hover */}
+                                        <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-75 transition-opacity print:hidden pointer-events-none">
+                                          <GripVertical className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
+                                        </div>
+
+                                        {/* Delete button on top right hover */}
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteSlot(slot.id);
+                                          }}
+                                          title="Supprimer la séance"
+                                          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 hover:text-rose-200 transition-opacity p-0.5 print:hidden cursor-pointer"
+                                        >
+                                          <Trash2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
+                                        </button>
+
+                                        {/* Centered text content */}
+                                        <div className="w-full flex flex-col items-center justify-center text-center overflow-hidden">
+                                          <div className="font-black text-[10px] sm:text-xs lg:text-[13px] tracking-wide text-white text-center leading-tight truncate w-full px-0.5 print-card-subject">
+                                            [{getSubjectAbbreviation(slot.subject)}] {slot.subject?.name || 'Matière'}
+                                          </div>
+
+                                          <div className="text-[8.5px] sm:text-[9.5px] lg:text-[10.5px] print:text-[7.5pt] text-white/95 font-medium text-center truncate w-full mt-0.5 print-card-details">
+                                            {viewMode === 'CLASS'
+                                              ? slot.teacher
+                                                ? `${slot.teacher.first_name} ${slot.teacher.last_name}`
+                                                : 'Professeur non assigné'
+                                              : slot.class?.name || 'Classe'}
+                                          </div>
+
+                                          <div className="text-[8px] sm:text-[9px] lg:text-[9.5px] print:text-[6.5pt] text-white/80 font-bold text-center truncate w-full print-card-details">
+                                            {slot.room ? `Salle : ${slot.room.name || slot.room.room_number}` : 'Salle Standard'}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="w-full h-full min-h-[58px] sm:min-h-[66px] lg:min-h-[74px] print:min-h-[48px] print:max-h-[52px] print-empty-slot rounded-xl sm:rounded-2xl print:rounded border-2 border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-300 dark:text-slate-700 text-xs font-bold transition-colors hover:border-sky-300 dark:hover:border-sky-800">
+                                        —
+                                      </div>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+
+                            {/* Recess & Break rows */}
+                            {isRecessAfterP2 && (
+                              <tr className="bg-amber-500/10 dark:bg-amber-950/30 print:bg-amber-100/50 text-amber-800 dark:text-amber-300 print:text-amber-900 text-[11px] print:text-[7pt] font-bold print-recess-row">
+                                <td colSpan={6} className="py-1.5 print:py-0.5 px-4 text-center tracking-wider">
+                                  🔔 Récréation du Matin (10 min) &bull; 10h20 &mdash; 10h30
+                                </td>
+                              </tr>
+                            )}
+
+                            {isLunchBreakAfterP4 && (
+                              <tr className="bg-orange-500/15 dark:bg-orange-950/40 print:bg-orange-100 text-orange-900 dark:text-orange-200 print:text-orange-950 text-xs print:text-[7.5pt] font-black print-recess-row">
+                                <td colSpan={6} className="py-2 print:py-0.5 px-4 text-center tracking-wider border-y border-orange-200 dark:border-orange-900/50 print:border-orange-300">
+                                  🍽️ Pause Déjeuner &amp; Prière (40 min) &bull; 12h20 &mdash; 13h00 (Lundi au Jeudi)
+                                </td>
+                              </tr>
+                            )}
+
+                            {isRecessAfterP6 && (
+                              <tr className="bg-amber-500/10 dark:bg-amber-950/30 print:bg-amber-100/50 text-amber-800 dark:text-amber-300 print:text-amber-900 text-[11px] print:text-[7pt] font-bold print-recess-row">
+                                <td colSpan={6} className="py-1.5 print:py-0.5 px-4 text-center tracking-wider">
+                                  🔔 Pause de l&apos;Après-midi (10 min) &bull; 14h55 &mdash; 15h05 (Lundi au Jeudi)
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="font-bold text-slate-800">Signature du Directeur Pédagogique</p>
+
+              {/* Printable Signature Footer */}
+              <div className="hidden print:flex justify-between items-center print-signature-footer text-[7.5pt]">
+                <div>
+                  <p className="font-bold text-slate-800">Cachet de l&apos;Établissement</p>
+                </div>
+                <div className="text-center text-[7pt] text-slate-500 font-medium">
+                  Document officiel généré par GM School Management System
+                </div>
+                <div className="text-right">
+                  <p className="font-bold text-slate-800">Signature du Directeur Pédagogique</p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* 2. BATCH PRINT: ALL CLASSES */}
@@ -1857,7 +3028,7 @@ export default function TimetablePage() {
                     </div>
                   </div>
 
-                  <div className="rounded-lg border border-slate-300 overflow-hidden">
+                  <div className="print-table-wrapper rounded-lg border border-slate-300 overflow-hidden">
                     <table className="w-full text-center border-collapse print-table">
                       <thead>
                         <tr className="bg-slate-100 text-[8pt] font-bold text-black border-b border-slate-400">
@@ -1905,7 +3076,7 @@ export default function TimetablePage() {
                                           style={{ backgroundColor: slot.subject?.color_code || '#0284c7' }}
                                         >
                                           <div className="w-full flex flex-col items-center justify-center text-center overflow-hidden">
-                                            <div className="font-black text-[9pt] print-card-subject">{slot.subject?.name}</div>
+                                            <div className="font-black text-[9pt] print-card-subject">[{getSubjectAbbreviation(slot.subject)}] {slot.subject?.name}</div>
                                             <div className="text-[7.5pt] opacity-90 truncate mt-0.5 print-card-details">
                                               {slot.teacher ? `${slot.teacher.first_name} ${slot.teacher.last_name}` : 'Prof non assigné'}
                                             </div>
@@ -1993,7 +3164,7 @@ export default function TimetablePage() {
                     </div>
                   </div>
 
-                  <div className="rounded-lg border border-slate-300 overflow-hidden">
+                  <div className="print-table-wrapper rounded-lg border border-slate-300 overflow-hidden">
                     <table className="w-full text-center border-collapse print-table">
                       <thead>
                         <tr className="bg-slate-100 text-[8pt] font-bold text-black border-b border-slate-400">
@@ -2090,6 +3261,147 @@ export default function TimetablePage() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* 4. MASTER PRINT: ALL TEACHERS GLOBAL GRID ON 1 SINGLE PAGE */}
+        {(printMode === 'MASTER_GRID' || (printMode === 'CURRENT' && viewMode === 'MASTER_GRID')) && (
+          <div className="hidden print:block space-y-0">
+            <div className="print-master-page">
+              <div className="print-header-block">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <img
+                      src="/logo.png"
+                      alt="Logo GM"
+                      className="w-10 h-10 object-contain shrink-0"
+                    />
+                    <div>
+                      <h1 className="text-xs font-black uppercase text-slate-900 leading-tight">
+                        {settings.school_name || 'GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES'}
+                      </h1>
+                      <p className="text-[7.5pt] text-slate-600 font-semibold">
+                        TABLEAU DE SERVICE GÉNÉRAL DES ENSEIGNANTS &bull; Année Scolaire {settings.academic_year || '2025-2026'} &bull; {settings.current_term || 'Semestre 1'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="px-2 py-0.5 rounded bg-indigo-950 text-white font-black text-[8pt] inline-block">
+                      GRILLE RÉCAPITULATIVE GLOBALE ({teachers.length} ENSEIGNANTS)
+                    </span>
+                    <p className="text-[6.5pt] text-slate-500 mt-0.5 font-bold">
+                      {slots.length} séances hebdomadaires réparties sur 5 jours
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="print-master-table-wrapper">
+                <table className="w-full text-center border-collapse print-master-table">
+                  <thead>
+                    <tr className="bg-slate-100 text-[6.8pt] font-black text-slate-900 border-b-2 border-slate-900">
+                      <th className="p-0.5 text-center w-14 border-r-2 border-slate-900">Jour</th>
+                      <th className="p-0.5 text-center w-20 border-r-2 border-slate-900">Horaire</th>
+                      {teachers.map((tch) => {
+                        const count = slots.filter((s) => s.teacher_id === tch.id).length;
+                        return (
+                          <th key={tch.id} className="p-0.5 border-r border-slate-700 last:border-r-0 text-center">
+                            <div className="font-black text-[5.8pt] leading-tight text-slate-950 uppercase tracking-tight">
+                              {tch.last_name}
+                            </div>
+                            <div className="font-bold text-[5.4pt] leading-tight text-slate-800 capitalize">
+                              {tch.first_name}
+                            </div>
+                            <div className="text-[4.8pt] text-slate-600 font-bold leading-tight mt-0.5 truncate">
+                              {tch.specialization || 'Prof'} ({count}h)
+                            </div>
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-300">
+                    {MOROCCAN_SCHOOL_DAYS.map((day) => {
+                      const dayPeriods = day.id === 5 ? MOROCCAN_55MIN_PERIODS.slice(0, 4) : MOROCCAN_55MIN_PERIODS;
+                      return dayPeriods.map((period, pIdx) => {
+                        const isFirst = pIdx === 0;
+                        const rowCount = dayPeriods.length;
+                        const isLastPeriodOfDay = pIdx === rowCount - 1;
+
+                        return (
+                          <tr key={`${day.id}_${period.id}`} className={isLastPeriodOfDay ? 'print-master-day-end' : ''}>
+                            {isFirst && (
+                              <td
+                                rowSpan={rowCount}
+                                className="print-master-day-header border-r border-slate-400"
+                              >
+                                <span>{day.name}</span>
+                              </td>
+                            )}
+                            <td className="p-0.5 font-mono font-black text-[6.4pt] bg-slate-50 border-r border-slate-300 text-slate-800">
+                              {period.label}
+                            </td>
+
+                            {teachers.map((tch) => {
+                              const tSlot = slots.find(
+                                (s) =>
+                                  s.teacher_id === tch.id &&
+                                  isSameSlotTime(s.day_of_week, s.start_time, day.id, period.start)
+                              );
+
+                              return (
+                                <td key={tch.id} className="p-0.5 border-r border-slate-300 last:border-r-0 align-middle">
+                                  {tSlot ? (
+                                    <div
+                                      className="print-master-badge text-white"
+                                      style={{ backgroundColor: tSlot.subject?.color_code || '#0f172a' }}
+                                    >
+                                      <span><strong>{tSlot.class?.name || 'Cls'}</strong> ({getSubjectAbbreviation(tSlot.subject)})</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-slate-300 font-bold">—</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      });
+                    })}
+                  </tbody>
+
+                  <tfoot>
+                    <tr className="bg-slate-200 text-[6.8pt] font-black text-slate-900 border-t border-slate-400">
+                      <td colSpan={2} className="p-0.5 text-center border-r border-slate-400 uppercase font-black">
+                        Total Heures / Semaine
+                      </td>
+                      {teachers.map((tch) => {
+                        const count = slots.filter((s) => s.teacher_id === tch.id).length;
+                        return (
+                          <td key={tch.id} className="p-0.5 border-r border-slate-400 last:border-r-0 text-center font-black text-slate-900">
+                            {count}h
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              <div className="flex justify-between items-center print-signature-footer text-[6.8pt]">
+                <div>
+                  <p className="font-bold text-slate-800">Cachet de l&apos;Établissement</p>
+                </div>
+                <div className="text-center text-[6pt] text-slate-500 font-medium">
+                  Grille récapitulative générale officielle générée par GM School System
+                </div>
+                <div className="text-right">
+                  <p className="font-bold text-slate-800">Signature du Directeur Pédagogique</p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -2575,35 +3887,55 @@ export default function TimetablePage() {
                       </button>
                     </div>
 
-                    {detectedConflicts.map((c, idx) => (
-                      <div
-                        key={c.id || idx}
-                        className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-2"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-black text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
-                            <AlertCircle className="w-4 h-4" />
-                            {c.title}
-                          </span>
-                          <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
-                            {c.dayName} &bull; {c.timeLabel}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-600 dark:text-slate-300">
-                          {c.description}
-                        </p>
-                        <div className="flex items-center gap-2 pt-1">
-                          <span className="text-[10px] uppercase font-bold text-slate-400">Classes concernées :</span>
-                          <div className="flex items-center gap-1.5">
-                            {c.classes.map((clsName) => (
-                              <span key={clsName} className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200">
-                                {clsName}
-                              </span>
-                            ))}
+                    {detectedConflicts.map((c, idx) => {
+                      const isHole = c.type === 'CLASS_SCHEDULE_HOLE';
+                      return (
+                        <div
+                          key={c.id || idx}
+                          className={`p-4 rounded-2xl border space-y-2 transition-all ${
+                            isHole
+                              ? 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-200/80 dark:border-amber-800/50'
+                              : 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-200/80 dark:border-rose-800/50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span
+                              className={`text-xs font-black flex items-center gap-1.5 ${
+                                isHole ? 'text-amber-700 dark:text-amber-300' : 'text-rose-600 dark:text-rose-400'
+                              }`}
+                            >
+                              {isHole ? <Clock className="w-4 h-4 text-amber-500" /> : <AlertCircle className="w-4 h-4 text-rose-500" />}
+                              {c.title}
+                            </span>
+                            <span
+                              className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg ${
+                                isHole
+                                  ? 'bg-amber-500/20 text-amber-800 dark:text-amber-200'
+                                  : 'bg-rose-500/20 text-rose-800 dark:text-rose-200'
+                              }`}
+                            >
+                              {c.dayName} &bull; {c.timeLabel}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-700 dark:text-slate-300 font-medium">
+                            {c.description}
+                          </p>
+                          <div className="flex items-center gap-2 pt-1">
+                            <span className="text-[10px] uppercase font-bold text-slate-400">Classes concernées :</span>
+                            <div className="flex items-center gap-1.5">
+                              {c.classes.map((clsName) => (
+                                <span
+                                  key={clsName}
+                                  className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 shadow-2xs"
+                                >
+                                  {clsName}
+                                </span>
+                              ))}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

@@ -6,6 +6,7 @@ import { useI18n } from '@/lib/i18n';
 import { createClient } from '@/lib/supabase/client';
 import { Student, ClassEntity } from '@/types/database';
 import { useConfirm, useNotify } from '@/lib/modal-service';
+import { logAuditEvent } from '@/lib/audit';
 import {
   GraduationCap,
   Plus,
@@ -138,7 +139,16 @@ export default function StudentsPage() {
           })
           .eq('id', editingStudent.id);
 
-        if (error) throw error;
+        logAuditEvent({
+          action: 'STUDENT_UPDATED',
+          entity_type: 'students',
+          entity_id: editingStudent.id,
+          details: {
+            name: `${formData.first_name} ${formData.last_name}`,
+            class_id: formData.class_id,
+            status: formData.status,
+          },
+        });
 
         notify({
           title: 'Modification Enregistrée',
@@ -165,6 +175,17 @@ export default function StudentsPage() {
         ]);
 
         if (error) throw error;
+
+        logAuditEvent({
+          action: 'STUDENT_CREATED',
+          entity_type: 'students',
+          details: {
+            name: `${formData.first_name} ${formData.last_name}`,
+            code: formData.student_code,
+            class_id: formData.class_id,
+            status: formData.status,
+          },
+        });
 
         notify({
           title: 'Inscription Réussie',
@@ -197,6 +218,14 @@ export default function StudentsPage() {
       const supabase = createClient();
       const { error } = await supabase.from('students').delete().eq('id', id);
       if (error) throw error;
+
+      logAuditEvent({
+        action: 'STUDENT_DELETED',
+        entity_type: 'students',
+        entity_id: id,
+        details: { name: name || id },
+      });
+
       notify({ title: 'Supprimé', message: 'Dossier élève supprimé avec succès.', type: 'success' });
       loadData();
     } catch (err: unknown) {
@@ -399,7 +428,7 @@ export default function StudentsPage() {
         {/* Modal Create / Edit Student */}
         {showModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in overflow-y-auto">
-            <div className="relative w-[95vw] max-w-lg md:max-w-xl bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-7 shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 space-y-4 my-auto">
+            <div className="relative w-[95vw] max-w-lg md:max-w-xl bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-7 shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 space-y-4 my-auto max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-2.5 text-blue-600 dark:text-blue-400 min-w-0">
                   <div className="p-2.5 rounded-2xl bg-blue-500/15 shrink-0">

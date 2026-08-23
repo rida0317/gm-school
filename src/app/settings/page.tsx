@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useI18n } from '@/lib/i18n';
 import { useSettings } from '@/lib/settings';
+import { logAuditEvent } from '@/lib/audit';
 import {
   Settings,
   Building,
@@ -73,6 +74,17 @@ export default function SettingsPage() {
       if (!success) {
         throw new Error('Erreur lors de l\'enregistrement dans Supabase');
       }
+
+      logAuditEvent({
+        action: 'SETTINGS_UPDATED',
+        entity_type: 'settings',
+        details: {
+          school_name: formState.school_name,
+          academic_year: formState.academic_year,
+          current_term: formState.current_term,
+          locale: locale,
+        },
+      });
 
       setSaved(true);
       setTimeout(() => setSaved(false), 3500);

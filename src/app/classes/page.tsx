@@ -6,6 +6,7 @@ import { useI18n } from '@/lib/i18n';
 import { createClient } from '@/lib/supabase/client';
 import { ClassEntity, Teacher } from '@/types/database';
 import { useConfirm, useNotify } from '@/lib/modal-service';
+import { logAuditEvent } from '@/lib/audit';
 import {
   Building2,
   Plus,
@@ -186,6 +187,18 @@ export default function ClassesPage() {
           notify({ title: 'Erreur', message: error.message, type: 'danger' });
           return;
         }
+
+        logAuditEvent({
+          action: 'CLASS_UPDATED',
+          entity_type: 'classes',
+          entity_id: editingId,
+          details: {
+            name: formData.name,
+            level: formData.level,
+            capacity: formData.capacity,
+          },
+        });
+
         notify({ title: 'Succès', message: 'Classe modifiée avec succès !', type: 'success' });
       } else {
         // Create new class
@@ -204,6 +217,17 @@ export default function ClassesPage() {
           notify({ title: 'Erreur', message: error.message, type: 'danger' });
           return;
         }
+
+        logAuditEvent({
+          action: 'CLASS_CREATED',
+          entity_type: 'classes',
+          details: {
+            name: formData.name,
+            level: formData.level,
+            capacity: formData.capacity,
+          },
+        });
+
         notify({ title: 'Succès', message: 'Classe créée avec succès !', type: 'success' });
       }
 
@@ -233,6 +257,15 @@ export default function ClassesPage() {
       const supabase = createClient();
       const { error } = await supabase.from('classes').delete().eq('id', id);
       if (error) throw error;
+
+      logAuditEvent({
+        action: 'CLASS_DELETED',
+        entity_type: 'classes',
+        entity_id: id,
+        details: { name: name || id },
+      });
+
+      notify({ title: 'Succès', message: 'Classe supprimée.', type: 'success' });
       notify({ title: 'Supprimée', message: 'La classe a été supprimée.', type: 'success' });
       loadData();
     } catch (err: unknown) {

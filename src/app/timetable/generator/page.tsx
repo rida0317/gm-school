@@ -7,6 +7,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { createClient } from '@/lib/supabase/client';
 import { ClassEntity, Teacher, Room, Subject, EducationCycle } from '@/types/database';
 import { useNotify } from '@/lib/modal-service';
+import { logAuditEvent } from '@/lib/audit';
 import {
   Sparkles,
   CheckCircle2,
@@ -1051,6 +1052,85 @@ export default function TimetableGeneratorPage() {
         }
       }
 
+      // PASS 5: STRICT CONTIGUOUS ANTI-GAP COMPACTOR (Eliminating any holes/gaps in class timetables)
+      targetClasses.forEach((cls) => {
+        MOROCCAN_DAYS.forEach((day) => {
+          // 1. Compact Morning (P1 -> P2 -> P3 -> P4)
+          const morningPeriods = MOROCCAN_55MIN_PERIODS.slice(0, 4);
+          for (let pIdx = 0; pIdx < morningPeriods.length; pIdx++) {
+            const expectedPeriod = morningPeriods[pIdx];
+            const slotAtExpected = generated.find(
+              (s) => s.class_id === cls.id && s.day_of_week === day.id && s.start_time === expectedPeriod.start
+            );
+
+            if (!slotAtExpected) {
+              const laterSlot = generated.find((s) => {
+                if (s.class_id !== cls.id || s.day_of_week !== day.id) return false;
+                const sPeriodIdx = morningPeriods.findIndex((p) => p.start === s.start_time);
+                return sPeriodIdx > pIdx;
+              });
+
+              if (laterSlot) {
+                const teacher = teachers.find((t) => t.id === laterSlot.teacher_id);
+                const isTeacherFree = !generated.some(
+                  (s) =>
+                    s !== laterSlot &&
+                    s.teacher_id === laterSlot.teacher_id &&
+                    s.day_of_week === day.id &&
+                    s.start_time === expectedPeriod.start
+                );
+                const isVacOk = teacher
+                  ? isTeacherAvailableForSlot(teacher, day.id, expectedPeriod.id, expectedPeriod.start)
+                  : true;
+
+                if (isTeacherFree && isVacOk) {
+                  laterSlot.start_time = expectedPeriod.start;
+                  laterSlot.end_time = expectedPeriod.end;
+                }
+              }
+            }
+          }
+
+          // 2. Compact Afternoon (P5 -> P6 -> P7 for Mon-Thu)
+          if (day.id !== 5) {
+            const afternoonPeriods = MOROCCAN_55MIN_PERIODS.slice(4);
+            for (let pIdx = 0; pIdx < afternoonPeriods.length; pIdx++) {
+              const expectedPeriod = afternoonPeriods[pIdx];
+              const slotAtExpected = generated.find(
+                (s) => s.class_id === cls.id && s.day_of_week === day.id && s.start_time === expectedPeriod.start
+              );
+
+              if (!slotAtExpected) {
+                const laterSlot = generated.find((s) => {
+                  if (s.class_id !== cls.id || s.day_of_week !== day.id) return false;
+                  const sPeriodIdx = afternoonPeriods.findIndex((p) => p.start === s.start_time);
+                  return sPeriodIdx > pIdx;
+                });
+
+                if (laterSlot) {
+                  const teacher = teachers.find((t) => t.id === laterSlot.teacher_id);
+                  const isTeacherFree = !generated.some(
+                    (s) =>
+                      s !== laterSlot &&
+                      s.teacher_id === laterSlot.teacher_id &&
+                      s.day_of_week === day.id &&
+                      s.start_time === expectedPeriod.start
+                  );
+                  const isVacOk = teacher
+                    ? isTeacherAvailableForSlot(teacher, day.id, expectedPeriod.id, expectedPeriod.start)
+                    : true;
+
+                  if (isTeacherFree && isVacOk) {
+                    laterSlot.start_time = expectedPeriod.start;
+                    laterSlot.end_time = expectedPeriod.end;
+                  }
+                }
+              }
+            }
+          }
+        });
+      });
+
       setGeneratedSchedule(generated);
       setIsGenerating(false);
 
@@ -1146,7 +1226,15 @@ export default function TimetableGeneratorPage() {
         throw error;
       }
 
-
+      logAuditEvent({
+        action: 'TIMETABLE_AUTO_GENERATED_AND_PUBLISHED',
+        entity_type: 'timetable',
+        details: {
+          total_slots: payload.length,
+          scope: targetClassScope,
+          compliance_percentage: verificationAudit.fulfillmentPercentage,
+        },
+      });
 
       notify({
         title: 'Planning Publié avec Succès',

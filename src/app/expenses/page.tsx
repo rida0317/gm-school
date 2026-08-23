@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Expense, Budget, ExpenseCategory } from '@/types/database';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useNotify } from '@/lib/modal-service';
+import { logAuditEvent } from '@/lib/audit';
 import {
   Wallet,
   Plus,
@@ -69,6 +70,18 @@ export default function ExpensesPage() {
         notify({ title: 'Erreur', message: error.message, type: 'danger' });
         return;
       }
+
+      logAuditEvent({
+        action: 'EXPENSE_RECORDED',
+        entity_type: 'expenses',
+        details: {
+          category: formData.category,
+          amount: formData.amount,
+          description: formData.description,
+          invoice_number: formData.invoice_number,
+        },
+      });
+
       setShowModal(false);
       setFormData({
         category: 'SUPPLIES',
@@ -224,8 +237,8 @@ export default function ExpensesPage() {
 
         {/* Modal Expense */}
         {showModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-            <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
+            <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                   Nouvelle Dépense

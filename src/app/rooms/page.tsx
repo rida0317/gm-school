@@ -6,6 +6,7 @@ import { useI18n } from '@/lib/i18n';
 import { createClient } from '@/lib/supabase/client';
 import { Room } from '@/types/database';
 import { useConfirm, useNotify } from '@/lib/modal-service';
+import { logAuditEvent } from '@/lib/audit';
 import {
   DoorClosed,
   Plus,
@@ -89,6 +90,18 @@ export default function RoomsPage() {
           notify({ title: 'Erreur', message: error.message, type: 'danger' });
           return;
         }
+
+        logAuditEvent({
+          action: 'ROOM_UPDATED',
+          entity_type: 'rooms',
+          entity_id: editingId,
+          details: {
+            room_number: formData.room_number,
+            name: formData.name,
+            capacity: formData.capacity,
+          },
+        });
+
         notify({ title: 'Succès', message: 'Salle modifiée avec succès !', type: 'success' });
       } else {
         // Create new
@@ -97,6 +110,17 @@ export default function RoomsPage() {
           notify({ title: 'Erreur', message: error.message, type: 'danger' });
           return;
         }
+
+        logAuditEvent({
+          action: 'ROOM_CREATED',
+          entity_type: 'rooms',
+          details: {
+            room_number: formData.room_number,
+            name: formData.name,
+            capacity: formData.capacity,
+          },
+        });
+
         notify({ title: 'Succès', message: 'Salle créée avec succès !', type: 'success' });
       }
 
@@ -126,6 +150,14 @@ export default function RoomsPage() {
       const supabase = createClient();
       const { error } = await supabase.from('rooms').delete().eq('id', id);
       if (error) throw error;
+
+      logAuditEvent({
+        action: 'ROOM_DELETED',
+        entity_type: 'rooms',
+        entity_id: id,
+        details: { name: name || id },
+      });
+
       notify({ title: 'Supprimée', message: 'La salle a été supprimée.', type: 'success' });
       loadRooms();
     } catch (err: unknown) {
@@ -231,8 +263,8 @@ export default function RoomsPage() {
 
         {/* Modal Add/Edit Room */}
         {showModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in">
-            <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-sky-500/20 animate-in zoom-in-95">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in overflow-y-auto">
+            <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-2xl border border-slate-200 dark:border-sky-500/20 animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-2">
                   <div className="p-2 rounded-xl bg-sky-500/15 text-sky-500">

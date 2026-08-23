@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Teacher, TimetableSlot } from '@/types/database';
 import { useNotify } from '@/lib/modal-service';
 import { useSettings } from '@/lib/settings';
+import { logAuditEvent } from '@/lib/audit';
 import {
   Repeat,
   Sparkles,
@@ -309,6 +310,16 @@ export default function SubstitutionsPage() {
         notify({ title: 'Erreur', message: error.message, type: 'danger' });
         return;
       }
+
+      logAuditEvent({
+        action: 'SUBSTITUTIONS_VALIDATED',
+        entity_type: 'substitution_requests',
+        details: {
+          absent_teacher_id: absentTeacherId,
+          total_sessions: requests.length,
+          date: absenceDate,
+        },
+      });
 
       setProcessed(true);
       notify({

@@ -17,11 +17,11 @@ export const ROLE_CONFIGS: Record<UserRole, RoleConfig> = {
     allowedPaths: ['*'], // Accès total
   },
   ADMIN: {
-    label: 'Administrateur',
-    description: 'Accès complet au site et gestion courante (Ne peut pas modifier le Super Admin)',
+    label: 'Directeur',
+    description: 'Accès complet au site et gestion courante (Sans accès au Journal d\'Audit réservé au Super Admin)',
     color: 'text-blue-600 dark:text-blue-400',
     badgeBg: 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-300',
-    allowedPaths: ['*'], // Accès complet sauf actions destructives sur Super Admin
+    allowedPaths: ['*'], // Accès complet sauf Journal d'Audit et actions sur Super Admin
   },
   TEACHER: {
     label: 'Enseignant',
@@ -33,6 +33,7 @@ export const ROLE_CONFIGS: Record<UserRole, RoleConfig> = {
       '/timetable',
       '/classes',
       '/attendance/staff',
+      '/gardes',
       '/stock',
     ],
   },
@@ -44,12 +45,14 @@ export const ROLE_CONFIGS: Record<UserRole, RoleConfig> = {
     allowedPaths: [
       '/dashboard',
       '/students',
+      '/staff',
       '/teachers',
       '/classes',
       '/rooms',
       '/timetable',
       '/attendance/students',
       '/attendance/staff',
+      '/gardes',
       '/substitutions',
     ],
   },
@@ -72,6 +75,11 @@ export const ROLE_CONFIGS: Record<UserRole, RoleConfig> = {
 export function hasRouteAccess(role: UserRole | string | undefined | null, pathname: string): boolean {
   if (!role) return true; // default open during loading
   const effectiveRole = (role as UserRole) in ROLE_CONFIGS ? (role as UserRole) : 'SUPER_ADMIN';
+
+  // Strict restriction: /audit-logs is strictly reserved for SUPER_ADMIN only
+  if (pathname === '/audit-logs' || pathname.startsWith('/audit-logs/')) {
+    return effectiveRole === 'SUPER_ADMIN';
+  }
 
   if (effectiveRole === 'SUPER_ADMIN' || effectiveRole === 'ADMIN') {
     return true;
@@ -106,7 +114,7 @@ export function canManageUser(
       return {
         canEdit: false,
         canDelete: false,
-        reason: '🔒 Compte Super Administrateur Protégé (Non modifiable par un Administrateur)',
+        reason: '🔒 Compte Super Administrateur Protégé (Non modifiable par un Directeur)',
       };
     }
     return { canEdit: true, canDelete: true };

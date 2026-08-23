@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client';
 import { StockProduct, StockCategory, StockMovement, StockMovementType, Teacher } from '@/types/database';
 import { formatCurrency } from '@/lib/utils';
 import { useConfirm, useNotify } from '@/lib/modal-service';
+import { logAuditEvent } from '@/lib/audit';
 import {
   Boxes,
   Plus,
@@ -443,6 +444,20 @@ export default function StockPage() {
     }
 
     setShowDispatchModal(false);
+
+    logAuditEvent({
+      action: 'STOCK_OUT_DISPATCH',
+      entity_type: 'stock_products',
+      entity_id: selectedProduct.id,
+      details: {
+        product: selectedProduct.name,
+        quantity: qtyOut,
+        recipient: dispatchForm.requested_by,
+        reason: dispatchForm.reason,
+        voucher: newMovement.voucher_number,
+      },
+    });
+
     notify({
       title: t('stock.success_dispatch'),
       message: `${qtyOut} ${selectedProduct.unit || 'pièce'}(s) de "${selectedProduct.name}" remis(es) à "${dispatchForm.requested_by}".`,
@@ -528,6 +543,18 @@ export default function StockPage() {
     }
 
     setShowInflowModal(false);
+
+    logAuditEvent({
+      action: 'STOCK_IN_RESTOCK',
+      entity_type: 'stock_products',
+      entity_id: selectedProduct.id,
+      details: {
+        product: selectedProduct.name,
+        quantity: qtyIn,
+        supplier: inflowForm.supplier,
+        voucher: newMovement.voucher_number,
+      },
+    });
     notify({
       title: t('stock.success_restock'),
       message: `+${qtyIn} ${selectedProduct.unit || 'pièce'}(s) ajoutés au stock de "${selectedProduct.name}".`,
@@ -620,6 +647,17 @@ export default function StockPage() {
           console.warn('DB update sync notice:', dbErr);
         }
 
+        logAuditEvent({
+          action: 'STOCK_PRODUCT_UPDATED',
+          entity_type: 'stock_products',
+          entity_id: editingProduct.id,
+          details: {
+            name: productForm.name,
+            sku: productForm.sku,
+            quantity: productForm.quantity,
+          },
+        });
+
         notify({
           title: 'Article Mis à Jour',
           message: `Les détails de "${productForm.name}" ont été actualisés.`,
@@ -665,6 +703,16 @@ export default function StockPage() {
           console.warn('DB insert sync notice:', dbErr);
         }
 
+        logAuditEvent({
+          action: 'STOCK_PRODUCT_CREATED',
+          entity_type: 'stock_products',
+          details: {
+            name: productForm.name,
+            sku: productForm.sku,
+            quantity: productForm.quantity,
+          },
+        });
+
         notify({
           title: 'Nouvel Article Ajouté',
           message: `L'article "${productForm.name}" est désormais dans l'inventaire.`,
@@ -701,6 +749,13 @@ export default function StockPage() {
     } catch (dbErr) {
       console.warn('DB delete sync notice:', dbErr);
     }
+
+    logAuditEvent({
+      action: 'STOCK_PRODUCT_DELETED',
+      entity_type: 'stock_products',
+      entity_id: product.id,
+      details: { name: product.name, sku: product.sku },
+    });
 
     notify({ title: 'Supprimé', message: 'Article retiré de l\'inventaire.', type: 'success' });
   };

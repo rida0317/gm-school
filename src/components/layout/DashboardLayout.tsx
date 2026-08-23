@@ -59,24 +59,24 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen text-slate-900 dark:text-slate-100 flex flex-col antialiased print:bg-white print:text-black print:min-h-0 relative">
-      {/* 1. School building background image with slight blur */}
+      {/* 1. School building background image with slight blur (Hidden in Print) */}
       <div
-        className="fixed inset-0 pointer-events-none -z-20 bg-cover bg-center bg-no-repeat filter blur-[2px] scale-105"
+        className="fixed inset-0 pointer-events-none -z-20 bg-cover bg-center bg-no-repeat filter blur-[2px] scale-105 print:hidden"
         style={{ backgroundImage: "url('/school-bg.png')" }}
         aria-hidden="true"
       />
 
-      {/* 2. Soft semi-transparent tint overlay for perfect text contrast & readability */}
+      {/* 2. Soft semi-transparent tint overlay for perfect text contrast & readability (Hidden in Print) */}
       <div
-        className="fixed inset-0 pointer-events-none -z-10 bg-slate-100/85 dark:bg-slate-950/90"
+        className="fixed inset-0 pointer-events-none -z-10 bg-slate-100/85 dark:bg-slate-950/90 print:hidden"
         aria-hidden="true"
       />
 
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className={`flex-1 flex flex-col ${dir === 'rtl' ? 'lg:pr-72 lg:pl-0' : 'lg:pl-72 lg:pr-0'} print:pl-0 print:pr-0 print:m-0 transition-all`}>
+      <div className={`flex-1 flex flex-col ${dir === 'rtl' ? 'lg:pr-72 lg:pl-0' : 'lg:pl-72 lg:pr-0'} print:pl-0 print:pr-0 print:m-0 transition-all min-w-0`}>
         <Topbar onOpenSidebar={() => setSidebarOpen(true)} />
-        <main className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto print:p-0 print:m-0 print:max-w-none print:w-full animate-in fade-in duration-300">
+        <main className="flex-1 p-3 sm:p-5 md:p-6 lg:p-8 max-w-[1600px] w-full mx-auto print:p-0 print:m-0 print:max-w-none print:w-full animate-in fade-in duration-300 min-w-0 overflow-x-hidden">
           {isPendingApproval ? (
             <div className="min-h-[60vh] flex items-center justify-center p-4">
               <div className="max-w-md w-full p-8 rounded-3xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-amber-300 dark:border-amber-900/50 shadow-2xl text-center space-y-4">

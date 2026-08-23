@@ -12,6 +12,7 @@ import {
 } from '@/types/database';
 import { useNotify } from '@/lib/modal-service';
 import { useSettings } from '@/lib/settings';
+import { logAuditEvent } from '@/lib/audit';
 import {
   ClipboardCheck,
   Calendar,
@@ -31,7 +32,9 @@ import {
   Edit2,
   Filter,
   GraduationCap,
-  Layers
+  Layers,
+  ChevronDown,
+  Download
 } from 'lucide-react';
 
 // Format delay duration helper
@@ -59,6 +62,18 @@ export default function StudentAttendancePage() {
   const [selectedClassId, setSelectedClassId] = useState<string>('ALL');
   const [selectedCycle, setSelectedCycle] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Print & Export Hub States
+  const [printReportMode, setPrintReportMode] = useState<'DAILY' | 'WEEKLY' | 'MONTHLY' | 'PERIODIC'>('DAILY');
+  const [showPrintMenu, setShowPrintMenu] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showCustomRangeModal, setShowCustomRangeModal] = useState(false);
+  const [customStartDate, setCustomStartDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(1);
+    return d.toISOString().split('T')[0];
+  });
+  const [customEndDate, setCustomEndDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
 
   // Core Data
   const [classes, setClasses] = useState<ClassEntity[]>([]);
@@ -94,7 +109,20 @@ export default function StudentAttendancePage() {
 
         if (cls) setClasses(cls);
         if (studs) setStudents(studs);
-        if (att) setAttendanceRecords(att as StudentAttendance[]);
+        if (att) {
+          const parsed = (att as any[]).map((r) => ({
+            id: r.id,
+            student_id: r.student_id,
+            class_id: r.class_id,
+            date: r.date,
+            status: r.status === 'EXCUSED' ? 'ABSENT' : r.status,
+            late_minutes: r.reason && r.reason.includes('Retard:') ? parseInt(r.reason.replace(/\D/g, '')) || 0 : 0,
+            is_justified: r.status === 'EXCUSED' || Boolean(r.reason && r.reason.toLowerCase().includes('justifi')),
+            justification_reason: r.reason || '',
+            notes: r.comment || '',
+          }));
+          setAttendanceRecords(parsed as StudentAttendance[]);
+        }
       } catch (err) {
         console.error('Error loading student attendance:', err);
       } finally {
@@ -164,18 +192,19 @@ export default function StudentAttendancePage() {
     try {
       const supabase = createClient();
       const currentDayRecords = newRecords
-        .filter((r) => r.date === selectedDate && r.class_id)
-        .map((r) => ({
-          student_id: r.student_id,
-          class_id: r.class_id || '',
-          date: r.date,
-          status: r.status,
-          late_minutes: r.late_minutes,
-          is_justified: r.is_justified,
-          justification_reason: r.justification_reason,
-          notes: r.notes,
-          reason: r.justification_reason || r.notes || (r.late_minutes && r.late_minutes > 0 ? `Retard: ${r.late_minutes}m` : null),
-        }));
+        .filter((r) => r.date === selectedDate)
+        .map((r) => {
+          const stud = students.find((s) => s.id === r.student_id);
+          const cId = r.class_id || stud?.class_id || null;
+          return {
+            student_id: r.student_id,
+            class_id: cId,
+            date: r.date,
+            status: r.is_justified && (r.status === 'ABSENT' || r.status === 'EXCUSED') ? 'EXCUSED' : r.status,
+            reason: r.justification_reason || (r.is_justified ? 'Absence justifiée' : r.status === 'LATE' && r.late_minutes && r.late_minutes > 0 ? `Retard: ${r.late_minutes}m` : null),
+            comment: r.notes || null,
+          };
+        });
 
       if (currentDayRecords.length > 0) {
         await supabase.from('student_attendance').upsert(currentDayRecords, { onConflict: 'student_id,date' });
@@ -216,6 +245,58 @@ export default function StudentAttendancePage() {
     ];
 
     persistAttendanceRecords(nextRecords);
+
+    logAuditEvent({
+      action: 'STUDENT_POINTAGE_UPDATED',
+      entity_type: 'student_attendance',
+      entity_id: student.id,
+      details: {
+        student: `${student.first_name} ${student.last_name}`,
+        class: student.class?.name,
+        date: selectedDate,
+        new_status: newStatus,
+      },
+    });
+  };
+
+  // Toggle justification for absent student (Justifié 🟢 / Non Justifié 🔴)
+  const handleToggleJustification = (student: Student) => {
+    const existing = dailyRecordMap[student.id];
+    const currentJustified = existing?.is_justified ?? false;
+    const newJustified = !currentJustified;
+
+    const updatedRecord: StudentAttendance = {
+      id: existing?.id || `att-stud-${student.id}-${selectedDate}`,
+      student_id: student.id,
+      class_id: student.class_id || undefined,
+      date: selectedDate,
+      status: 'ABSENT',
+      check_in_time: undefined,
+      expected_time: '08:00',
+      late_minutes: 0,
+      is_justified: newJustified,
+      justification_reason: newJustified ? (existing?.justification_reason || 'Justifiée') : '',
+      notes: existing?.notes || '',
+    };
+
+    const nextRecords = [
+      ...attendanceRecords.filter((r) => !(r.student_id === student.id && r.date === selectedDate)),
+      updatedRecord,
+    ];
+
+    persistAttendanceRecords(nextRecords);
+
+    logAuditEvent({
+      action: 'STUDENT_ABSENCE_JUSTIFICATION_TOGGLED',
+      entity_type: 'student_attendance',
+      entity_id: student.id,
+      details: {
+        student: `${student.first_name} ${student.last_name}`,
+        class: student.class?.name,
+        date: selectedDate,
+        is_justified: newJustified,
+      },
+    });
   };
 
   // Mark all filtered students as PRESENT
@@ -242,6 +323,19 @@ export default function StudentAttendancePage() {
       } else {
         nextRecords.push(record);
       }
+    });
+
+    persistAttendanceRecords(nextRecords);
+
+    logAuditEvent({
+      action: 'BULK_STUDENT_POINTAGE_PRESENT',
+      entity_type: 'student_attendance',
+      details: {
+        count: filteredStudents.length,
+        date: selectedDate,
+        cycle: selectedCycle,
+        class_id: selectedClassId,
+      },
     });
 
     persistAttendanceRecords(nextRecords);
@@ -295,6 +389,22 @@ export default function StudentAttendancePage() {
 
     persistAttendanceRecords(nextRecords);
     setEditingRecord(null);
+
+    logAuditEvent({
+      action: 'STUDENT_ATTENDANCE_DETAILS_UPDATED',
+      entity_type: 'student_attendance',
+      entity_id: editingRecord.studentId,
+      details: {
+        student: editingRecord.studentName,
+        class: editingRecord.className,
+        date: selectedDate,
+        status: editingRecord.status,
+        late_minutes: editingRecord.lateMinutes,
+        is_justified: editingRecord.isJustified,
+        justification_reason: editingRecord.justificationReason,
+        notes: editingRecord.notes,
+      },
+    });
 
     notify({
       title: 'Enregistrement Mis à Jour',
@@ -461,6 +571,70 @@ export default function StudentAttendancePage() {
     });
   }, [filteredStudents, attendanceRecords, selectedSemester]);
 
+  // 4. Weekly Summary & Dates (Monday to Saturday) based on selectedDate
+  const currentWeekDates = useMemo(() => {
+    const curr = new Date(selectedDate);
+    const day = curr.getDay(); // 0 is Sun, 1 is Mon
+    const diff = curr.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(curr.setDate(diff));
+    const dates: string[] = [];
+    for (let i = 0; i < 6; i++) {
+      const next = new Date(monday);
+      next.setDate(monday.getDate() + i);
+      dates.push(next.toISOString().split('T')[0]);
+    }
+    return dates;
+  }, [selectedDate]);
+
+  // 5. Periodic Summary per Student (customStartDate to customEndDate)
+  const periodicStudentSummary = useMemo(() => {
+    const periodRecords = attendanceRecords.filter(
+      (r) => r.date >= customStartDate && r.date <= customEndDate
+    );
+
+    return filteredStudents.map((student) => {
+      const studentRecs = periodRecords.filter((r) => r.student_id === student.id);
+
+      let presentDays = 0;
+      let lateCount = 0;
+      let totalLateMins = 0;
+      let lateJustified = 0;
+      let absentDays = 0;
+      let absentJustified = 0;
+
+      studentRecs.forEach((r) => {
+        if (r.status === 'PRESENT') presentDays++;
+        if (r.status === 'LATE') {
+          lateCount++;
+          totalLateMins += r.late_minutes || 0;
+          if (r.is_justified) lateJustified++;
+        }
+        if (r.status === 'ABSENT' || r.status === 'EXCUSED') {
+          absentDays++;
+          if (r.is_justified || r.status === 'EXCUSED') absentJustified++;
+        }
+      });
+
+      const totalRecordedDays = presentDays + lateCount + absentDays;
+      const assiduityRate = totalRecordedDays > 0 ? Math.round(((presentDays + lateCount) / totalRecordedDays) * 100) : 100;
+
+      return {
+        student,
+        totalRecordedDays,
+        presentDays,
+        lateCount,
+        totalLateMins,
+        totalLateFormatted: formatDelayDuration(totalLateMins),
+        lateJustified,
+        lateUnjustified: lateCount - lateJustified,
+        absentDays,
+        absentJustified,
+        absentUnjustified: absentDays - absentJustified,
+        assiduityRate,
+      };
+    });
+  }, [filteredStudents, attendanceRecords, customStartDate, customEndDate]);
+
   // Export Daily CSV
   const handleExportDailyCSV = () => {
     const headers = ['Matricule', 'Nom', 'Prenom', 'Classe', 'Statut', 'Heure Arrivee', 'Retard (Minutes)', 'Duree Retard', 'Justifie', 'Motif Justification', 'Contact Parent'];
@@ -486,16 +660,90 @@ export default function StudentAttendancePage() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Pointage_Eleves_${selectedDate}.csv`);
+    link.setAttribute('download', `Pointage_Eleves_Quotidien_${selectedDate}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 
     notify({
-      title: 'Export Réussi',
+      title: 'Export Quotidien Réussi',
       message: `Pointage élèves du ${selectedDate} téléchargé en CSV.`,
       type: 'success',
     });
+    setShowExportMenu(false);
+  };
+
+  // Export Weekly CSV
+  const handleExportWeeklyCSV = () => {
+    const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+    const headers = [
+      'Matricule',
+      'Nom Complet',
+      'Classe',
+      ...currentWeekDates.map((d, i) => `${dayNames[i]} (${d})`),
+      'Total Retards (min)',
+      'Total Absences (j)',
+      'Taux Assiduite'
+    ];
+
+    const rows = filteredStudents.map((student) => {
+      const weekRecs = attendanceRecords.filter((r) => r.student_id === student.id && currentWeekDates.includes(r.date));
+      let totalLateMins = 0;
+      let totalAbsents = 0;
+      let presentDays = 0;
+
+      const dayCells = currentWeekDates.map((dateStr) => {
+        const rec = weekRecs.find((r) => r.date === dateStr);
+        if (!rec) return '"-"';
+        if (rec.status === 'PRESENT') {
+          presentDays++;
+          return '"PRESENT"';
+        }
+        if (rec.status === 'LATE') {
+          presentDays++;
+          totalLateMins += rec.late_minutes || 0;
+          return `"RETARD (${rec.late_minutes} min)"`;
+        }
+        if (rec.status === 'ABSENT') {
+          totalAbsents++;
+          return '"ABSENT"';
+        }
+        if (rec.status === 'EXCUSED') {
+          totalAbsents++;
+          return '"EXCUSE"';
+        }
+        return '"-"';
+      });
+
+      const totalRecorded = presentDays + totalAbsents;
+      const rate = totalRecorded > 0 ? Math.round((presentDays / totalRecorded) * 100) : 100;
+
+      return [
+        `"${student.student_code}"`,
+        `"${student.first_name} ${student.last_name}"`,
+        `"${student.class?.name || 'Non assigné'}"`,
+        ...dayCells,
+        `"${totalLateMins}"`,
+        `"${totalAbsents}"`,
+        `"${rate}%"`,
+      ];
+    });
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `Pointage_Eleves_Hebdomadaire_${currentWeekDates[0]}_au_${currentWeekDates[5]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    notify({
+      title: 'Export Hebdomadaire Réussi',
+      message: `Bilan semaine élèves (${currentWeekDates[0]} au ${currentWeekDates[5]}) téléchargé.`,
+      type: 'success',
+    });
+    setShowExportMenu(false);
   };
 
   // Export Monthly CSV
@@ -520,7 +768,7 @@ export default function StudentAttendancePage() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Rapport_Assiduite_Eleves_${selectedMonth}.csv`);
+    link.setAttribute('download', `Rapport_Assiduite_Eleves_Mensuel_${selectedMonth}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -530,6 +778,78 @@ export default function StudentAttendancePage() {
       message: `Rapport mensuel élèves ${selectedMonth} téléchargé.`,
       type: 'success',
     });
+    setShowExportMenu(false);
+  };
+
+  // Export Periodic CSV
+  const handleExportPeriodicCSV = () => {
+    const headers = ['Matricule', 'Nom Complet', 'Classe', 'Jours Presents', 'Total Retards (Nombre)', 'Duree Totale Retards', 'Retards Justifies', 'Retards Injustifies', 'Absences Totales (Jours)', 'Absences Justifiees', 'Absences Injustifiees', 'Taux Assiduite'];
+    const rows = periodicStudentSummary.map((item) => [
+      `"${item.student.student_code}"`,
+      `"${item.student.first_name} ${item.student.last_name}"`,
+      `"${item.student.class?.name || 'Non assigné'}"`,
+      `"${item.presentDays}"`,
+      `"${item.lateCount}"`,
+      `"${item.totalLateFormatted}"`,
+      `"${item.lateJustified}"`,
+      `"${item.lateUnjustified}"`,
+      `"${item.absentDays}"`,
+      `"${item.absentJustified}"`,
+      `"${item.absentUnjustified}"`,
+      `"${item.assiduityRate}%"`,
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `Rapport_Assiduite_Eleves_Periodique_${customStartDate}_au_${customEndDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    notify({
+      title: 'Export Périodique Réussi',
+      message: `Rapport élèves (${customStartDate} au ${customEndDate}) téléchargé.`,
+      type: 'success',
+    });
+    setShowCustomRangeModal(false);
+    setShowExportMenu(false);
+  };
+
+  // Trigger Print for a specific mode with dynamic PDF file naming
+  const handleTriggerPrint = (mode: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'PERIODIC') => {
+    setPrintReportMode(mode);
+    setShowPrintMenu(false);
+    setShowCustomRangeModal(false);
+
+    const prevTitle = typeof document !== 'undefined' ? document.title : '';
+    const classObj = classes.find((c) => c.id === selectedClassId);
+    const classPrefix = classObj ? `${classObj.name}_` : selectedClassId !== 'ALL' ? `${selectedClassId}_` : '';
+    let pdfFileName = 'GM_Pointage_Eleves';
+
+    if (mode === 'DAILY') {
+      pdfFileName = `GM_Pointage_Eleves_Journalier_${classPrefix}${selectedDate}`;
+    } else if (mode === 'WEEKLY') {
+      pdfFileName = `GM_Pointage_Eleves_Hebdomadaire_${classPrefix}${currentWeekDates[0]}_au_${currentWeekDates[5]}`;
+    } else if (mode === 'MONTHLY') {
+      pdfFileName = `GM_Pointage_Eleves_Mensuel_${classPrefix}${selectedMonth}`;
+    } else if (mode === 'PERIODIC') {
+      pdfFileName = `GM_Pointage_Eleves_Periodique_${classPrefix}${customStartDate}_au_${customEndDate}`;
+    }
+
+    if (typeof document !== 'undefined') {
+      document.title = pdfFileName;
+    }
+
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => {
+        if (typeof document !== 'undefined') {
+          document.title = prevTitle;
+        }
+      }, 1500);
+    }, 250);
   };
 
   return (
@@ -589,7 +909,7 @@ export default function StudentAttendancePage() {
               <ClipboardCheck className="w-4 h-4 shrink-0" />
               <span>{t('student_attendance')}</span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white truncate">
+            <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
               {t('student_attendance_page_title')}
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -597,38 +917,233 @@ export default function StudentAttendancePage() {
             </p>
           </div>
 
-          {/* Quick Actions & Exports (Side by Side in flex-nowrap) */}
+          {/* Quick Actions & Exports Dropdowns */}
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={() => window.print()}
-              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs shadow-xs hover:bg-slate-50 dark:hover:bg-slate-700 transition-all cursor-pointer whitespace-nowrap"
-            >
-              <Printer className="w-4 h-4 text-blue-500 shrink-0" />
-              <span>{dir === 'rtl' ? 'طباعة / PDF' : 'Imprimer / PDF'}</span>
-            </button>
+            {/* Print / PDF Dropdown Hub */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setShowPrintMenu(!showPrintMenu);
+                  setShowExportMenu(false);
+                }}
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs shadow-xs hover:bg-slate-50 dark:hover:bg-slate-700 transition-all cursor-pointer whitespace-nowrap"
+              >
+                <Printer className="w-4 h-4 text-blue-500 shrink-0" />
+                <span>{dir === 'rtl' ? 'طباعة / PDF' : 'Imprimer / PDF'}</span>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              </button>
 
-            {activeTab === 'pointage' || activeTab === 'daily_report' ? (
+              {showPrintMenu && (
+                <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 animate-in fade-in zoom-in-95 space-y-1">
+                  <div className="px-3 py-1.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                    {dir === 'rtl' ? 'خيارات الطباعة الرسمية' : 'Type de Rapport à Imprimer'}
+                  </div>
+
+                  <button
+                    onClick={() => handleTriggerPrint('DAILY')}
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-xl transition-all text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-blue-500" />
+                      <div>
+                        <div>1. Rapport Journalier / Quotidien</div>
+                        <div className="text-[10px] text-slate-400 font-normal">Date : {selectedDate}</div>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => handleTriggerPrint('WEEKLY')}
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-xl transition-all text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <FileSpreadsheet className="w-4 h-4 text-indigo-500" />
+                      <div>
+                        <div>2. Journal Hebdomadaire (Semaine)</div>
+                        <div className="text-[10px] text-slate-400 font-normal">Semaine du {currentWeekDates[0]} au {currentWeekDates[5]}</div>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => handleTriggerPrint('MONTHLY')}
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-all text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-emerald-500" />
+                      <div>
+                        <div>3. Bilan Mensuel (Mois Complet)</div>
+                        <div className="text-[10px] text-slate-400 font-normal">Mois : {selectedMonth}</div>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowPrintMenu(false);
+                      setShowCustomRangeModal(true);
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-xl transition-all text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Award className="w-4 h-4 text-purple-500" />
+                      <div>
+                        <div>4. Bilan Périodique Personnalisé</div>
+                        <div className="text-[10px] text-slate-400 font-normal">Choisir Date Début ➔ Date Fin</div>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Export CSV Dropdown Hub */}
+            <div className="relative">
               <button
-                onClick={handleExportDailyCSV}
+                onClick={() => {
+                  setShowExportMenu(!showExportMenu);
+                  setShowPrintMenu(false);
+                }}
                 className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-300 font-bold text-xs hover:bg-emerald-100 transition-all cursor-pointer whitespace-nowrap"
               >
                 <FileSpreadsheet className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>{dir === 'rtl' ? 'تصدير CSV اليوم' : 'Exporter CSV Jour'}</span>
+                <span>{dir === 'rtl' ? 'تصدير Excel / CSV' : 'Exporter CSV / Excel'}</span>
+                <ChevronDown className="w-3.5 h-3.5 text-emerald-600" />
               </button>
-            ) : (
-              <button
-                onClick={handleExportMonthlyCSV}
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-300 font-bold text-xs hover:bg-emerald-100 transition-all cursor-pointer whitespace-nowrap"
-              >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>{dir === 'rtl' ? 'تصدير CSV الفترة' : 'Exporter CSV Période'}</span>
-              </button>
-            )}
+
+              {showExportMenu && (
+                <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 animate-in fade-in zoom-in-95 space-y-1">
+                  <div className="px-3 py-1.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                    {dir === 'rtl' ? 'خيارات التصدير' : 'Exporter au format CSV'}
+                  </div>
+
+                  <button
+                    onClick={handleExportDailyCSV}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-all text-left"
+                  >
+                    <Download className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <div>
+                      <div>1. Exporter Pointage Journalier</div>
+                      <div className="text-[10px] text-slate-400 font-normal">Jour : {selectedDate}</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={handleExportWeeklyCSV}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-all text-left"
+                  >
+                    <Download className="w-4 h-4 text-indigo-500 shrink-0" />
+                    <div>
+                      <div>2. Exporter Journal Hebdomadaire</div>
+                      <div className="text-[10px] text-slate-400 font-normal">Semaine du {currentWeekDates[0]} au {currentWeekDates[5]}</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={handleExportMonthlyCSV}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-all text-left"
+                  >
+                    <Download className="w-4 h-4 text-teal-500 shrink-0" />
+                    <div>
+                      <div>3. Exporter Bilan Mensuel</div>
+                      <div className="text-[10px] text-slate-400 font-normal">Mois : {selectedMonth}</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowExportMenu(false);
+                      setShowCustomRangeModal(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-all text-left"
+                  >
+                    <Download className="w-4 h-4 text-purple-500 shrink-0" />
+                    <div>
+                      <div>4. Exporter Période Personnalisée</div>
+                      <div className="text-[10px] text-slate-400 font-normal">Plage personnalisée (Date Début ➔ Fin)</div>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
+        {/* Custom Range Period Modal */}
+        {showCustomRangeModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in print:hidden">
+            <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2 text-purple-600 dark:text-purple-400">
+                  <div className="p-2 rounded-xl bg-purple-500/15">
+                    <Calendar className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      Rapport Périodique des Élèves
+                    </h3>
+                    <p className="text-xs text-slate-400">Sélectionnez la période exacte à traiter</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowCustomRangeModal(false)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Date Début
+                  </label>
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Date Fin
+                  </label>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => handleTriggerPrint('PERIODIC')}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-blue-600/20"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Imprimer / PDF</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportPeriodicCSV}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-emerald-600/20"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Exporter CSV</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* View Tabs */}
-        <div className="flex bg-white dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs print:hidden">
+        <div className="grid grid-cols-2 sm:flex bg-white dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs print:hidden gap-1">
           <button
             onClick={() => setActiveTab('pointage')}
             className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
@@ -912,56 +1427,73 @@ export default function StudentAttendancePage() {
                               </span>
                             </td>
 
-                            {/* Status Pill Box (Responsive Grid 4 columns) */}
+                            {/* Status Pill Box (Responsive Grid 3 columns + Justification toggle when Absent) */}
                             <td className="py-2.5 px-3 text-center">
-                              <div className="inline-grid grid-cols-4 gap-0.5 p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 w-full max-w-[250px]">
-                                <button
-                                  type="button"
-                                  onClick={() => handleQuickStatusChange(student, 'PRESENT')}
-                                  className={`px-1 py-1 rounded-lg text-[10px] font-bold truncate transition-all cursor-pointer ${
-                                    status === 'PRESENT'
-                                      ? 'bg-emerald-500 text-white shadow-xs'
-                                      : 'text-slate-600 dark:text-slate-400 hover:text-emerald-600'
-                                  }`}
-                                >
-                                  Présent
-                                </button>
+                              <div className="flex flex-col items-center gap-1.5 justify-center">
+                                <div className="inline-grid grid-cols-3 gap-0.5 p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 w-full max-w-[210px]">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuickStatusChange(student, 'PRESENT')}
+                                    className={`px-1 py-1 rounded-lg text-[10px] font-bold truncate transition-all cursor-pointer ${
+                                      status === 'PRESENT'
+                                        ? 'bg-emerald-500 text-white shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-emerald-600'
+                                    }`}
+                                  >
+                                    Présent
+                                  </button>
 
-                                <button
-                                  type="button"
-                                  onClick={() => handleQuickStatusChange(student, 'LATE')}
-                                  className={`px-1 py-1 rounded-lg text-[10px] font-bold truncate transition-all cursor-pointer ${
-                                    status === 'LATE'
-                                      ? 'bg-amber-500 text-white shadow-xs'
-                                      : 'text-slate-600 dark:text-slate-400 hover:text-amber-600'
-                                  }`}
-                                >
-                                  Retard
-                                </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuickStatusChange(student, 'LATE')}
+                                    className={`px-1 py-1 rounded-lg text-[10px] font-bold truncate transition-all cursor-pointer ${
+                                      status === 'LATE'
+                                        ? 'bg-amber-500 text-white shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-amber-600'
+                                    }`}
+                                  >
+                                    Retard
+                                  </button>
 
-                                <button
-                                  type="button"
-                                  onClick={() => handleQuickStatusChange(student, 'ABSENT')}
-                                  className={`px-1 py-1 rounded-lg text-[10px] font-bold truncate transition-all cursor-pointer ${
-                                    status === 'ABSENT'
-                                      ? 'bg-rose-500 text-white shadow-xs'
-                                      : 'text-slate-600 dark:text-slate-400 hover:text-rose-600'
-                                  }`}
-                                >
-                                  Absent
-                                </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuickStatusChange(student, 'ABSENT')}
+                                    className={`px-1 py-1 rounded-lg text-[10px] font-bold truncate transition-all cursor-pointer ${
+                                      status === 'ABSENT' || status === 'EXCUSED'
+                                        ? 'bg-rose-500 text-white shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-rose-600'
+                                    }`}
+                                  >
+                                    Absent
+                                  </button>
+                                </div>
 
-                                <button
-                                  type="button"
-                                  onClick={() => handleQuickStatusChange(student, 'EXCUSED')}
-                                  className={`px-1 py-1 rounded-lg text-[10px] font-bold truncate transition-all cursor-pointer ${
-                                    status === 'EXCUSED'
-                                      ? 'bg-purple-500 text-white shadow-xs'
-                                      : 'text-slate-600 dark:text-slate-400 hover:text-purple-600'
-                                  }`}
-                                >
-                                  Justifié
-                                </button>
+                                {/* Justification toggle button (Actif / Désactivé style) when status is ABSENT */}
+                                {(status === 'ABSENT' || status === 'EXCUSED') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleJustification(student)}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shadow-xs animate-in fade-in zoom-in-95 duration-150 ${
+                                      isJustified || status === 'EXCUSED'
+                                        ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/80 border border-emerald-300/40'
+                                        : 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 hover:bg-rose-200 dark:hover:bg-rose-900/80 border border-rose-300/40'
+                                    }`}
+                                    title={
+                                      isJustified || status === 'EXCUSED'
+                                        ? 'Absence justifiée (cliquer pour marquer non justifiée)'
+                                        : 'Absence non justifiée (cliquer pour justifier)'
+                                    }
+                                  >
+                                    <span
+                                      className={`w-2 h-2 rounded-full ${
+                                        isJustified || status === 'EXCUSED'
+                                          ? 'bg-emerald-500 animate-pulse'
+                                          : 'bg-rose-500'
+                                      }`}
+                                    />
+                                    <span>{isJustified || status === 'EXCUSED' ? 'Justifié' : 'Non justifié'}</span>
+                                  </button>
+                                )}
                               </div>
                             </td>
 
@@ -971,9 +1503,15 @@ export default function StudentAttendancePage() {
                                 <span className="inline-block max-w-full truncate px-1.5 py-0.5 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-mono text-[10px] font-bold">
                                   {formatDelayDuration(lateMins)}
                                 </span>
-                              ) : status === 'EXCUSED' || isJustified ? (
-                                <span className="inline-block max-w-full truncate px-1.5 py-0.5 rounded-lg bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 text-[10px] font-bold">
-                                  Justifié
+                              ) : status === 'ABSENT' || status === 'EXCUSED' ? (
+                                <span
+                                  className={`inline-block max-w-full truncate px-1.5 py-0.5 rounded-lg text-[10px] font-bold ${
+                                    isJustified || status === 'EXCUSED'
+                                      ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                                      : 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300'
+                                  }`}
+                                >
+                                  {isJustified || status === 'EXCUSED' ? 'Absence Justifiée' : 'Non Justifiée'}
                                 </span>
                               ) : (
                                 <span className="text-slate-400 font-mono text-[11px]">0 min</span>
@@ -1284,7 +1822,7 @@ export default function StudentAttendancePage() {
         )}
 
         {/* ------------------------------------------------------------- */}
-        {/* PRINTABLE OFFICIAL REPORT SHEET                                */}
+        {/* PRINTABLE OFFICIAL REPORT SHEET (DAILY / WEEKLY / MONTHLY / PERIODIC) */}
         {/* ------------------------------------------------------------- */}
         <div className="hidden print:block print-student-attendance-sheet">
           <div className="border-b-2 border-slate-900 pb-3 mb-4">
@@ -1294,61 +1832,192 @@ export default function StudentAttendancePage() {
                   {settings.school_name || 'GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES'}
                 </h1>
                 <p className="text-[10pt] font-bold text-slate-700 mt-0.5">
-                  FEUILLE OFFICIELLE D&apos;APPEL ET D&apos;ASSIDUITÉ DES ÉLÈVES
+                  {printReportMode === 'DAILY' && "FEUILLE OFFICIELLE D'APPEL ET D'ASSIDUITÉ DES ÉLÈVES (JOURNALIER)"}
+                  {printReportMode === 'WEEKLY' && "JOURNAL HEBDOMADAIRE D'AUDIT ET DE PRÉSENCE DES ÉLÈVES"}
+                  {printReportMode === 'MONTHLY' && "REGISTRE MENSUEL RÉCAPITULATIF DE PRÉSENCE DES ÉLÈVES"}
+                  {printReportMode === 'PERIODIC' && `BILAN D'ASSIDUITÉ DES ÉLÈVES (${customStartDate} AU ${customEndDate})`}
                 </p>
                 <p className="text-[8pt] text-slate-600">
-                  Année Scolaire : {settings.academic_year || '2025-2026'} &bull; Établissement Privé
+                  Année Scolaire : {settings.academic_year || '2025-2026'} &bull; Établissement Privé &bull; Direction Pédagogique
                 </p>
               </div>
 
               <div className="text-right border border-slate-400 p-2 rounded">
-                <div className="text-[9pt] font-black">Date : {selectedDate}</div>
+                <div className="text-[9pt] font-black">
+                  {printReportMode === 'DAILY' && `Date : ${selectedDate}`}
+                  {printReportMode === 'WEEKLY' && `Semaine : ${currentWeekDates[0]} au ${currentWeekDates[5]}`}
+                  {printReportMode === 'MONTHLY' && `Mois : ${selectedMonth}`}
+                  {printReportMode === 'PERIODIC' && `Période : ${customStartDate} au ${customEndDate}`}
+                </div>
                 <div className="text-[8pt] text-slate-700">Taux de présence : {dailyStats.rate}%</div>
-                <div className="text-[7.5pt] text-slate-500">Retards cumulés : {dailyStats.totalLateFormatted}</div>
+                <div className="text-[7.5pt] text-slate-500">Généré le : {new Date().toLocaleDateString('fr-FR')} à {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
               </div>
             </div>
           </div>
 
-          <table className="w-full text-left border-collapse text-[8pt] mb-6">
-            <thead>
-              <tr className="bg-slate-100 border border-slate-400 font-bold">
-                <th className="p-2 border border-slate-400">Matricule</th>
-                <th className="p-2 border border-slate-400">Nom &amp; Prénom Élève</th>
-                <th className="p-2 border border-slate-400">Classe</th>
-                <th className="p-2 border border-slate-400 text-center">Arrivée</th>
-                <th className="p-2 border border-slate-400 text-center">Statut</th>
-                <th className="p-2 border border-slate-400 text-center">Retard (H/Min)</th>
-                <th className="p-2 border border-slate-400 text-center">Justifié</th>
-                <th className="p-2 border border-slate-400">Motif / Justification</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredStudents.map((student, idx) => {
-                const rec = dailyRecordMap[student.id];
-                const status = rec?.status || 'PRESENT';
-                const lateMins = rec?.late_minutes || 0;
+          {/* 1. DAILY PRINT TABLE */}
+          {printReportMode === 'DAILY' && (
+            <table className="w-full text-left border-collapse text-[8pt] mb-6">
+              <thead>
+                <tr className="bg-slate-100 border border-slate-400 font-bold">
+                  <th className="p-2 border border-slate-400">Matricule</th>
+                  <th className="p-2 border border-slate-400">Nom &amp; Prénom Élève</th>
+                  <th className="p-2 border border-slate-400">Classe</th>
+                  <th className="p-2 border border-slate-400 text-center">Arrivée</th>
+                  <th className="p-2 border border-slate-400 text-center">Statut</th>
+                  <th className="p-2 border border-slate-400 text-center">Retard (H/Min)</th>
+                  <th className="p-2 border border-slate-400 text-center">Justifié</th>
+                  <th className="p-2 border border-slate-400">Motif / Justification</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredStudents.map((student, idx) => {
+                  const rec = dailyRecordMap[student.id];
+                  const status = rec?.status || 'PRESENT';
+                  const lateMins = rec?.late_minutes || 0;
 
-                return (
+                  return (
+                    <tr key={idx} className="border border-slate-400">
+                      <td className="p-2 border border-slate-400 font-mono font-bold">{student.student_code}</td>
+                      <td className="p-2 border border-slate-400 font-bold">
+                        {student.last_name.toUpperCase()} {student.first_name}
+                      </td>
+                      <td className="p-2 border border-slate-400">{student.class?.name || '-'}</td>
+                      <td className="p-2 border border-slate-400 text-center font-mono">{rec?.check_in_time || '08:00'}</td>
+                      <td className="p-2 border border-slate-400 text-center font-bold">{status}</td>
+                      <td className="p-2 border border-slate-400 text-center font-mono font-bold">
+                        {status === 'LATE' ? formatDelayDuration(lateMins) : '-'}
+                      </td>
+                      <td className="p-2 border border-slate-400 text-center font-bold">
+                        {rec?.is_justified || status === 'EXCUSED' ? 'OUI' : status === 'LATE' || status === 'ABSENT' ? 'NON' : '-'}
+                      </td>
+                      <td className="p-2 border border-slate-400">{rec?.justification_reason || rec?.notes || '-'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+
+          {/* 2. WEEKLY PRINT TABLE */}
+          {printReportMode === 'WEEKLY' && (
+            <table className="w-full text-left border-collapse text-[7.5pt] mb-6">
+              <thead>
+                <tr className="bg-slate-100 border border-slate-400 font-bold">
+                  <th className="p-2 border border-slate-400">Matricule</th>
+                  <th className="p-2 border border-slate-400">Nom &amp; Prénom</th>
+                  <th className="p-2 border border-slate-400">Classe</th>
+                  <th className="p-2 border border-slate-400 text-center">Lun ({currentWeekDates[0].slice(5)})</th>
+                  <th className="p-2 border border-slate-400 text-center">Mar ({currentWeekDates[1].slice(5)})</th>
+                  <th className="p-2 border border-slate-400 text-center">Mer ({currentWeekDates[2].slice(5)})</th>
+                  <th className="p-2 border border-slate-400 text-center">Jeu ({currentWeekDates[3].slice(5)})</th>
+                  <th className="p-2 border border-slate-400 text-center">Ven ({currentWeekDates[4].slice(5)})</th>
+                  <th className="p-2 border border-slate-400 text-center">Sam ({currentWeekDates[5].slice(5)})</th>
+                  <th className="p-2 border border-slate-400 text-center">Retards</th>
+                  <th className="p-2 border border-slate-400 text-center">Assiduité</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredStudents.map((student, idx) => {
+                  const weekRecs = attendanceRecords.filter((r) => r.student_id === student.id && currentWeekDates.includes(r.date));
+                  let totalLateMins = 0;
+                  let presentCount = 0;
+                  let absentCount = 0;
+
+                  return (
+                    <tr key={idx} className="border border-slate-400">
+                      <td className="p-2 border border-slate-400 font-mono font-bold">{student.student_code}</td>
+                      <td className="p-2 border border-slate-400 font-bold">{student.last_name.toUpperCase()} {student.first_name}</td>
+                      <td className="p-2 border border-slate-400">{student.class?.name || '-'}</td>
+                      {currentWeekDates.map((dateStr, dIdx) => {
+                        const rec = weekRecs.find((r) => r.date === dateStr);
+                        if (!rec) return <td key={dIdx} className="p-1 border border-slate-400 text-center text-slate-400">-</td>;
+                        if (rec.status === 'PRESENT') {
+                          presentCount++;
+                          return <td key={dIdx} className="p-1 border border-slate-400 text-center text-emerald-700 font-bold">P (08:00)</td>;
+                        }
+                        if (rec.status === 'LATE') {
+                          presentCount++;
+                          totalLateMins += rec.late_minutes || 0;
+                          return <td key={dIdx} className="p-1 border border-slate-400 text-center text-amber-700 font-bold">R (+{rec.late_minutes}m)</td>;
+                        }
+                        absentCount++;
+                        return <td key={dIdx} className="p-1 border border-slate-400 text-center text-rose-700 font-bold">ABS</td>;
+                      })}
+                      <td className="p-2 border border-slate-400 text-center font-bold">{formatDelayDuration(totalLateMins)}</td>
+                      <td className="p-2 border border-slate-400 text-center font-black">
+                        {presentCount + absentCount > 0 ? `${Math.round((presentCount / (presentCount + absentCount)) * 100)}%` : '100%'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+
+          {/* 3. MONTHLY PRINT TABLE */}
+          {printReportMode === 'MONTHLY' && (
+            <table className="w-full text-left border-collapse text-[8pt] mb-6">
+              <thead>
+                <tr className="bg-slate-100 border border-slate-400 font-bold">
+                  <th className="p-2 border border-slate-400">Matricule</th>
+                  <th className="p-2 border border-slate-400">Nom Complet</th>
+                  <th className="p-2 border border-slate-400">Classe</th>
+                  <th className="p-2 border border-slate-400 text-center">Jours Présents</th>
+                  <th className="p-2 border border-slate-400 text-center">Retards (Nb)</th>
+                  <th className="p-2 border border-slate-400 text-center">Cumul Retards</th>
+                  <th className="p-2 border border-slate-400 text-center">Absences (j)</th>
+                  <th className="p-2 border border-slate-400 text-center">Taux d&apos;Assiduité</th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthlyStudentSummary.map((item, idx) => (
                   <tr key={idx} className="border border-slate-400">
-                    <td className="p-2 border border-slate-400 font-mono font-bold">{student.student_code}</td>
-                    <td className="p-2 border border-slate-400 font-bold">
-                      {student.last_name.toUpperCase()} {student.first_name}
-                    </td>
-                    <td className="p-2 border border-slate-400">{student.class?.name || '-'}</td>
-                    <td className="p-2 border border-slate-400 text-center font-mono">{rec?.check_in_time || '08:00'}</td>
-                    <td className="p-2 border border-slate-400 text-center font-bold">{status}</td>
-                    <td className="p-2 border border-slate-400 text-center font-mono font-bold">
-                      {status === 'LATE' ? formatDelayDuration(lateMins) : '-'}
-                    </td>
-                    <td className="p-2 border border-slate-400 text-center font-bold">
-                      {rec?.is_justified || status === 'EXCUSED' ? 'OUI' : status === 'LATE' || status === 'ABSENT' ? 'NON' : '-'}
-                    </td>
-                    <td className="p-2 border border-slate-400">{rec?.justification_reason || rec?.notes || '-'}</td>
+                    <td className="p-2 border border-slate-400 font-mono font-bold">{item.student.student_code}</td>
+                    <td className="p-2 border border-slate-400 font-bold">{item.student.last_name.toUpperCase()} {item.student.first_name}</td>
+                    <td className="p-2 border border-slate-400">{item.student.class?.name || '-'}</td>
+                    <td className="p-2 border border-slate-400 text-center font-bold">{item.presentDays} j</td>
+                    <td className="p-2 border border-slate-400 text-center">{item.lateCount}</td>
+                    <td className="p-2 border border-slate-400 text-center font-mono">{item.totalLateFormatted}</td>
+                    <td className="p-2 border border-slate-400 text-center font-bold text-rose-700">{item.absentDays} j</td>
+                    <td className="p-2 border border-slate-400 text-center font-black">{item.assiduityRate}%</td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {/* 4. PERIODIC PRINT TABLE */}
+          {printReportMode === 'PERIODIC' && (
+            <table className="w-full text-left border-collapse text-[8pt] mb-6">
+              <thead>
+                <tr className="bg-slate-100 border border-slate-400 font-bold">
+                  <th className="p-2 border border-slate-400">Matricule</th>
+                  <th className="p-2 border border-slate-400">Nom Complet</th>
+                  <th className="p-2 border border-slate-400">Classe</th>
+                  <th className="p-2 border border-slate-400 text-center">Jours Présents</th>
+                  <th className="p-2 border border-slate-400 text-center">Retards (Nb)</th>
+                  <th className="p-2 border border-slate-400 text-center">Total Retards</th>
+                  <th className="p-2 border border-slate-400 text-center">Absences (j)</th>
+                  <th className="p-2 border border-slate-400 text-center">Taux Assiduité</th>
+                </tr>
+              </thead>
+              <tbody>
+                {periodicStudentSummary.map((item, idx) => (
+                  <tr key={idx} className="border border-slate-400">
+                    <td className="p-2 border border-slate-400 font-mono font-bold">{item.student.student_code}</td>
+                    <td className="p-2 border border-slate-400 font-bold">{item.student.last_name.toUpperCase()} {item.student.first_name}</td>
+                    <td className="p-2 border border-slate-400">{item.student.class?.name || '-'}</td>
+                    <td className="p-2 border border-slate-400 text-center font-bold">{item.presentDays} j</td>
+                    <td className="p-2 border border-slate-400 text-center">{item.lateCount}</td>
+                    <td className="p-2 border border-slate-400 text-center font-mono">{item.totalLateFormatted}</td>
+                    <td className="p-2 border border-slate-400 text-center font-bold text-rose-700">{item.absentDays} j</td>
+                    <td className="p-2 border border-slate-400 text-center font-black">{item.assiduityRate}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
 
           <div className="flex justify-between items-center text-[8pt] pt-6 border-t border-slate-300 mt-6">
             <div>
@@ -1366,8 +2035,8 @@ export default function StudentAttendancePage() {
         {/* MODAL: EDIT RETARD / JUSTIFICATION ÉLÈVE                     */}
         {/* ------------------------------------------------------------- */}
         {editingRecord && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in print:hidden">
-            <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 space-y-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in print:hidden overflow-y-auto">
+            <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 space-y-4 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
                   <div className="p-2 rounded-xl bg-blue-500/15">
@@ -1499,13 +2168,18 @@ export default function StudentAttendancePage() {
                           isJustified: !editingRecord.isJustified,
                         })
                       }
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shadow-xs ${
                         editingRecord.isJustified
-                          ? 'bg-emerald-500 text-white shadow-xs'
-                          : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                          ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/80 border border-emerald-300/40'
+                          : 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 hover:bg-rose-200 dark:hover:bg-rose-900/80 border border-rose-300/40'
                       }`}
                     >
-                      {editingRecord.isJustified ? '✅ Justifié' : '❌ Non Justifié'}
+                      <span
+                        className={`w-2 h-2 rounded-full ${
+                          editingRecord.isJustified ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
+                        }`}
+                      />
+                      <span>{editingRecord.isJustified ? 'Justifié' : 'Non justifié'}</span>
                     </button>
                   </div>
 

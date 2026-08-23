@@ -190,7 +190,7 @@ export default function UsersManagementPage() {
   async function handleDelete(user: Profile) {
     const { canDelete, reason } = canManageUser(currentUserRole, user.role);
     if (!canDelete) {
-      setFeedback({ type: 'error', message: reason || 'Un Administrateur ne peut pas supprimer un compte Super Administrateur !' });
+      setFeedback({ type: 'error', message: reason || 'Un Directeur ne peut pas supprimer un compte Super Administrateur !' });
       return;
     }
 
@@ -244,7 +244,7 @@ export default function UsersManagementPage() {
 
   const roleLabels: Record<UserRole, { label: string; color: string }> = {
     SUPER_ADMIN: { label: 'Super Admin', color: 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border-purple-300' },
-    ADMIN: { label: 'Administrateur', color: 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-300' },
+    ADMIN: { label: 'Directeur', color: 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-300' },
     TEACHER: { label: 'Enseignant', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300' },
     SUPERVISOR: { label: 'Surveillant Général', color: 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300' },
     STOCK_MANAGER: { label: 'Gestionnaire Stock', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-300' },
@@ -471,7 +471,7 @@ export default function UsersManagementPage() {
             >
               <option value="ALL">Tous les rôles</option>
               <option value="SUPER_ADMIN">Super Admin</option>
-              <option value="ADMIN">Administrateur</option>
+              <option value="ADMIN">Directeur</option>
               <option value="TEACHER">Enseignant</option>
               <option value="SUPERVISOR">Surveillant Général</option>
               <option value="STOCK_MANAGER">Gestionnaire Stock</option>
@@ -567,7 +567,7 @@ export default function UsersManagementPage() {
                                 {currentUserRole === 'SUPER_ADMIN' && (
                                   <option value="SUPER_ADMIN">Super Admin</option>
                                 )}
-                                <option value="ADMIN">Administrateur</option>
+                                <option value="ADMIN">Directeur</option>
                                 <option value="TEACHER">Enseignant</option>
                                 <option value="SUPERVISOR">Surveillant Général</option>
                                 <option value="STOCK_MANAGER">Gestionnaire Stock</option>
