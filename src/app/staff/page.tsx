@@ -283,7 +283,7 @@ export default function StaffManagementPage() {
       notify({
         title: 'Champs Obligatoires',
         message: 'Veuillez renseigner le nom, le prénom et la fonction du collaborateur.',
-        type: 'error',
+        type: 'danger',
       });
       return;
     }
@@ -384,7 +384,7 @@ export default function StaffManagementPage() {
       notify({
         title: 'Erreur',
         message: `Échec de l'enregistrement : ${err.message}`,
-        type: 'error',
+        type: 'danger',
       });
     } finally {
       setSaving(false);
@@ -432,7 +432,7 @@ export default function StaffManagementPage() {
       notify({
         title: 'Erreur',
         message: `Impossible de supprimer : ${err.message}`,
-        type: 'error',
+        type: 'danger',
       });
     }
   };

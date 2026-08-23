@@ -392,7 +392,7 @@ export default function TimetablePage() {
   const auditScheduleConflicts = (
     slotsList: TimetableSlot[],
     teachersList: Teacher[],
-    classesList: SchoolClass[]
+    classesList: ClassEntity[]
   ): ConflictReport[] => {
     const reports: ConflictReport[] = [];
     const seenPairs = new Set<string>();

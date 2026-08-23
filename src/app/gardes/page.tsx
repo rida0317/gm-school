@@ -78,16 +78,27 @@ const SCHOOL_DAYS = [
   { id: 5, name: 'Vendredi', short: 'Ven', exitTime: '12:20', hasLunch: false },
 ];
 
+export interface GardeTeacher {
+  id: string;
+  first_name: string;
+  last_name: string;
+  staff_code: string;
+  role_title: string;
+  department?: string;
+  specialization?: string;
+  teaching_levels?: string[];
+  is_active: boolean;
+}
+
 // Helper to determine if a teacher belongs to Maternelle
 export function isMaternelleTeacher(
-  t: StaffMember & { specialization?: string; teaching_levels?: string[] },
+  t: GardeTeacher,
   customMaternelleIds?: string[]
 ): boolean {
   if (customMaternelleIds && customMaternelleIds.includes(t.id)) {
     return true;
   }
   const role = (t.role_title || '').toUpperCase();
-  const subj = (t.subject || '').toUpperCase();
   const spec = (t.specialization || '').toUpperCase();
   const dep = (t.department || '').toUpperCase();
 
@@ -100,7 +111,6 @@ export function isMaternelleTeacher(
 
   return (
     role.includes('MATERN') ||
-    subj.includes('MATERN') ||
     spec.includes('MATERN') ||
     dep.includes('MATERN') ||
     role.includes('ÉDUCATRICE') ||
@@ -115,7 +125,7 @@ export default function GardesPlanningPage() {
   const notify = useNotify();
 
   // State
-  const [teachers, setTeachers] = useState<(StaffMember & { specialization?: string; teaching_levels?: string[] })[]>([]);
+  const [teachers, setTeachers] = useState<GardeTeacher[]>([]);
   const [timetableSlots, setTimetableSlots] = useState<any[]>([]);
   const [staffShifts, setStaffShifts] = useState<Record<string, ShiftConfig>>({});
   const [floors, setFloors] = useState<SchoolFloor[]>(DEFAULT_FLOORS);
@@ -154,17 +164,16 @@ export default function GardesPlanningPage() {
         if (tchData) {
           const permanentTeachers = tchData.filter((t: Teacher) => {
             const ct = (t.contract_type || '').toUpperCase().trim();
-            const subj = (t.subject || '').toUpperCase().trim();
             const spec = (t.specialization || '').toUpperCase().trim();
-            return !ct.includes('VACAT') && !subj.includes('VACAT') && !spec.includes('VACAT');
+            return !ct.includes('VACAT') && !spec.includes('VACAT');
           });
 
-          const mapped = permanentTeachers.map((t: Teacher) => ({
+          const mapped: GardeTeacher[] = permanentTeachers.map((t: Teacher) => ({
             id: t.id,
             first_name: t.first_name,
             last_name: t.last_name,
             staff_code: t.teacher_code || t.id.substring(0, 6).toUpperCase(),
-            role_title: t.subject || 'Enseignant',
+            role_title: t.specialization || 'Enseignant',
             department: 'Pédagogique',
             specialization: t.specialization,
             teaching_levels: t.teaching_levels,
@@ -495,7 +504,7 @@ export default function GardesPlanningPage() {
       // Helper function to find the best fair candidate for a specific slot on day d
       const pickBestCandidate = (
         candidateList: Array<{
-          staff: StaffMember & { specialization?: string; teaching_levels?: string[] };
+          staff: GardeTeacher;
           isMaternelle: boolean;
           isPresentToday: boolean;
           weeklyHours: number;
