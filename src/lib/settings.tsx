@@ -18,6 +18,8 @@ export interface SchoolSettings {
   whatsapp_absence_template_fr?: string;
   whatsapp_late_template_ar?: string;
   whatsapp_late_template_fr?: string;
+  whatsapp_payment_template_ar?: string;
+  whatsapp_payment_template_fr?: string;
 }
 
 export const defaultSettings: SchoolSettings = {
@@ -35,6 +37,8 @@ export const defaultSettings: SchoolSettings = {
   whatsapp_absence_template_fr: '',
   whatsapp_late_template_ar: '',
   whatsapp_late_template_fr: '',
+  whatsapp_payment_template_ar: '',
+  whatsapp_payment_template_fr: '',
 };
 
 interface SettingsContextType {

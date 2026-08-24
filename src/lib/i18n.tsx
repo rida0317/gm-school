@@ -39,6 +39,8 @@ export const translations = {
     audit_logs: 'Journal d\'Audit',
     settings: 'Paramètres & Configuration',
     audit: 'Journal d\'Activité',
+    tuition: 'Frais & Scolarité',
+    group_finance: 'Finances & Paiements',
     // Missing Keys Added for Build Fix
     gender: 'Sexe',
     edit_student: 'Modifier l\'élève',
@@ -236,6 +238,8 @@ export const translations = {
     audit_logs: 'سجل التدقيق',
     settings: 'الإعدادات',
     audit: 'سجل النشاط',
+    tuition: 'الواجبات الشهرية',
+    group_finance: 'المالية والمستحقات',
     // Missing Keys Added for Build Fix
     gender: 'الجنس',
     edit_student: 'تعديل التلميذ',

@@ -42,10 +42,12 @@ export default function SettingsPage() {
     whatsapp_absence_template_fr: settings?.whatsapp_absence_template_fr || DEFAULT_WHATSAPP_TEMPLATES.fr_absence,
     whatsapp_late_template_ar: settings?.whatsapp_late_template_ar || DEFAULT_WHATSAPP_TEMPLATES.ar_late,
     whatsapp_late_template_fr: settings?.whatsapp_late_template_fr || DEFAULT_WHATSAPP_TEMPLATES.fr_late,
+    whatsapp_payment_template_ar: settings?.whatsapp_payment_template_ar || DEFAULT_WHATSAPP_TEMPLATES.ar_payment,
+    whatsapp_payment_template_fr: settings?.whatsapp_payment_template_fr || DEFAULT_WHATSAPP_TEMPLATES.fr_payment,
   });
 
   const [whatsappTab, setWhatsappTab] = useState<'ar' | 'fr'>('ar');
-  const [activeTarget, setActiveTarget] = useState<'absence' | 'late'>('absence');
+  const [activeTarget, setActiveTarget] = useState<'absence' | 'late' | 'payment'>('absence');
 
   const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -69,10 +71,14 @@ export default function SettingsPage() {
       whatsappTab === 'ar'
         ? activeTarget === 'absence'
           ? 'whatsapp_absence_template_ar'
-          : 'whatsapp_late_template_ar'
+          : activeTarget === 'late'
+          ? 'whatsapp_late_template_ar'
+          : 'whatsapp_payment_template_ar'
         : activeTarget === 'absence'
         ? 'whatsapp_absence_template_fr'
-        : 'whatsapp_late_template_fr';
+        : activeTarget === 'late'
+        ? 'whatsapp_late_template_fr'
+        : 'whatsapp_payment_template_fr';
 
     setFormState((prev) => {
       const current = prev[fieldKey] || '';
@@ -83,7 +89,7 @@ export default function SettingsPage() {
     });
   };
 
-  const insertSchoolHeader = (target: 'absence' | 'late') => {
+  const insertSchoolHeader = (target: 'absence' | 'late' | 'payment') => {
     const schoolName =
       whatsappTab === 'ar'
         ? formState.school_name_ar || 'مجموعة مدارس الأجيال الصاعدة'
@@ -94,22 +100,24 @@ export default function SettingsPage() {
       whatsappTab === 'ar'
         ? target === 'absence'
           ? 'whatsapp_absence_template_ar'
-          : 'whatsapp_late_template_ar'
+          : target === 'late'
+          ? 'whatsapp_late_template_ar'
+          : 'whatsapp_payment_template_ar'
         : target === 'absence'
         ? 'whatsapp_absence_template_fr'
-        : 'whatsapp_late_template_fr';
+        : target === 'late'
+        ? 'whatsapp_late_template_fr'
+        : 'whatsapp_payment_template_fr';
 
     setFormState((prev) => {
       const current = prev[fieldKey] || '';
       const headerRegex = /^(\*[^*]+\*[\r\n]+-+\s*[\r\n]*)/;
       if (headerRegex.test(current)) {
-        // Remove header
         return {
           ...prev,
           [fieldKey]: current.replace(headerRegex, ''),
         };
       } else {
-        // Add header
         return {
           ...prev,
           [fieldKey]: `${header}${current}`,
@@ -140,6 +148,8 @@ export default function SettingsPage() {
         whatsapp_absence_template_fr: settings.whatsapp_absence_template_fr || DEFAULT_WHATSAPP_TEMPLATES.fr_absence,
         whatsapp_late_template_ar: settings.whatsapp_late_template_ar || DEFAULT_WHATSAPP_TEMPLATES.ar_late,
         whatsapp_late_template_fr: settings.whatsapp_late_template_fr || DEFAULT_WHATSAPP_TEMPLATES.fr_late,
+        whatsapp_payment_template_ar: settings.whatsapp_payment_template_ar || DEFAULT_WHATSAPP_TEMPLATES.ar_payment,
+        whatsapp_payment_template_fr: settings.whatsapp_payment_template_fr || DEFAULT_WHATSAPP_TEMPLATES.fr_payment,
       });
     }
   }, [settings]);
@@ -151,6 +161,8 @@ export default function SettingsPage() {
       whatsapp_absence_template_fr: DEFAULT_WHATSAPP_TEMPLATES.fr_absence,
       whatsapp_late_template_ar: DEFAULT_WHATSAPP_TEMPLATES.ar_late,
       whatsapp_late_template_fr: DEFAULT_WHATSAPP_TEMPLATES.fr_late,
+      whatsapp_payment_template_ar: DEFAULT_WHATSAPP_TEMPLATES.ar_payment,
+      whatsapp_payment_template_fr: DEFAULT_WHATSAPP_TEMPLATES.fr_payment,
     }));
   };
 
@@ -176,6 +188,8 @@ export default function SettingsPage() {
         whatsapp_absence_template_fr: formState.whatsapp_absence_template_fr.trim(),
         whatsapp_late_template_ar: formState.whatsapp_late_template_ar.trim(),
         whatsapp_late_template_fr: formState.whatsapp_late_template_fr.trim(),
+        whatsapp_payment_template_ar: formState.whatsapp_payment_template_ar.trim(),
+        whatsapp_payment_template_fr: formState.whatsapp_payment_template_fr.trim(),
       });
 
       if (!success) {
@@ -516,19 +530,26 @@ export default function SettingsPage() {
                 </div>
                 <div className="flex items-center gap-1 text-[11px] text-slate-500 font-semibold">
                   <span>{dir === 'rtl' ? 'الخانة المحددة :' : 'Cible :'}</span>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTarget(activeTarget === 'absence' ? 'late' : 'absence')}
-                    className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-300 dark:border-emerald-800 cursor-pointer shadow-2xs"
-                  >
-                    {activeTarget === 'absence'
-                      ? dir === 'rtl'
-                        ? '🔴 رسالة الغياب'
-                        : '🔴 Modèle Absence'
-                      : dir === 'rtl'
-                      ? '🟡 رسالة التأخر'
-                      : '🟡 Modèle Retard'}
-                  </button>
+                  <div className="inline-flex p-0.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    {[
+                      { key: 'absence', label: dir === 'rtl' ? '🔴 الغياب' : '🔴 Absence' },
+                      { key: 'late', label: dir === 'rtl' ? '🟡 التأخر' : '🟡 Retard' },
+                      { key: 'payment', label: dir === 'rtl' ? '💳 الواجب الشهري' : '💳 Scolarité' },
+                    ].map((target) => (
+                      <button
+                        key={target.key}
+                        type="button"
+                        onClick={() => setActiveTarget(target.key as any)}
+                        className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                          activeTarget === target.key
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
+                        }`}
+                      >
+                        {target.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -546,6 +567,8 @@ export default function SettingsPage() {
                 {[
                   { tag: '{student_name}', label: dir === 'rtl' ? 'اسم التلميذ' : 'Nom de l\'élève' },
                   { tag: '{class_name}', label: dir === 'rtl' ? 'القسم' : 'Classe' },
+                  { tag: '{month}', label: dir === 'rtl' ? 'الشهر' : 'Mois' },
+                  { tag: '{amount}', label: dir === 'rtl' ? 'المبلغ' : 'Montant' },
                   { tag: '{date}', label: dir === 'rtl' ? 'التاريخ' : 'Date' },
                   { tag: '{school_name}', label: dir === 'rtl' ? 'اسم المؤسسة' : 'Nom école' },
                   { tag: '{guardian_name}', label: dir === 'rtl' ? 'اسم الولي' : 'Nom tuteur' },
@@ -567,11 +590,12 @@ export default function SettingsPage() {
 
             {/* Template Editors */}
             {whatsappTab === 'ar' ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4" dir="rtl">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4" dir="rtl">
+                {/* 1. Absence */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                      🔴 نموذج رسالة غياب التلميذ (عربية)
+                      🔴 رسالة غياب التلميذ
                     </label>
                     <button
                       type="button"
@@ -583,8 +607,8 @@ export default function SettingsPage() {
                       }`}
                     >
                       {/^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_absence_template_ar)
-                        ? '✕ حذف رأس/شعار المؤسسة'
-                        : '+ إضافة رأس/شعار المؤسسة'}
+                        ? '✕ حذف الرأس'
+                        : '+ إضافة الرأس'}
                     </button>
                   </div>
                   <textarea
@@ -597,10 +621,11 @@ export default function SettingsPage() {
                   />
                 </div>
 
+                {/* 2. Late */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                      🟡 نموذج رسالة تأخر التلميذ (عربية)
+                      🟡 رسالة تأخر التلميذ
                     </label>
                     <button
                       type="button"
@@ -612,8 +637,8 @@ export default function SettingsPage() {
                       }`}
                     >
                       {/^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_late_template_ar)
-                        ? '✕ حذف رأس/شعار المؤسسة'
-                        : '+ إضافة رأس/شعار المؤسسة'}
+                        ? '✕ حذف الرأس'
+                        : '+ إضافة الرأس'}
                     </button>
                   </div>
                   <textarea
@@ -625,13 +650,44 @@ export default function SettingsPage() {
                     placeholder="اكتب نموذج رسالة التأخر بالعربية..."
                   />
                 </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4" dir="ltr">
+
+                {/* 3. Tuition / Payment Reminder */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                      🔴 Modèle Absence Élève (Français)
+                      💳 رسالة تذكير الواجب الشهري
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => insertSchoolHeader('payment')}
+                      className={`text-[11px] font-bold cursor-pointer transition-colors ${
+                        /^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_payment_template_ar)
+                          ? 'text-rose-600 hover:text-rose-700'
+                          : 'text-emerald-600 hover:text-emerald-700'
+                      }`}
+                    >
+                      {/^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_payment_template_ar)
+                        ? '✕ حذف الرأس'
+                        : '+ إضافة الرأس'}
+                    </button>
+                  </div>
+                  <textarea
+                    rows={6}
+                    value={formState.whatsapp_payment_template_ar}
+                    onFocus={() => setActiveTarget('payment')}
+                    onChange={(e) => setFormState({ ...formState, whatsapp_payment_template_ar: e.target.value })}
+                    className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed font-sans"
+                    placeholder="اكتب نموذج رسالة تذكير الواجب الشهري بالعربية..."
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4" dir="ltr">
+                {/* 1. Absence */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      🔴 Modèle Absence Élève
                     </label>
                     <button
                       type="button"
@@ -643,8 +699,8 @@ export default function SettingsPage() {
                       }`}
                     >
                       {/^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_absence_template_fr)
-                        ? '✕ Retirer En-tête École'
-                        : '+ Insérer En-tête École'}
+                        ? '✕ Retirer En-tête'
+                        : '+ En-tête'}
                     </button>
                   </div>
                   <textarea
@@ -657,10 +713,11 @@ export default function SettingsPage() {
                   />
                 </div>
 
+                {/* 2. Late */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                      🟡 Modèle Retard Élève (Français)
+                      🟡 Modèle Retard Élève
                     </label>
                     <button
                       type="button"
@@ -672,8 +729,8 @@ export default function SettingsPage() {
                       }`}
                     >
                       {/^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_late_template_fr)
-                        ? '✕ Retirer En-tête École'
-                        : '+ Insérer En-tête École'}
+                        ? '✕ Retirer En-tête'
+                        : '+ En-tête'}
                     </button>
                   </div>
                   <textarea
@@ -683,6 +740,36 @@ export default function SettingsPage() {
                     onChange={(e) => setFormState({ ...formState, whatsapp_late_template_fr: e.target.value })}
                     className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed font-sans"
                     placeholder="Rédigez le modèle de retard en français..."
+                  />
+                </div>
+
+                {/* 3. Tuition / Payment Reminder */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      💳 Modèle Rappel Frais Scolarité
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => insertSchoolHeader('payment')}
+                      className={`text-[11px] font-bold cursor-pointer transition-colors ${
+                        /^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_payment_template_fr)
+                          ? 'text-rose-600 hover:text-rose-700'
+                          : 'text-emerald-600 hover:text-emerald-700'
+                      }`}
+                    >
+                      {/^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_payment_template_fr)
+                        ? '✕ Retirer En-tête'
+                        : '+ En-tête'}
+                    </button>
+                  </div>
+                  <textarea
+                    rows={6}
+                    value={formState.whatsapp_payment_template_fr}
+                    onFocus={() => setActiveTarget('payment')}
+                    onChange={(e) => setFormState({ ...formState, whatsapp_payment_template_fr: e.target.value })}
+                    className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed font-sans"
+                    placeholder="Rédigez le modèle de rappel de paiement en français..."
                   />
                 </div>
               </div>

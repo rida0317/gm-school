@@ -16,6 +16,17 @@ export interface AbsenceMessageParams {
   locale?: 'fr' | 'ar';
 }
 
+export interface PaymentReminderParams {
+  studentName: string;
+  guardianName?: string;
+  className: string;
+  month: string;
+  amount: number | string;
+  schoolName: string;
+  customTemplate?: string;
+  locale?: 'fr' | 'ar';
+}
+
 export const DEFAULT_WHATSAPP_TEMPLATES = {
   ar_absence: `*مجموعة مدارس الأجيال الصاعدة*
 ----------------------------------------
@@ -37,6 +48,16 @@ export const DEFAULT_WHATSAPP_TEMPLATES = {
 
 — *إدارة المؤسسة*`,
 
+  ar_payment: `*مجموعة مدارس الأجيال الصاعدة*
+----------------------------------------
+السلام عليكم ورحمة الله وبركاته،
+السيد(ة) ولي أمر التلميذ(ة) *{student_name}* (القسم: *{class_name}*)،
+
+نذكركم بلطف بحلول موعد أداء الواجب الشهري لشهر *{month}* (المبلغ المستحق: *{amount} درهم*).
+نرجو منكم التفضل بزيارة مصلحة الحسابات بالمؤسسة لتسوية الواجب في أقرب الآجال.
+
+— *مصلحة الحسابات والمالية*`,
+
   fr_absence: `*GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES*
 ----------------------------------------
 Bonjour,
@@ -56,6 +77,16 @@ Nous vous signalons un *RETARD* de votre enfant à l'école le *{date}* (Durée 
 Merci de veiller au respect des horaires d'entrée.
 
 — *Direction Pédagogique*`,
+
+  fr_payment: `*GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES*
+----------------------------------------
+Bonjour,
+Cher parent de l'élève *{student_name}* (Classe : *{class_name}*),
+
+Nous vous rappelons aimablement que les frais de scolarité pour le mois de *{month}* sont arrivés à échéance (Montant dû : *{amount} MAD*).
+Merci de bien vouloir vous rapprocher du service comptabilité de l'établissement pour régulariser votre situation.
+
+— *Service Comptabilité & Financier*`,
 };
 
 /**
@@ -161,6 +192,52 @@ export function buildAbsenceMessage(params: AbsenceMessageParams): string {
     '{logo_ecole}': `*${schoolName || 'GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES'}*\n----------------------------------------`,
     '{late_minutes}': String(lateMinutes || 0),
     '{retard_minutes}': String(lateMinutes || 0),
+  };
+
+  let compiled = template;
+  for (const [key, value] of Object.entries(replacements)) {
+    compiled = compiled.split(key).join(value);
+  }
+
+  return compiled;
+}
+
+/**
+ * Compiles a WhatsApp payment reminder message
+ */
+export function buildPaymentReminderMessage(params: PaymentReminderParams): string {
+  const {
+    studentName,
+    guardianName = '',
+    className,
+    month,
+    amount,
+    schoolName,
+    customTemplate,
+    locale = 'fr',
+  } = params;
+
+  let template = customTemplate;
+
+  if (!template || template.trim() === '') {
+    template = locale === 'ar' ? DEFAULT_WHATSAPP_TEMPLATES.ar_payment : DEFAULT_WHATSAPP_TEMPLATES.fr_payment;
+  }
+
+  const replacements: Record<string, string> = {
+    '{student_name}': studentName || '',
+    '{nom_eleve}': studentName || '',
+    '{guardian_name}': guardianName || '',
+    '{nom_tuteur}': guardianName || '',
+    '{class_name}': className || '',
+    '{classe}': className || '',
+    '{month}': month || '',
+    '{mois}': month || '',
+    '{amount}': String(amount || '0'),
+    '{montant}': String(amount || '0'),
+    '{school_name}': schoolName || 'GM School',
+    '{ecole}': schoolName || 'GM School',
+    '{school_logo}': `*${schoolName || 'GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES'}*\n----------------------------------------`,
+    '{logo_ecole}': `*${schoolName || 'GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES'}*\n----------------------------------------`,
   };
 
   let compiled = template;

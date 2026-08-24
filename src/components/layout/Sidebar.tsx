@@ -24,6 +24,7 @@ import {
   Truck,
   ShoppingCart,
   Wallet,
+  CreditCard,
   FileBarChart,
   History,
   ShieldCheck,
@@ -113,6 +114,12 @@ export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) 
         { href: '/dashboard', label: t('dashboard'), icon: LayoutDashboard },
         { href: '/students', label: t('students'), icon: GraduationCap },
         { href: '/teachers', label: t('teachers'), icon: Users },
+      ],
+    },
+    {
+      title: t('group_finance'),
+      items: [
+        { href: '/tuition', label: t('tuition'), icon: CreditCard, highlight: true },
       ],
     },
     {
