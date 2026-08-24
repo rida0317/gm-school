@@ -410,18 +410,21 @@ const I18nContext = createContext<I18nContextType>({
 });
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>('fr');
-
-  useEffect(() => {
-    const saved = localStorage.getItem('app_locale') as Locale;
-    if (saved && (saved === 'fr' || saved === 'ar')) {
-      setLocaleState(saved);
+  const [locale, setLocaleState] = useState<Locale>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('app_locale') as Locale;
+      if (saved === 'fr' || saved === 'ar') {
+        return saved;
+      }
     }
-  }, []);
+    return 'fr';
+  });
 
   const setLocale = (newLocale: Locale) => {
     setLocaleState(newLocale);
-    localStorage.setItem('app_locale', newLocale);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('app_locale', newLocale);
+    }
   };
 
   const dir = locale === 'ar' ? 'rtl' : 'ltr';

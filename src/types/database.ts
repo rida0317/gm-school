@@ -365,3 +365,30 @@ export interface AuditLog {
   ip_address?: string;
   created_at: string;
 }
+
+export interface GardesPlanning {
+  id: string;
+  floors: Array<{
+    id: string;
+    name: string;
+    requiredTeachers: number;
+    color: string;
+    isMaternelleOnly?: boolean;
+    hasLunchGuard?: boolean;
+  }>;
+  maternelle_teacher_ids: string[];
+  shifts: Record<string, {
+    staffId: string;
+    expectedEntry: string;
+    expectedExit: string;
+    hasGarde: boolean;
+    gardeDays?: number[];
+    hasGardeEntry?: boolean;
+    gardeEntryDays?: number[];
+    hasGardeLunch?: boolean;
+    gardeLunchDays?: number[];
+    assignedFloors?: Record<number, string>;
+  }>;
+  updated_at: string;
+}
+

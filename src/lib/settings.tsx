@@ -42,10 +42,23 @@ const SettingsContext = createContext<SettingsContextType>({
 });
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettings] = useState<SchoolSettings>(defaultSettings);
+  const [settings, setSettings] = useState<SchoolSettings>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('gm_school_settings');
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch {
+          // ignore
+        }
+      }
+    }
+    return defaultSettings;
+  });
   const [loading, setLoading] = useState(false);
 
   const loadSettingsFromSupabase = useCallback(async () => {
+    setLoading(true);
     try {
       const supabase = createClient();
       const { data, error } = await supabase
@@ -73,11 +86,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       }
     } catch (err) {
       console.warn('Error fetching school settings from Supabase:', err);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadSettingsFromSupabase();
+    loadSettingsFromSupabase().catch(() => {});
 
     const handleCustomChange = (e: Event) => {
       const customEvent = e as CustomEvent<SchoolSettings>;

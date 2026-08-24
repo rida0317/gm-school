@@ -32,7 +32,10 @@ import {
   MapPin,
   TrendingDown,
   Baby,
-  AlertTriangle
+  AlertTriangle,
+  UserPlus,
+  Wrench,
+  ArrowRight
 } from 'lucide-react';
 
 export interface SchoolFloor {
@@ -142,6 +145,12 @@ export default function GardesPlanningPage() {
   const [newFloorIsMaternelle, setNewFloorIsMaternelle] = useState<boolean>(false);
   const [newFloorHasLunch, setNewFloorHasLunch] = useState<boolean>(true);
 
+  // Manual Fix & Quick Assignment Modal State
+  const [activeFloorForManualFix, setActiveFloorForManualFix] = useState<SchoolFloor | null>(null);
+  const [manualFixDay, setManualFixDay] = useState<number>(1);
+  const [manualFixSearch, setManualFixSearch] = useState<string>('');
+  const [manualFixFilter, setManualFixFilter] = useState<'all' | 'maternelle' | 'available_today'>('all');
+
   // Sync / Save states
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
@@ -188,59 +197,72 @@ export default function GardesPlanningPage() {
           setTimetableSlots(slotsData);
         }
 
-        // 3. Load Maternelle teacher overrides
-        try {
-          const savedMat = localStorage.getItem(STORAGE_KEY_MATERNELLE_IDS);
-          if (savedMat) {
-            setMaternelleTeacherIds(JSON.parse(savedMat));
+        // 3. Load from Supabase 'gardes_planning' table
+        const { data: dbPlanning, error: dbError } = await supabase
+          .from('gardes_planning')
+          .select('*')
+          .eq('id', 'master')
+          .maybeSingle();
+
+        let loadedFloors = DEFAULT_FLOORS;
+        let loadedMatIds: string[] = [];
+        let loadedShifts: Record<string, ShiftConfig> = {};
+
+        if (dbPlanning) {
+          if (Array.isArray(dbPlanning.floors) && dbPlanning.floors.length > 0) {
+            loadedFloors = dbPlanning.floors;
           }
-        } catch {
-          // ignore
+          if (Array.isArray(dbPlanning.maternelle_teacher_ids)) {
+            loadedMatIds = dbPlanning.maternelle_teacher_ids;
+          }
+          if (dbPlanning.shifts && typeof dbPlanning.shifts === 'object') {
+            loadedShifts = dbPlanning.shifts;
+          }
+        } else {
+          // Fallback to localStorage if Supabase has no master row yet
+          try {
+            const savedMat = localStorage.getItem(STORAGE_KEY_MATERNELLE_IDS);
+            if (savedMat) loadedMatIds = JSON.parse(savedMat);
+            const savedFloors = localStorage.getItem(STORAGE_KEY_FLOORS);
+            if (savedFloors) loadedFloors = JSON.parse(savedFloors);
+            const savedMaster = localStorage.getItem(STORAGE_KEY_MASTER);
+            if (savedMaster) loadedShifts = JSON.parse(savedMaster);
+          } catch {
+            // ignore
+          }
         }
 
-        // 4. Load floors configuration
-        try {
-          const savedFloors = localStorage.getItem(STORAGE_KEY_FLOORS);
-          if (savedFloors) {
-            const parsed = JSON.parse(savedFloors);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              const enriched = parsed.map((f: SchoolFloor) => {
-                const isSS = f.name.toLowerCase().includes('sous-sol') || f.name.toLowerCase().includes('maternelle');
-                const isRDC = f.name.toLowerCase().includes('chaussée') || f.name.toLowerCase().includes('rdc') || f.name.toLowerCase().includes('cour');
-                return {
-                  ...f,
-                  isMaternelleOnly: f.isMaternelleOnly !== undefined ? f.isMaternelleOnly : isSS,
-                  hasLunchGuard: f.hasLunchGuard !== undefined ? f.hasLunchGuard : (!isSS && !isRDC),
-                };
-              });
-              setFloors(enriched);
-            }
-          }
-        } catch {
-          // ignore
-        }
-
-        // 5. Load saved master shifts
-        const savedMaster = localStorage.getItem(STORAGE_KEY_MASTER);
-        if (savedMaster) {
-          setStaffShifts(JSON.parse(savedMaster));
-        } else if (tchData) {
-          const initMap: Record<string, ShiftConfig> = {};
+        // Ensure every permanent teacher has an entry
+        if (tchData) {
           tchData.forEach((t: Teacher) => {
-            initMap[t.id] = {
-              staffId: t.id,
-              expectedEntry: '08:00',
-              expectedExit: '16:00',
-              hasGarde: false,
-              hasGardeEntry: false,
-              hasGardeLunch: false,
-              gardeDays: [],
-              gardeEntryDays: [],
-              gardeLunchDays: [],
-              assignedFloors: {},
-            };
+            if (!loadedShifts[t.id]) {
+              loadedShifts[t.id] = {
+                staffId: t.id,
+                expectedEntry: '08:00',
+                expectedExit: '16:00',
+                hasGarde: false,
+                hasGardeEntry: false,
+                hasGardeLunch: false,
+                gardeDays: [],
+                gardeEntryDays: [],
+                gardeLunchDays: [],
+                assignedFloors: {},
+              };
+            }
           });
-          setStaffShifts(initMap);
+        }
+
+        setFloors(loadedFloors);
+        setMaternelleTeacherIds(loadedMatIds);
+        setStaffShifts(loadedShifts);
+
+        // Cache in localStorage
+        try {
+          localStorage.setItem(STORAGE_KEY_FLOORS, JSON.stringify(loadedFloors));
+          localStorage.setItem(STORAGE_KEY_MATERNELLE_IDS, JSON.stringify(loadedMatIds));
+          localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(loadedShifts));
+        } catch {
+          // ignore
         }
       } catch (err) {
         console.error('Error loading gardes planning data:', err);
@@ -267,16 +289,69 @@ export default function GardesPlanningPage() {
     return map;
   }, [teachers, timetableSlots]);
 
+  // Save everything to Supabase and cache locally
+  const saveToSupabase = async (
+    shiftsToSave?: Record<string, ShiftConfig>,
+    floorsToSave?: SchoolFloor[],
+    maternelleIdsToSave?: string[],
+    silent = true
+  ) => {
+    const s = shiftsToSave || staffShifts;
+    const f = floorsToSave || floors;
+    const m = maternelleIdsToSave || maternelleTeacherIds;
+
+    // Cache locally immediately
+    try {
+      localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(s));
+      localStorage.setItem(STORAGE_KEY_FLOORS, JSON.stringify(f));
+      localStorage.setItem(STORAGE_KEY_MATERNELLE_IDS, JSON.stringify(m));
+    } catch {
+      // ignore
+    }
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from('gardes_planning').upsert({
+        id: 'master',
+        floors: f,
+        maternelle_teacher_ids: m,
+        shifts: s,
+        updated_at: new Date().toISOString(),
+      });
+
+      if (error) {
+        console.error('Supabase save error:', error);
+        if (!silent) {
+          notify({
+            title: 'Sauvegardé en Cache Local',
+            message: `Erreur de connexion Supabase (${error.message}). Sauvegardé en local.`,
+            type: 'warning',
+          });
+        }
+      } else {
+        if (!silent) {
+          setIsSavedFeedback(true);
+          notify({
+            title: 'Enregistré dans Supabase ☁️',
+            message: 'Le planning des gardes et la configuration des étages ont été enregistrés avec succès dans Supabase.',
+            type: 'success',
+          });
+          setTimeout(() => setIsSavedFeedback(false), 3000);
+        }
+      }
+    } catch (err: any) {
+      console.error('Save to Supabase failed:', err);
+    }
+  };
+
   // Toggle teacher Maternelle designation
   const toggleTeacherMaternelle = (teacherId: string) => {
     setMaternelleTeacherIds((prev) => {
       const exists = prev.includes(teacherId);
       const next = exists ? prev.filter((id) => id !== teacherId) : [...prev, teacherId];
-      try {
-        localStorage.setItem(STORAGE_KEY_MATERNELLE_IDS, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
+      
+      saveToSupabase(staffShifts, floors, next, true);
+
       notify({
         title: exists ? 'Désignation Retirée' : 'Désigné(e) Enseignant Maternelle',
         message: exists
@@ -305,13 +380,151 @@ export default function GardesPlanningPage() {
       };
       const next = { ...prev, [staffId]: { ...current, ...updates } };
       
-      try {
-        localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
+      saveToSupabase(next, floors, maternelleTeacherIds, true);
       return next;
     });
+  };
+
+  // Assign a teacher to a specific slot on a floor and day
+  const handleAssignTeacherSlot = (
+    teacherId: string,
+    slotType: 'morning' | 'lunch' | 'evening',
+    dayNum: number,
+    floorId: string
+  ) => {
+    const shift = staffShifts[teacherId] || {
+      staffId: teacherId,
+      expectedEntry: '08:00',
+      expectedExit: defaultExit,
+      hasGarde: false,
+      hasGardeEntry: false,
+      hasGardeLunch: false,
+      gardeDays: [],
+      gardeEntryDays: [],
+      gardeLunchDays: [],
+      assignedFloors: {},
+    };
+
+    let nextGardeEntryDays = shift.gardeEntryDays || [];
+    let nextGardeLunchDays = shift.gardeLunchDays || [];
+    let nextGardeDays = shift.gardeDays || [];
+    const nextAssignedFloors = { ...(shift.assignedFloors || {}), [dayNum]: floorId };
+
+    if (slotType === 'morning') {
+      if (!nextGardeEntryDays.includes(dayNum)) {
+        nextGardeEntryDays = [...nextGardeEntryDays, dayNum];
+      }
+    } else if (slotType === 'lunch') {
+      if (!nextGardeLunchDays.includes(dayNum)) {
+        nextGardeLunchDays = [...nextGardeLunchDays, dayNum];
+      }
+    } else if (slotType === 'evening') {
+      if (!nextGardeDays.includes(dayNum)) {
+        nextGardeDays = [...nextGardeDays, dayNum];
+      }
+    }
+
+    updateStaffShift(teacherId, {
+      gardeEntryDays: nextGardeEntryDays,
+      hasGardeEntry: nextGardeEntryDays.length > 0,
+      gardeLunchDays: nextGardeLunchDays,
+      hasGardeLunch: nextGardeLunchDays.length > 0,
+      gardeDays: nextGardeDays,
+      hasGarde: nextGardeDays.length > 0,
+      assignedFloors: nextAssignedFloors,
+    });
+
+    const teacher = teachers.find((t) => t.id === teacherId);
+    const floor = floors.find((f) => f.id === floorId);
+    const dayName = SCHOOL_DAYS.find((d) => d.id === dayNum)?.name || '';
+    const slotLabel = slotType === 'morning' ? 'Matin (08h00)' : slotType === 'lunch' ? 'Midi (12h20)' : 'Soir';
+
+    notify({
+      title: 'Affectation Réussie',
+      message: `${teacher?.first_name || ''} ${teacher?.last_name || ''} affecté(e) au ${floor?.name || ''} (${slotLabel} - ${dayName}).`,
+      type: 'success',
+    });
+  };
+
+  // Remove a teacher from a slot on a day
+  const handleRemoveTeacherSlot = (
+    teacherId: string,
+    slotType: 'morning' | 'lunch' | 'evening',
+    dayNum: number
+  ) => {
+    const shift = staffShifts[teacherId];
+    if (!shift) return;
+
+    let nextGardeEntryDays = shift.gardeEntryDays || [];
+    let nextGardeLunchDays = shift.gardeLunchDays || [];
+    let nextGardeDays = shift.gardeDays || [];
+
+    if (slotType === 'morning') {
+      nextGardeEntryDays = nextGardeEntryDays.filter((d) => d !== dayNum);
+    } else if (slotType === 'lunch') {
+      nextGardeLunchDays = nextGardeLunchDays.filter((d) => d !== dayNum);
+    } else if (slotType === 'evening') {
+      nextGardeDays = nextGardeDays.filter((d) => d !== dayNum);
+    }
+
+    updateStaffShift(teacherId, {
+      gardeEntryDays: nextGardeEntryDays,
+      hasGardeEntry: nextGardeEntryDays.length > 0,
+      gardeLunchDays: nextGardeLunchDays,
+      hasGardeLunch: nextGardeLunchDays.length > 0,
+      gardeDays: nextGardeDays,
+      hasGarde: nextGardeDays.length > 0,
+    });
+
+    const teacher = teachers.find((t) => t.id === teacherId);
+    const dayName = SCHOOL_DAYS.find((d) => d.id === dayNum)?.name || '';
+    const slotLabel = slotType === 'morning' ? 'Matin' : slotType === 'lunch' ? 'Midi' : 'Soir';
+
+    notify({
+      title: 'Affectation Retirée',
+      message: `${teacher?.first_name || ''} ${teacher?.last_name || ''} retiré(e) de la garde ${slotLabel} (${dayName}).`,
+      type: 'info',
+    });
+  };
+
+  // Helper to compute detailed coverage for a floor on a specific day
+  const getFloorCoverageForDay = (floorId: string, dayNum: number) => {
+    const floor = floors.find((f) => f.id === floorId);
+    const morningStaff: GardeTeacher[] = [];
+    const lunchStaff: GardeTeacher[] = [];
+    const eveningStaff: GardeTeacher[] = [];
+
+    teachers.forEach((t) => {
+      const shift = staffShifts[t.id];
+      if (!shift) return;
+      const fId = shift.assignedFloors?.[dayNum] || floors[0]?.id;
+      if (fId === floorId) {
+        if (shift.gardeEntryDays?.includes(dayNum)) morningStaff.push(t);
+        if (shift.gardeLunchDays?.includes(dayNum)) lunchStaff.push(t);
+        if (shift.gardeDays?.includes(dayNum)) eveningStaff.push(t);
+      }
+    });
+
+    const quota = floor?.requiredTeachers || 1;
+    const isMorningDeficit = morningStaff.length < quota;
+    const isLunchDeficit = dayNum !== 5 && floor?.hasLunchGuard !== false && lunchStaff.length < 1;
+    const isEveningDeficit = eveningStaff.length < quota;
+    const hasDeficit = isMorningDeficit || isLunchDeficit || isEveningDeficit;
+
+    return {
+      floor,
+      quota,
+      morningStaff,
+      lunchStaff,
+      eveningStaff,
+      isMorningDeficit,
+      isLunchDeficit,
+      isEveningDeficit,
+      hasDeficit,
+      morningCount: morningStaff.length,
+      lunchCount: lunchStaff.length,
+      eveningCount: eveningStaff.length,
+    };
   };
 
   // Floor configuration handlers
@@ -330,7 +543,7 @@ export default function GardesPlanningPage() {
 
     const updated = [...floors, newFloor];
     setFloors(updated);
-    localStorage.setItem(STORAGE_KEY_FLOORS, JSON.stringify(updated));
+    saveToSupabase(staffShifts, updated, maternelleTeacherIds, true);
 
     setNewFloorName('');
     setNewFloorQuota(1);
@@ -341,19 +554,19 @@ export default function GardesPlanningPage() {
   const handleUpdateFloorQuota = (floorId: string, quota: number) => {
     const updated = floors.map((f) => (f.id === floorId ? { ...f, requiredTeachers: Math.max(1, quota) } : f));
     setFloors(updated);
-    localStorage.setItem(STORAGE_KEY_FLOORS, JSON.stringify(updated));
+    saveToSupabase(staffShifts, updated, maternelleTeacherIds, true);
   };
 
   const handleToggleFloorMaternelle = (floorId: string) => {
     const updated = floors.map((f) => (f.id === floorId ? { ...f, isMaternelleOnly: !f.isMaternelleOnly } : f));
     setFloors(updated);
-    localStorage.setItem(STORAGE_KEY_FLOORS, JSON.stringify(updated));
+    saveToSupabase(staffShifts, updated, maternelleTeacherIds, true);
   };
 
   const handleToggleFloorLunch = (floorId: string) => {
     const updated = floors.map((f) => (f.id === floorId ? { ...f, hasLunchGuard: f.hasLunchGuard === false } : f));
     setFloors(updated);
-    localStorage.setItem(STORAGE_KEY_FLOORS, JSON.stringify(updated));
+    saveToSupabase(staffShifts, updated, maternelleTeacherIds, true);
   };
 
   const handleDeleteFloor = async (floorId: string) => {
@@ -371,7 +584,7 @@ export default function GardesPlanningPage() {
 
     const updated = floors.filter((f) => f.id !== floorId);
     setFloors(updated);
-    localStorage.setItem(STORAGE_KEY_FLOORS, JSON.stringify(updated));
+    saveToSupabase(staffShifts, updated, maternelleTeacherIds, true);
     notify({
       title: 'Étage Supprimé',
       message: `L'étage "${floorToDelete?.name || ''}" a été supprimé.`,
@@ -381,20 +594,7 @@ export default function GardesPlanningPage() {
 
   // Manual save button handler
   const handleSave = () => {
-    try {
-      localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(staffShifts));
-      localStorage.setItem(STORAGE_KEY_FLOORS, JSON.stringify(floors));
-      localStorage.setItem(STORAGE_KEY_MATERNELLE_IDS, JSON.stringify(maternelleTeacherIds));
-      setIsSavedFeedback(true);
-      notify({
-        title: 'Modifications Enregistrées',
-        message: 'Le planning des gardes et la configuration des étages ont été enregistrés avec succès.',
-        type: 'success',
-      });
-      setTimeout(() => setIsSavedFeedback(false), 3000);
-    } catch (err) {
-      console.warn('Failed to save to localStorage:', err);
-    }
+    saveToSupabase(staffShifts, floors, maternelleTeacherIds, false);
   };
 
   // 🧹 Clear all Gardes with Custom Branded Modal
@@ -426,16 +626,9 @@ export default function GardesPlanningPage() {
     });
 
     setStaffShifts(resetShifts);
-    localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(resetShifts));
+    await saveToSupabase(resetShifts, floors, maternelleTeacherIds, false);
     setSyncFeedback('🧹 Le planning des gardes a été entièrement réinitialisé et vidé avec succès.');
     setSyncWarning(null);
-    notify({
-      title: 'Planning Réinitialisé',
-      message: 'Toutes les affectations de gardes de la semaine ont été effacées.',
-      type: 'success',
-    });
-    setIsSavedFeedback(true);
-    setTimeout(() => setIsSavedFeedback(false), 4000);
   };
 
   // ⚡ Auto-Synchronize with Timetable (Multi-Stage Smart Solver)
@@ -702,7 +895,7 @@ export default function GardesPlanningPage() {
       }
 
       setStaffShifts(updatedShifts);
-      localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(updatedShifts));
+      await saveToSupabase(updatedShifts, floors, maternelleTeacherIds, false);
 
       if (unassignedMaternelleCount > 0) {
         const warnText = `⚠️ Information Importante : Aucun enseignant de Maternelle n'a été trouvé pour le Sous-sol (Maternelle). Comme vous l'avez exigé, les autres enseignants n'ont PAS été affectés au Sous-sol. Vous pouvez désigner un enseignant en Maternelle en cliquant sur le badge 👶 Maternelle à côté de son nom !`;
@@ -1021,32 +1214,53 @@ export default function GardesPlanningPage() {
                 const isFull = isMorningOk && isLunchOk && isEveningOk;
 
                 return (
-                  <div
+                  <button
                     key={f.id}
-                    className={`px-3.5 py-2 rounded-2xl border text-xs flex flex-col gap-1 transition-all ${
+                    type="button"
+                    onClick={() => {
+                      setActiveFloorForManualFix(f);
+                      setManualFixDay(selectedDayFilter === 'ALL' ? 1 : selectedDayFilter);
+                    }}
+                    className={`px-4 py-2.5 rounded-2xl border text-xs flex flex-col gap-1.5 transition-all text-left cursor-pointer group relative hover:scale-[1.03] hover:shadow-lg focus:outline-none ${
                       isFull
-                        ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-200'
-                        : 'bg-amber-950/60 border-amber-500/40 text-amber-200'
+                        ? 'bg-emerald-950/60 hover:bg-emerald-900/70 border-emerald-500/40 hover:border-emerald-400 text-emerald-200'
+                        : 'bg-amber-950/70 hover:bg-amber-900/80 border-amber-500/50 hover:border-amber-400 text-amber-200 shadow-sm shadow-amber-500/10'
                     }`}
+                    title="👉 Cliquer pour voir les manques et affecter manuellement un enseignant"
                   >
-                    <div className="flex items-center gap-1.5 font-bold">
-                      <span className="w-2 h-2 rounded-full bg-current"></span>
-                      <span>{f.name}</span>
-                      {f.isMaternelleOnly && (
-                        <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-pink-500/20 text-pink-300 border border-pink-500/30">
-                          👶 Maternelle
-                        </span>
-                      )}
-                      {isFull && <CheckCircle2 className="w-3 h-3 text-emerald-400" />}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 font-bold">
+                        <span className={`w-2.5 h-2.5 rounded-full ${isFull ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`}></span>
+                        <span className="font-extrabold">{f.name}</span>
+                        {f.isMaternelleOnly && (
+                          <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-pink-500/20 text-pink-300 border border-pink-500/30">
+                            👶 Maternelle
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {isFull ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        ) : (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40 animate-pulse flex items-center gap-1">
+                            <Wrench className="w-2.5 h-2.5" />
+                            <span>Affecter</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 text-[10px] font-mono text-slate-300">
-                      <span>🌅 {cov?.morningCount || 0}/{f.requiredTeachers}</span>
-                      <span>
-                        🍱 {selectedDayFilter === 5 ? 'Vendredi (Pas de midi)' : f.hasLunchGuard === false ? 'Exclu' : `${cov?.lunchCount || 0}/1`}
+                    <div className="flex items-center gap-2.5 text-[10.5px] font-mono text-slate-300">
+                      <span className={!isMorningOk ? 'text-rose-300 font-bold' : 'text-emerald-300'}>
+                        🌅 {cov?.morningCount || 0}/{f.requiredTeachers}
                       </span>
-                      <span>🌇 {cov?.eveningCount || 0}/{f.requiredTeachers}</span>
+                      <span className={!isLunchOk ? 'text-rose-300 font-bold' : 'text-slate-300'}>
+                        🍱 {selectedDayFilter === 5 ? 'Vendredi (Exclu)' : f.hasLunchGuard === false ? 'Exclu' : `${cov?.lunchCount || 0}/1`}
+                      </span>
+                      <span className={!isEveningOk ? 'text-rose-300 font-bold' : 'text-purple-300'}>
+                        🌇 {cov?.eveningCount || 0}/{f.requiredTeachers}
+                      </span>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -1471,6 +1685,476 @@ export default function GardesPlanningPage() {
                   className="px-5 py-2.5 rounded-2xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold hover:opacity-90 transition-opacity cursor-pointer"
                 >
                   Fermer &amp; Appliquer
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 6. Modal: Résolution Rapide des Manques & Affectation Manuelle par Étage */}
+        {activeFloorForManualFix && (
+          <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in overflow-y-auto">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-3xl w-full p-6 space-y-5 my-8 max-h-[90vh] flex flex-col">
+              {/* Header */}
+              <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-4 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 text-white shadow-md shadow-purple-500/20">
+                    <Building2 className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                        {activeFloorForManualFix.name}
+                      </h2>
+                      {activeFloorForManualFix.isMaternelleOnly && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-pink-100 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 font-bold border border-pink-300">
+                          👶 Réservé Maternelle
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Gérez les surveillants, comblez les manques en 1 clic et ajustez manuellement pour chaque jour.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveFloorForManualFix(null)}
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Day Selection Tabs with Real-Time Deficit Indicators */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 shrink-0">
+                {SCHOOL_DAYS.map((day) => {
+                  const dayCov = getFloorCoverageForDay(activeFloorForManualFix.id, day.id);
+                  const isSelected = manualFixDay === day.id;
+
+                  return (
+                    <button
+                      key={day.id}
+                      type="button"
+                      onClick={() => setManualFixDay(day.id)}
+                      className={`flex-1 min-w-[100px] px-3 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer flex flex-col items-center gap-0.5 border ${
+                        isSelected
+                          ? 'bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-600/25'
+                          : 'bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span>{day.name}</span>
+                      <div className="flex items-center gap-1">
+                        {dayCov.hasDeficit ? (
+                          <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold flex items-center gap-0.5 ${
+                            isSelected ? 'bg-amber-400 text-slate-950' : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300'
+                          }`}>
+                            <AlertTriangle className="w-2.5 h-2.5" />
+                            <span>Manque</span>
+                          </span>
+                        ) : (
+                          <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold flex items-center gap-0.5 ${
+                            isSelected ? 'bg-emerald-400 text-slate-950' : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                          }`}>
+                            <Check className="w-2.5 h-2.5" />
+                            <span>Complet</span>
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Scrollable Body */}
+              <div className="flex-1 overflow-y-auto pr-1 space-y-4">
+                {(() => {
+                  const currentDayCov = getFloorCoverageForDay(activeFloorForManualFix.id, manualFixDay);
+                  const currentDayObj = SCHOOL_DAYS.find((d) => d.id === manualFixDay)!;
+
+                  return (
+                    <div className="space-y-3">
+                      {/* Slots Status Cards */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        {/* 🌅 Matin */}
+                        <div className={`p-3 rounded-2xl border flex flex-col justify-between gap-2 ${
+                          currentDayCov.isMorningDeficit
+                            ? 'bg-amber-500/10 border-amber-500/40 text-amber-900 dark:text-amber-200'
+                            : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-900 dark:text-emerald-200'
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <span className="font-extrabold text-xs flex items-center gap-1.5">
+                              <span>🌅 Matin (08h00)</span>
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${
+                              currentDayCov.isMorningDeficit
+                                ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300'
+                                : 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                            }`}>
+                              {currentDayCov.morningCount} / {currentDayCov.quota}
+                            </span>
+                          </div>
+
+                          <div className="space-y-1">
+                            {currentDayCov.morningStaff.length > 0 ? (
+                              currentDayCov.morningStaff.map((t) => (
+                                <div key={t.id} className="flex items-center justify-between bg-white/70 dark:bg-slate-800/80 px-2 py-1 rounded-xl text-[11px] font-semibold">
+                                  <span>{t.first_name} {t.last_name}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveTeacherSlot(t.id, 'morning', manualFixDay)}
+                                    className="text-rose-500 hover:text-rose-700 p-0.5 rounded cursor-pointer"
+                                    title="Retirer cette garde"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 italic">
+                                ⚠️ Aucun enseignant affecté
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* 🍱 Midi */}
+                        <div className={`p-3 rounded-2xl border flex flex-col justify-between gap-2 ${
+                          manualFixDay === 5 || activeFloorForManualFix.hasLunchGuard === false
+                            ? 'bg-slate-100 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 text-slate-400'
+                            : currentDayCov.isLunchDeficit
+                            ? 'bg-amber-500/10 border-amber-500/40 text-amber-900 dark:text-amber-200'
+                            : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-900 dark:text-emerald-200'
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <span className="font-extrabold text-xs flex items-center gap-1.5">
+                              <span>🍱 Midi (12h20)</span>
+                            </span>
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                              {manualFixDay === 5 ? 'Vendredi Exclu' : activeFloorForManualFix.hasLunchGuard === false ? 'Exclu' : `${currentDayCov.lunchCount} / 1`}
+                            </span>
+                          </div>
+
+                          <div className="space-y-1">
+                            {manualFixDay === 5 || activeFloorForManualFix.hasLunchGuard === false ? (
+                              <p className="text-[10px] text-slate-400 italic">
+                                {manualFixDay === 5 ? 'Sortie à 12h20 le Vendredi.' : 'Pas de garde déjeuner sur cet étage.'}
+                              </p>
+                            ) : currentDayCov.lunchStaff.length > 0 ? (
+                              currentDayCov.lunchStaff.map((t) => (
+                                <div key={t.id} className="flex items-center justify-between bg-white/70 dark:bg-slate-800/80 px-2 py-1 rounded-xl text-[11px] font-semibold">
+                                  <span>{t.first_name} {t.last_name}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveTeacherSlot(t.id, 'lunch', manualFixDay)}
+                                    className="text-rose-500 hover:text-rose-700 p-0.5 rounded cursor-pointer"
+                                    title="Retirer cette garde"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 italic">
+                                ⚠️ Aucun enseignant affecté
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* 🌇 Soir */}
+                        <div className={`p-3 rounded-2xl border flex flex-col justify-between gap-2 ${
+                          currentDayCov.isEveningDeficit
+                            ? 'bg-amber-500/10 border-amber-500/40 text-amber-900 dark:text-amber-200'
+                            : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-900 dark:text-emerald-200'
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <span className="font-extrabold text-xs flex items-center gap-1.5">
+                              <span>🌇 Soir ({currentDayObj.exitTime})</span>
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${
+                              currentDayCov.isEveningDeficit
+                                ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300'
+                                : 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                            }`}>
+                              {currentDayCov.eveningCount} / {currentDayCov.quota}
+                            </span>
+                          </div>
+
+                          <div className="space-y-1">
+                            {currentDayCov.eveningStaff.length > 0 ? (
+                              currentDayCov.eveningStaff.map((t) => (
+                                <div key={t.id} className="flex items-center justify-between bg-white/70 dark:bg-slate-800/80 px-2 py-1 rounded-xl text-[11px] font-semibold">
+                                  <span>{t.first_name} {t.last_name}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveTeacherSlot(t.id, 'evening', manualFixDay)}
+                                    className="text-rose-500 hover:text-rose-700 p-0.5 rounded cursor-pointer"
+                                    title="Retirer cette garde"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 italic">
+                                ⚠️ Aucun enseignant affecté
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Maternelle Notice */}
+                      {activeFloorForManualFix.isMaternelleOnly && (
+                        <div className="p-3 rounded-2xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-between gap-3 text-xs text-pink-900 dark:text-pink-200">
+                          <div className="flex items-center gap-2">
+                            <Baby className="w-4 h-4 text-pink-600 shrink-0" />
+                            <span>
+                              <strong>Règle Maternelle :</strong> Seuls les enseignants avec le badge 👶 Maternelle peuvent être affectés au Sous-sol. Cliquez sur &quot;👶 Marquer Maternelle&quot; sur un enseignant ci-dessous pour l&apos;autoriser.
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Search & Filter Bar for Available Teachers */}
+                      <div className="pt-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2">
+                          <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                            <UserPlus className="w-4 h-4 text-purple-600" />
+                            <span>Sélectionner un Enseignant à Affecter ({currentDayObj.name})</span>
+                          </h3>
+
+                          {/* Quick Filter Buttons */}
+                          <div className="flex items-center gap-1 text-[11px]">
+                            <button
+                              type="button"
+                              onClick={() => setManualFixFilter('all')}
+                              className={`px-2.5 py-1 rounded-xl font-bold transition-all cursor-pointer ${
+                                manualFixFilter === 'all'
+                                  ? 'bg-purple-600 text-white'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                              }`}
+                            >
+                              Tous
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setManualFixFilter('available_today')}
+                              className={`px-2.5 py-1 rounded-xl font-bold transition-all cursor-pointer ${
+                                manualFixFilter === 'available_today'
+                                  ? 'bg-purple-600 text-white'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                              }`}
+                            >
+                              Présents {currentDayObj.name}
+                            </button>
+                            {activeFloorForManualFix.isMaternelleOnly && (
+                              <button
+                                type="button"
+                                onClick={() => setManualFixFilter('maternelle')}
+                                className={`px-2.5 py-1 rounded-xl font-bold transition-all cursor-pointer ${
+                                  manualFixFilter === 'maternelle'
+                                    ? 'bg-pink-600 text-white'
+                                    : 'bg-pink-50 dark:bg-pink-950/40 text-pink-700 dark:text-pink-300'
+                                }`}
+                              >
+                                👶 Maternelle
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Search Input */}
+                        <div className="relative mb-2">
+                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            placeholder="Chercher un enseignant..."
+                            value={manualFixSearch}
+                            onChange={(e) => setManualFixSearch(e.target.value)}
+                            className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          />
+                        </div>
+
+                        {/* List of Teachers */}
+                        <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                          {teachers
+                            .filter((t) => {
+                              const matchText = `${t.first_name} ${t.last_name} ${t.staff_code} ${t.role_title}`
+                                .toLowerCase()
+                                .includes(manualFixSearch.toLowerCase());
+                              if (!matchText) return false;
+
+                              const isMat = isMaternelleTeacher(t, maternelleTeacherIds);
+                              if (manualFixFilter === 'maternelle' && !isMat) return false;
+
+                              if (manualFixFilter === 'available_today') {
+                                const hasDayClass = timetableSlots.some(
+                                  (s) =>
+                                    (s.teacher_id === t.id || s.teacher_id === t.staff_code || (t.staff_code && s.teacher_code === t.staff_code)) &&
+                                    s.day_of_week === manualFixDay
+                                );
+                                if (!hasDayClass) return false;
+                              }
+
+                              return true;
+                            })
+                            .sort((a, b) => {
+                              // If floor is Maternelle-only, prioritize Maternelle teachers
+                              if (activeFloorForManualFix.isMaternelleOnly) {
+                                const matA = isMaternelleTeacher(a, maternelleTeacherIds);
+                                const matB = isMaternelleTeacher(b, maternelleTeacherIds);
+                                if (matA && !matB) return -1;
+                                if (!matA && matB) return 1;
+                              }
+                              return (teacherWeeklyHoursMap[a.id] || 0) - (teacherWeeklyHoursMap[b.id] || 0);
+                            })
+                            .map((t) => {
+                              const shift = staffShifts[t.id];
+                              const isMat = isMaternelleTeacher(t, maternelleTeacherIds);
+                              const isMorningAssigned = shift?.gardeEntryDays?.includes(manualFixDay);
+                              const isLunchAssigned = shift?.gardeLunchDays?.includes(manualFixDay);
+                              const isEveningAssigned = shift?.gardeDays?.includes(manualFixDay);
+                              const weeklyHours = teacherWeeklyHoursMap[t.id] || 0;
+
+                              const daySlots = timetableSlots.filter(
+                                (s) =>
+                                  (s.teacher_id === t.id || s.teacher_id === t.staff_code || (t.staff_code && s.teacher_code === t.staff_code)) &&
+                                  s.day_of_week === manualFixDay
+                              );
+
+                              return (
+                                <div
+                                  key={t.id}
+                                  className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs"
+                                >
+                                  <div>
+                                    <div className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-white">
+                                      <span>{t.first_name} {t.last_name}</span>
+                                      <span className="text-[10px] text-slate-400 font-mono">({t.staff_code})</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleTeacherMaternelle(t.id)}
+                                        className={`px-1.5 py-0.2 rounded text-[8px] font-bold border transition-all cursor-pointer flex items-center gap-0.5 ${
+                                          isMat
+                                            ? 'bg-pink-100 dark:bg-pink-950/70 text-pink-700 dark:text-pink-300 border-pink-300'
+                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-pink-600 border-slate-200 dark:border-slate-700'
+                                        }`}
+                                        title="Cliquer pour basculer le statut Maternelle"
+                                      >
+                                        <Baby className="w-2.5 h-2.5" />
+                                        <span>{isMat ? 'Maternelle ✓' : '+ Maternelle'}</span>
+                                      </button>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                      <span>{t.role_title}</span>
+                                      <span>&bull;</span>
+                                      <span className="font-bold text-purple-600 dark:text-purple-400">{weeklyHours}h charge</span>
+                                      <span>&bull;</span>
+                                      <span className={daySlots.length > 0 ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-emerald-600 dark:text-emerald-400 font-medium'}>
+                                        {daySlots.length > 0 ? `${daySlots.length} cours ce jour` : 'Libre ce jour'}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Action Buttons to Add to Slots */}
+                                  <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                                    {/* Morning Button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (isMorningAssigned) {
+                                          handleRemoveTeacherSlot(t.id, 'morning', manualFixDay);
+                                        } else {
+                                          handleAssignTeacherSlot(t.id, 'morning', manualFixDay, activeFloorForManualFix.id);
+                                        }
+                                      }}
+                                      className={`px-2 py-1 rounded-xl text-[10px] font-bold border transition-all cursor-pointer flex items-center gap-1 ${
+                                        isMorningAssigned
+                                          ? 'bg-sky-600 text-white border-sky-500 shadow-xs'
+                                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-sky-400'
+                                      }`}
+                                    >
+                                      <span>🌅</span>
+                                      <span>{isMorningAssigned ? '08:00 ✓' : '+ Matin'}</span>
+                                    </button>
+
+                                    {/* Lunch Button (if eligible) */}
+                                    {manualFixDay !== 5 && activeFloorForManualFix.hasLunchGuard !== false && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (isLunchAssigned) {
+                                            handleRemoveTeacherSlot(t.id, 'lunch', manualFixDay);
+                                          } else {
+                                            handleAssignTeacherSlot(t.id, 'lunch', manualFixDay, activeFloorForManualFix.id);
+                                          }
+                                        }}
+                                        className={`px-2 py-1 rounded-xl text-[10px] font-bold border transition-all cursor-pointer flex items-center gap-1 ${
+                                          isLunchAssigned
+                                            ? 'bg-amber-600 text-white border-amber-500 shadow-xs'
+                                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-amber-400'
+                                        }`}
+                                      >
+                                        <span>🍱</span>
+                                        <span>{isLunchAssigned ? '12:20 ✓' : '+ Midi'}</span>
+                                      </button>
+                                    )}
+
+                                    {/* Evening Button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (isEveningAssigned) {
+                                          handleRemoveTeacherSlot(t.id, 'evening', manualFixDay);
+                                        } else {
+                                          handleAssignTeacherSlot(t.id, 'evening', manualFixDay, activeFloorForManualFix.id);
+                                        }
+                                      }}
+                                      className={`px-2 py-1 rounded-xl text-[10px] font-bold border transition-all cursor-pointer flex items-center gap-1 ${
+                                        isEveningAssigned
+                                          ? 'bg-purple-600 text-white border-purple-500 shadow-xs'
+                                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-purple-400'
+                                      }`}
+                                    >
+                                      <span>🌇</span>
+                                      <span>{isEveningAssigned ? `${currentDayObj.exitTime} ✓` : '+ Soir'}</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedDayFilter(manualFixDay);
+                    setActiveFloorForManualFix(null);
+                  }}
+                  className="text-xs text-purple-600 dark:text-purple-400 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                >
+                  <span>Afficher ce jour dans le grand tableau</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleSave();
+                    setActiveFloorForManualFix(null);
+                  }}
+                  className="px-5 py-2 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs font-bold shadow-md shadow-purple-600/25 hover:from-purple-500 hover:to-indigo-500 cursor-pointer"
+                >
+                  Enregistrer &amp; Fermer
                 </button>
               </div>
             </div>
