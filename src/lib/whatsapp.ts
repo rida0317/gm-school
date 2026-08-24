@@ -17,57 +17,45 @@ export interface AbsenceMessageParams {
 }
 
 export const DEFAULT_WHATSAPP_TEMPLATES = {
-  ar_absence: `🏫 *مجموعة مدارس الأجيال الصاعدة*
-🎓 *GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES*
-━━━━━━━━━━━━━━━━━━━━━━━━
+  ar_absence: `*مجموعة مدارس الأجيال الصاعدة*
+----------------------------------------
 السلام عليكم ورحمة الله وبركاته،
 السيد(ة) ولي أمر التلميذ(ة) *{student_name}* (القسم: *{class_name}*)،
 
 نحيطكم علماً بأنه قد تم تسجيل *غياب* ابنكم/ابنتكم عن المدرسة بتاريخ *{date}*.
-المرجو منكم التواصل العاجل مع إدارة المؤسسة أو الإدلاء بمبرر الغياب القانوني.
+المرجو التواصل مع إدارة المؤسسة لتبرير هذا الغياب.
 
-🏢 *إدارة المؤسسة*
-📞 +212 522-001122 | 📍 Casablanca
-🌐 www.gm-school.ma`,
+— *إدارة المؤسسة*`,
 
-  ar_late: `🏫 *مجموعة مدارس الأجيال الصاعدة*
-🎓 *GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES*
-━━━━━━━━━━━━━━━━━━━━━━━━
+  ar_late: `*مجموعة مدارس الأجيال الصاعدة*
+----------------------------------------
 السلام عليكم ورحمة الله وبركاته،
 السيد(ة) ولي أمر التلميذ(ة) *{student_name}* (القسم: *{class_name}*)،
 
 نخبركم بتسجيل *تأخر* ابنكم/ابنتكم عن موعد الدخول المدرسي بتاريخ *{date}* (مدة التأخر: *{late_minutes} دقيقة*).
-نرجو منكم حث التلميذ على احترام التوقيت المدرسي لتفادي أي تأثير على مساره الدراسي.
+المرجو الحرص على احترام التوقيت المدرسي.
 
-🏢 *إدارة المؤسسة*
-📞 +212 522-001122 | 📍 Casablanca
-🌐 www.gm-school.ma`,
+— *إدارة المؤسسة*`,
 
-  fr_absence: `🎓 *GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES*
-🏫 *Établissement d'Enseignement Privé*
-━━━━━━━━━━━━━━━━━━━━━━━━
+  fr_absence: `*GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES*
+----------------------------------------
 Bonjour,
 Cher parent de l'élève *{student_name}* (Classe : *{class_name}*),
 
 Nous vous informons que votre enfant a été enregistré(e) *ABSENT(E)* le *{date}*.
 Merci de bien vouloir prendre contact avec l'administration pour justifier cette absence.
 
-— *Direction Pédagogique*
-📞 +212 522-001122 | 📍 Casablanca
-🌐 www.gm-school.ma`,
+— *Direction Pédagogique*`,
 
-  fr_late: `🎓 *GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES*
-🏫 *Établissement d'Enseignement Privé*
-━━━━━━━━━━━━━━━━━━━━━━━━
+  fr_late: `*GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES*
+----------------------------------------
 Bonjour,
 Cher parent de l'élève *{student_name}* (Classe : *{class_name}*),
 
-Nous vous signalons un *RETARD* de votre enfant à l'entrée de l'établissement le *{date}* (Durée : *{late_minutes} min*).
-Merci de veiller à la ponctualité pour le bon déroulement de ses apprentissages.
+Nous vous signalons un *RETARD* de votre enfant à l'école le *{date}* (Durée : *{late_minutes} min*).
+Merci de veiller au respect des horaires d'entrée.
 
-— *Direction Pédagogique*
-📞 +212 522-001122 | 📍 Casablanca
-🌐 www.gm-school.ma`,
+— *Direction Pédagogique*`,
 };
 
 /**
