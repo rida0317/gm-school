@@ -138,7 +138,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) 
   const roleDisplay = t(roleKeys[currentRole] || 'super_admin');
 
   // Navigation Groups with Dedicated Cycles Rubrique
-  const rawNavigationGroups: NavGroup[] = [
+  const rawNavigationGroups: NavGroup[] = useMemo(() => [
     {
       id: 'cycles',
       title: dir === 'rtl' ? 'الأسلاك التعليمية والشعب' : 'Cycles d\'Enseignement',
@@ -256,7 +256,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) 
         { href: '/settings', label: t('settings'), icon: Settings },
       ],
     },
-  ];
+  ], [t, dir, pendingCount]);
 
   // Dynamic filter according to user role permissions
   const navigationGroups: NavGroup[] = useMemo(() => {
@@ -285,7 +285,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) 
     return true;
   };
 
-  // Automatically keep group open if current route is inside it
+  // Automatically keep group open when navigating to a new route
   useEffect(() => {
     navigationGroups.forEach((group) => {
       const hasActive = group.items.some(isItemActive);
@@ -293,9 +293,15 @@ export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) 
         setOpenGroups((prev) => ({ ...prev, [group.id]: true }));
       }
     });
-  }, [pathname, cycleQuery, navigationGroups]);
+  }, [pathname]);
 
   const isDashboardActive = pathname === '/dashboard';
+
+  const handleMobileNavClick = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024 && onClose) {
+      onClose();
+    }
+  };
 
   return (
     <>
@@ -369,7 +375,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) 
           <div>
             <Link
               href="/dashboard"
-              onClick={onClose}
+              onClick={handleMobileNavClick}
               className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
                 isDashboardActive
                   ? 'bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 text-white shadow-lg shadow-sky-500/25'
@@ -394,7 +400,11 @@ export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) 
                 {/* Rubrique Header / Accordion Trigger */}
                 <button
                   type="button"
-                  onClick={() => toggleGroup(group.id)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleGroup(group.id);
+                  }}
                   className={`w-full flex items-center justify-between px-3 py-2.5 text-xs font-extrabold transition-all cursor-pointer select-none ${
                     hasActiveChild
                       ? 'text-sky-300 bg-sky-950/30'
@@ -434,7 +444,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) 
                         <Link
                           key={item.href}
                           href={item.href}
-                          onClick={onClose}
+                          onClick={handleMobileNavClick}
                           className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
                             active
                               ? 'bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 text-white shadow-md shadow-sky-500/20 font-bold'
