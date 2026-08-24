@@ -649,20 +649,39 @@ export function WhatsAppAbsenceModal({
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
                     {dir === 'rtl' ? 'نص الرسالة (يمكنك تعديله قبل الإرسال)' : 'Contenu du Message (modifiable)'}
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const schoolHeader = `*${schoolName}*\n----------------------------------------\n`;
-                      setPreviewModal((prev) => {
-                        if (!prev) return null;
-                        const body = prev.message.replace(/^(\*[^*]+\*[\r\n]+-+\s*[\r\n]*)/, '');
-                        return { ...prev, message: `${schoolHeader}${body}` };
-                      });
-                    }}
-                    className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 cursor-pointer"
-                  >
-                    + {dir === 'rtl' ? 'إضافة اسم وشعار المؤسسة' : 'Ajouter En-tête École'}
-                  </button>
+                  {/^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(previewModal.message) ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPreviewModal((prev) => {
+                          if (!prev) return null;
+                          return {
+                            ...prev,
+                            message: prev.message.replace(/^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/, ''),
+                          };
+                        });
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400 text-[11px] font-bold border border-rose-200 dark:border-rose-900/50 cursor-pointer transition-all"
+                    >
+                      <span>✕</span>
+                      <span>{dir === 'rtl' ? 'حذف اسم وشعار المؤسسة' : 'Retirer En-tête École'}</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const schoolHeader = `*${schoolName}*\n----------------------------------------\n`;
+                        setPreviewModal((prev) => {
+                          if (!prev) return null;
+                          return { ...prev, message: `${schoolHeader}${prev.message}` };
+                        });
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-400 text-[11px] font-bold border border-emerald-200 dark:border-emerald-900/50 cursor-pointer transition-all"
+                    >
+                      <span>+</span>
+                      <span>{dir === 'rtl' ? 'إضافة اسم وشعار المؤسسة' : 'Ajouter En-tête École'}</span>
+                    </button>
+                  )}
                 </div>
                 <textarea
                   rows={8}

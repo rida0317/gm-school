@@ -78,12 +78,20 @@ export default function SettingsPage() {
 
     setFormState((prev) => {
       const current = prev[fieldKey] || '';
-      // Strip any existing top header if already present
-      const cleaned = current.replace(/^(\*[^*]+\*[\r\n]+-+\s*[\r\n]*)/, '');
-      return {
-        ...prev,
-        [fieldKey]: `${header}${cleaned}`,
-      };
+      const headerRegex = /^(\*[^*]+\*[\r\n]+-+\s*[\r\n]*)/;
+      if (headerRegex.test(current)) {
+        // Remove header
+        return {
+          ...prev,
+          [fieldKey]: current.replace(headerRegex, ''),
+        };
+      } else {
+        // Add header
+        return {
+          ...prev,
+          [fieldKey]: `${header}${current}`,
+        };
+      }
     });
   };
   const [saving, setSaving] = useState(false);
@@ -468,9 +476,15 @@ export default function SettingsPage() {
                     <button
                       type="button"
                       onClick={() => insertSchoolHeader('absence')}
-                      className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 cursor-pointer"
+                      className={`text-[11px] font-bold cursor-pointer transition-colors ${
+                        /^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_absence_template_ar)
+                          ? 'text-rose-600 hover:text-rose-700'
+                          : 'text-emerald-600 hover:text-emerald-700'
+                      }`}
                     >
-                      + إضافة رأس/شعار المؤسسة
+                      {/^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_absence_template_ar)
+                        ? '✕ حذف رأس/شعار المؤسسة'
+                        : '+ إضافة رأس/شعار المؤسسة'}
                     </button>
                   </div>
                   <textarea
@@ -491,9 +505,15 @@ export default function SettingsPage() {
                     <button
                       type="button"
                       onClick={() => insertSchoolHeader('late')}
-                      className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 cursor-pointer"
+                      className={`text-[11px] font-bold cursor-pointer transition-colors ${
+                        /^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_late_template_ar)
+                          ? 'text-rose-600 hover:text-rose-700'
+                          : 'text-emerald-600 hover:text-emerald-700'
+                      }`}
                     >
-                      + إضافة رأس/شعار المؤسسة
+                      {/^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_late_template_ar)
+                        ? '✕ حذف رأس/شعار المؤسسة'
+                        : '+ إضافة رأس/شعار المؤسسة'}
                     </button>
                   </div>
                   <textarea
@@ -516,9 +536,15 @@ export default function SettingsPage() {
                     <button
                       type="button"
                       onClick={() => insertSchoolHeader('absence')}
-                      className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 cursor-pointer"
+                      className={`text-[11px] font-bold cursor-pointer transition-colors ${
+                        /^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_absence_template_fr)
+                          ? 'text-rose-600 hover:text-rose-700'
+                          : 'text-emerald-600 hover:text-emerald-700'
+                      }`}
                     >
-                      + Insérer En-tête École
+                      {/^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_absence_template_fr)
+                        ? '✕ Retirer En-tête École'
+                        : '+ Insérer En-tête École'}
                     </button>
                   </div>
                   <textarea
@@ -539,9 +565,15 @@ export default function SettingsPage() {
                     <button
                       type="button"
                       onClick={() => insertSchoolHeader('late')}
-                      className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 cursor-pointer"
+                      className={`text-[11px] font-bold cursor-pointer transition-colors ${
+                        /^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_late_template_fr)
+                          ? 'text-rose-600 hover:text-rose-700'
+                          : 'text-emerald-600 hover:text-emerald-700'
+                      }`}
                     >
-                      + Insérer En-tête École
+                      {/^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_late_template_fr)
+                        ? '✕ Retirer En-tête École'
+                        : '+ Insérer En-tête École'}
                     </button>
                   </div>
                   <textarea
