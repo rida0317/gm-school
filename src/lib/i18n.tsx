@@ -10,10 +10,12 @@ export const translations = {
   fr: {
     // Navigation Groups & Items
     group_main: 'Principal',
+    group_cycles: 'Cycles & Niveaux Scolaires',
     group_structure: 'Structure & Planning',
     group_attendance: 'Assiduité & Remplacement',
     group_logistics: 'Gestion & Logistique',
     group_admin: 'Administration & Sécurité',
+    all_classes: 'Toutes les Classes',
     dashboard: 'Tableau de Bord',
     students: 'Élèves',
     staff: 'Personnel & RH',
@@ -209,10 +211,12 @@ export const translations = {
   ar: {
     // Navigation Groups & Items
     group_main: 'الرئيسية',
+    group_cycles: 'الأسلاك والمستويات التعليمية',
     group_structure: 'الهيكلة والتخطيط',
     group_attendance: 'المواظبة والتعويض',
     group_logistics: 'الإدارة واللوجستيك',
     group_admin: 'الإدارة والأمان',
+    all_classes: 'جميع الأقسام',
     dashboard: 'لوحة التحكم',
     students: 'التلاميذ',
     staff: 'الموظفون والموارد البشرية',

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useI18n } from '@/lib/i18n';
 import { createClient } from '@/lib/supabase/client';
@@ -89,6 +90,9 @@ export const GROUP_OPTIONS = [
 
 export default function ClassesPage() {
   const { t, dir } = useI18n();
+  const searchParams = useSearchParams();
+  const cycleParam = searchParams ? searchParams.get('cycle') : null;
+
   const [classes, setClasses] = useState<ClassEntity[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,6 +110,20 @@ export default function ClassesPage() {
 
   const confirm = useConfirm();
   const notify = useNotify();
+
+  // Sync cycle query param from navigation
+  useEffect(() => {
+    if (cycleParam) {
+      const matched = SCHOOL_CYCLES.find(
+        (c) =>
+          c.name.toLowerCase() === cycleParam.toLowerCase() ||
+          c.cycle.toLowerCase().includes(cycleParam.toLowerCase())
+      );
+      if (matched) {
+        setSelectedCycle(matched.cycle);
+      }
+    }
+  }, [cycleParam]);
 
   async function loadData() {
     setLoading(true);

@@ -76,8 +76,10 @@ export function hasRouteAccess(role: UserRole | string | undefined | null, pathn
   if (!role) return true; // default open during loading
   const effectiveRole = (role as UserRole) in ROLE_CONFIGS ? (role as UserRole) : 'SUPER_ADMIN';
 
+  const cleanPath = pathname.split('?')[0];
+
   // Strict restriction: /audit-logs is strictly reserved for SUPER_ADMIN only
-  if (pathname === '/audit-logs' || pathname.startsWith('/audit-logs/')) {
+  if (cleanPath === '/audit-logs' || cleanPath.startsWith('/audit-logs/')) {
     return effectiveRole === 'SUPER_ADMIN';
   }
 
@@ -89,8 +91,8 @@ export function hasRouteAccess(role: UserRole | string | undefined | null, pathn
   
   // Exact match or sub-path match (e.g. /attendance/students is matched by /attendance/students)
   return allowed.some((allowedPath) => {
-    if (allowedPath === pathname) return true;
-    if (allowedPath !== '/dashboard' && pathname.startsWith(allowedPath + '/')) return true;
+    if (allowedPath === cleanPath) return true;
+    if (allowedPath !== '/dashboard' && cleanPath.startsWith(allowedPath + '/')) return true;
     return false;
   });
 }
