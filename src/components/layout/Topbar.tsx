@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n';
+import { useSettings } from '@/lib/settings';
 import { useAuth } from '@/lib/auth';
 import { hasRouteAccess } from '@/lib/permissions';
 import { UserRole } from '@/types/database';
@@ -30,6 +31,7 @@ interface TopbarProps {
 
 export function Topbar({ onOpenSidebar, isSidebarCollapsed = false, onToggleSidebarCollapse }: TopbarProps) {
   const { t, dir } = useI18n();
+  const { settings } = useSettings();
   const { user, profile, signOut, switchRole } = useAuth();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -112,7 +114,7 @@ export function Topbar({ onOpenSidebar, isSidebarCollapsed = false, onToggleSide
         )}
 
         <div className="flex items-center gap-2 lg:hidden">
-          <img src="/logo.png" alt="Logo GM" className="w-8 h-8 object-contain rounded-lg" />
+          <img src={settings.logo_url || '/logo.png'} alt="Logo GM" className="w-8 h-8 object-contain rounded-lg" />
           <span className="font-bold text-xs text-slate-900 dark:text-white tracking-tight hidden xs:inline">GM School</span>
         </div>
 

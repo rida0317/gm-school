@@ -199,12 +199,10 @@ export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) 
         <div className="flex items-center justify-between h-20 px-5 border-b border-sky-900/30 bg-slate-950/80 backdrop-blur-md">
           <Link href="/dashboard" className="flex items-center gap-3 group overflow-hidden">
             <div className="relative shrink-0 w-11 h-11 rounded-2xl bg-white p-1 shadow-lg shadow-sky-500/25 ring-2 ring-sky-400/60 group-hover:scale-105 group-hover:ring-orange-400 transition-all duration-300 flex items-center justify-center">
-              <Image
-                src="/logo.png"
+              <img
+                src={settings.logo_url || '/logo.png'}
                 alt="GM School"
-                width={38}
-                height={38}
-                className="object-contain"
+                className="w-9 h-9 object-contain"
               />
             </div>
             <div className="min-w-0">

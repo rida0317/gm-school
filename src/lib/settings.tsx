@@ -13,6 +13,7 @@ export interface SchoolSettings {
   address: string;
   currency: string;
   default_locale: 'fr' | 'ar';
+  logo_url?: string;
   whatsapp_absence_template_ar?: string;
   whatsapp_absence_template_fr?: string;
   whatsapp_late_template_ar?: string;
@@ -29,6 +30,7 @@ export const defaultSettings: SchoolSettings = {
   address: 'Casablanca, Maroc',
   currency: 'MAD (Dirham Marocain)',
   default_locale: 'fr',
+  logo_url: '/logo.png',
   whatsapp_absence_template_ar: '',
   whatsapp_absence_template_fr: '',
   whatsapp_late_template_ar: '',

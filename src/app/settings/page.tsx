@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useI18n } from '@/lib/i18n';
 import { useSettings } from '@/lib/settings';
@@ -15,13 +15,18 @@ import {
   RefreshCw,
   MessageSquare,
   Sparkles,
-  RotateCcw
+  RotateCcw,
+  Upload,
+  Image as ImageIcon,
+  Camera,
+  Trash2
 } from 'lucide-react';
 import { DEFAULT_WHATSAPP_TEMPLATES } from '@/lib/whatsapp';
 
 export default function SettingsPage() {
   const { locale, setLocale, t, dir } = useI18n();
   const { settings, updateSettings } = useSettings();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formState, setFormState] = useState({
     school_name: settings?.school_name || 'Groupe Scolaire Des Générations Montantes',
@@ -32,6 +37,7 @@ export default function SettingsPage() {
     phone: settings?.phone || '+212 522-001122',
     address: settings?.address || 'Casablanca, Maroc',
     currency: settings?.currency || 'MAD (Dirham Marocain)',
+    logo_url: settings?.logo_url || '/logo.png',
     whatsapp_absence_template_ar: settings?.whatsapp_absence_template_ar || DEFAULT_WHATSAPP_TEMPLATES.ar_absence,
     whatsapp_absence_template_fr: settings?.whatsapp_absence_template_fr || DEFAULT_WHATSAPP_TEMPLATES.fr_absence,
     whatsapp_late_template_ar: settings?.whatsapp_late_template_ar || DEFAULT_WHATSAPP_TEMPLATES.ar_late,
@@ -40,6 +46,23 @@ export default function SettingsPage() {
 
   const [whatsappTab, setWhatsappTab] = useState<'ar' | 'fr'>('ar');
   const [activeTarget, setActiveTarget] = useState<'absence' | 'late'>('absence');
+
+  const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 3 * 1024 * 1024) {
+      setErrorMsg(dir === 'rtl' ? 'حجم الصورة كبير جداً (الحد الأقصى 3 ميجابايت)' : 'Le fichier est trop volumineux (Max 3 Mo)');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      setFormState((prev) => ({ ...prev, logo_url: result }));
+    };
+    reader.readAsDataURL(file);
+  };
 
   const insertTag = (tag: string) => {
     const fieldKey =
@@ -112,6 +135,7 @@ export default function SettingsPage() {
         phone: settings.phone || '+212 522-001122',
         address: settings.address || 'Casablanca, Maroc',
         currency: settings.currency || 'MAD (Dirham Marocain)',
+        logo_url: settings.logo_url || '/logo.png',
         whatsapp_absence_template_ar: settings.whatsapp_absence_template_ar || DEFAULT_WHATSAPP_TEMPLATES.ar_absence,
         whatsapp_absence_template_fr: settings.whatsapp_absence_template_fr || DEFAULT_WHATSAPP_TEMPLATES.fr_absence,
         whatsapp_late_template_ar: settings.whatsapp_late_template_ar || DEFAULT_WHATSAPP_TEMPLATES.ar_late,
@@ -147,6 +171,7 @@ export default function SettingsPage() {
         address: formState.address.trim(),
         currency: formState.currency.trim(),
         default_locale: locale,
+        logo_url: formState.logo_url,
         whatsapp_absence_template_ar: formState.whatsapp_absence_template_ar.trim(),
         whatsapp_absence_template_fr: formState.whatsapp_absence_template_fr.trim(),
         whatsapp_late_template_ar: formState.whatsapp_late_template_ar.trim(),
@@ -211,6 +236,81 @@ export default function SettingsPage() {
         </div>
 
         <form onSubmit={handlePerformSave} className="space-y-6">
+          {/* School Logo & Visual Identity Card */}
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-sky-500" />
+                {dir === 'rtl' ? 'شعار وهوية المؤسسة (Logo)' : 'Logo & Identité Visuelle'}
+              </h2>
+              <span className="text-[11px] text-slate-400 font-medium">PNG, JPG, SVG, WebP (Max 3 Mo)</span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-6">
+              {/* Logo Preview Box */}
+              <div className="relative group shrink-0">
+                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-white dark:bg-slate-800 border-2 border-dashed border-sky-400/60 p-2 flex items-center justify-center shadow-lg shadow-sky-500/10 overflow-hidden ring-4 ring-sky-500/10">
+                  <img
+                    src={formState.logo_url || '/logo.png'}
+                    alt="School Logo"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute inset-0 bg-slate-950/60 backdrop-blur-xs text-white rounded-2xl opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center gap-1 transition-opacity cursor-pointer text-xs font-bold"
+                >
+                  <Camera className="w-5 h-5 text-sky-400" />
+                  <span>{dir === 'rtl' ? 'تغيير' : 'Changer'}</span>
+                </button>
+              </div>
+
+              {/* Actions & Explanations */}
+              <div className="flex-1 space-y-3 text-center sm:text-left">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800 dark:text-white">
+                    {dir === 'rtl' ? 'شعار المؤسسة الرسمي' : 'Logo Officiel de l\'Établissement'}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                    {dir === 'rtl'
+                      ? 'يظهر هذا الشعار في القائمة الجانبية (Sidebar)، الرأسية (Topbar)، التقارير المطبوعة، وإشعارات النظام.'
+                      : 'Ce logo apparaît dans la barre latérale, l\'en-tête, les relevés de notes et les rapports administratifs.'}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoFileChange}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-md shadow-sky-600/20 transition-all cursor-pointer transform active:scale-95"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{dir === 'rtl' ? 'تحميل شعار جديد (Upload)' : 'Téléverser un Nouveau Logo'}</span>
+                  </button>
+
+                  {formState.logo_url && formState.logo_url !== '/logo.png' && (
+                    <button
+                      type="button"
+                      onClick={() => setFormState((prev) => ({ ...prev, logo_url: '/logo.png' }))}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/40 text-slate-600 hover:text-rose-600 dark:text-slate-300 dark:hover:text-rose-400 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>{dir === 'rtl' ? 'استعادة الشعار الافتراضي' : 'Logo par défaut'}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* School Details */}
           <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
             <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
