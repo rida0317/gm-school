@@ -39,6 +39,68 @@ export default function SettingsPage() {
   });
 
   const [whatsappTab, setWhatsappTab] = useState<'ar' | 'fr'>('ar');
+  const [activeTarget, setActiveTarget] = useState<'absence' | 'late'>('absence');
+
+  const insertTag = (tag: string) => {
+    if (whatsappTab === 'ar') {
+      if (activeTarget === 'absence') {
+        setFormState((prev) => ({
+          ...prev,
+          whatsapp_absence_template_ar: prev.whatsapp_absence_template_ar ? `${prev.whatsapp_absence_template_ar} ${tag}` : tag,
+        }));
+      } else {
+        setFormState((prev) => ({
+          ...prev,
+          whatsapp_late_template_ar: prev.whatsapp_late_template_ar ? `${prev.whatsapp_late_template_ar} ${tag}` : tag,
+        }));
+      }
+    } else {
+      if (activeTarget === 'absence') {
+        setFormState((prev) => ({
+          ...prev,
+          whatsapp_absence_template_fr: prev.whatsapp_absence_template_fr ? `${prev.whatsapp_absence_template_fr} ${tag}` : tag,
+        }));
+      } else {
+        setFormState((prev) => ({
+          ...prev,
+          whatsapp_late_template_fr: prev.whatsapp_late_template_fr ? `${prev.whatsapp_late_template_fr} ${tag}` : tag,
+        }));
+      }
+    }
+  };
+
+  const insertSchoolHeader = (target: 'absence' | 'late') => {
+    const schoolName = whatsappTab === 'ar'
+      ? formState.school_name_ar || 'مجموعة مدارس الأجيال الصاعدة'
+      : formState.school_name || 'GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES';
+    const header = `*${schoolName}*\n----------------------------------------\n`;
+
+    if (whatsappTab === 'ar') {
+      if (target === 'absence') {
+        setFormState((prev) => ({
+          ...prev,
+          whatsapp_absence_template_ar: `${header}${prev.whatsapp_absence_template_ar.replace(/^(\*[^*]+\*\n-+\n)/, '')}`,
+        }));
+      } else {
+        setFormState((prev) => ({
+          ...prev,
+          whatsapp_late_template_ar: `${header}${prev.whatsapp_late_template_ar.replace(/^(\*[^*]+\*\n-+\n)/, '')}`,
+        }));
+      }
+    } else {
+      if (target === 'absence') {
+        setFormState((prev) => ({
+          ...prev,
+          whatsapp_absence_template_fr: `${header}${prev.whatsapp_absence_template_fr.replace(/^(\*[^*]+\*\n-+\n)/, '')}`,
+        }));
+      } else {
+        setFormState((prev) => ({
+          ...prev,
+          whatsapp_late_template_fr: `${header}${prev.whatsapp_late_template_fr.replace(/^(\*[^*]+\*\n-+\n)/, '')}`,
+        }));
+      }
+    }
+  };
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -352,13 +414,42 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Dynamic Tags Helper Chips */}
-            <div className="p-3.5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-900/40 text-xs">
-              <div className="flex items-center gap-1.5 font-bold text-emerald-800 dark:text-emerald-300 mb-2">
-                <Sparkles className="w-4 h-4" />
-                <span>{dir === 'rtl' ? 'المتغيرات الديناميكية المتوفرة :' : 'Variables dynamiques disponibles :'}</span>
+            {/* Dynamic Tags Interactive Insertion Hub */}
+            <div className="p-3.5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-900/40 text-xs space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 font-bold text-emerald-800 dark:text-emerald-300">
+                  <Sparkles className="w-4 h-4" />
+                  <span>{dir === 'rtl' ? 'انقر على أي زر لإضافته مباشرة في نص الرسالة :' : 'Cliquez sur un bouton pour l\'insérer dans le modèle :'}</span>
+                </div>
+                <div className="flex items-center gap-1 text-[11px] text-slate-500 font-semibold">
+                  <span>{dir === 'rtl' ? 'الخانة المحددة :' : 'Cible :'}</span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTarget(activeTarget === 'absence' ? 'late' : 'absence')}
+                    className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-300 dark:border-emerald-800 cursor-pointer shadow-2xs"
+                  >
+                    {activeTarget === 'absence'
+                      ? dir === 'rtl'
+                        ? '🔴 رسالة الغياب'
+                        : '🔴 Modèle Absence'
+                      : dir === 'rtl'
+                      ? '🟡 رسالة التأخر'
+                      : '🟡 Modèle Retard'}
+                  </button>
+                </div>
               </div>
+
               <div className="flex flex-wrap gap-1.5">
+                {/* School Logo / Header button */}
+                <button
+                  type="button"
+                  onClick={() => insertSchoolHeader(activeTarget)}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-xs shadow-xs hover:from-emerald-700 hover:to-teal-700 transition-all cursor-pointer transform active:scale-95"
+                >
+                  <span>+</span>
+                  <span>{dir === 'rtl' ? '🏫 اسم وشعار المؤسسة في الأعلى' : '🏫 En-tête / Logo École'}</span>
+                </button>
+
                 {[
                   { tag: '{student_name}', label: dir === 'rtl' ? 'اسم التلميذ' : 'Nom de l\'élève' },
                   { tag: '{class_name}', label: dir === 'rtl' ? 'القسم' : 'Classe' },
@@ -367,13 +458,16 @@ export default function SettingsPage() {
                   { tag: '{guardian_name}', label: dir === 'rtl' ? 'اسم الولي' : 'Nom tuteur' },
                   { tag: '{late_minutes}', label: dir === 'rtl' ? 'دقائق التأخر' : 'Minutes retard' },
                 ].map((item) => (
-                  <span
+                  <button
                     key={item.tag}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-900 font-mono text-[11px] font-bold text-emerald-700 dark:text-emerald-300 shadow-2xs"
+                    type="button"
+                    onClick={() => insertTag(item.tag)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-900 font-mono text-[11px] font-bold text-emerald-700 dark:text-emerald-300 shadow-2xs hover:bg-emerald-100 dark:hover:bg-slate-700 transition-all cursor-pointer transform active:scale-95"
                   >
+                    <span>+</span>
                     <code>{item.tag}</code>
                     <span className="text-[10px] text-slate-400 font-sans">({item.label})</span>
-                  </span>
+                  </button>
                 ))}
               </div>
             </div>
@@ -382,12 +476,22 @@ export default function SettingsPage() {
             {whatsappTab === 'ar' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4" dir="rtl">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                    🔴 نموذج رسالة غياب التلميذ (عربية)
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      🔴 نموذج رسالة غياب التلميذ (عربية)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => insertSchoolHeader('absence')}
+                      className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 cursor-pointer"
+                    >
+                      + إضافة رأس/شعار المؤسسة
+                    </button>
+                  </div>
                   <textarea
                     rows={6}
                     value={formState.whatsapp_absence_template_ar}
+                    onFocus={() => setActiveTarget('absence')}
                     onChange={(e) => setFormState({ ...formState, whatsapp_absence_template_ar: e.target.value })}
                     className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed font-sans"
                     placeholder="اكتب نموذج رسالة الغياب بالعربية..."
@@ -395,12 +499,22 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                    🟡 نموذج رسالة تأخر التلميذ (عربية)
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      🟡 نموذج رسالة تأخر التلميذ (عربية)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => insertSchoolHeader('late')}
+                      className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 cursor-pointer"
+                    >
+                      + إضافة رأس/شعار المؤسسة
+                    </button>
+                  </div>
                   <textarea
                     rows={6}
                     value={formState.whatsapp_late_template_ar}
+                    onFocus={() => setActiveTarget('late')}
                     onChange={(e) => setFormState({ ...formState, whatsapp_late_template_ar: e.target.value })}
                     className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed font-sans"
                     placeholder="اكتب نموذج رسالة التأخر بالعربية..."
@@ -410,12 +524,22 @@ export default function SettingsPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4" dir="ltr">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                    🔴 Modèle Absence Élève (Français)
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      🔴 Modèle Absence Élève (Français)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => insertSchoolHeader('absence')}
+                      className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 cursor-pointer"
+                    >
+                      + Insérer En-tête École
+                    </button>
+                  </div>
                   <textarea
                     rows={6}
                     value={formState.whatsapp_absence_template_fr}
+                    onFocus={() => setActiveTarget('absence')}
                     onChange={(e) => setFormState({ ...formState, whatsapp_absence_template_fr: e.target.value })}
                     className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed font-sans"
                     placeholder="Rédigez le modèle d'absence en français..."
@@ -423,12 +547,22 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                    🟡 Modèle Retard Élève (Français)
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      🟡 Modèle Retard Élève (Français)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => insertSchoolHeader('late')}
+                      className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 cursor-pointer"
+                    >
+                      + Insérer En-tête École
+                    </button>
+                  </div>
                   <textarea
                     rows={6}
                     value={formState.whatsapp_late_template_fr}
+                    onFocus={() => setActiveTarget('late')}
                     onChange={(e) => setFormState({ ...formState, whatsapp_late_template_fr: e.target.value })}
                     className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed font-sans"
                     placeholder="Rédigez le modèle de retard en français..."

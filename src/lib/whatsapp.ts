@@ -157,6 +157,8 @@ export function buildAbsenceMessage(params: AbsenceMessageParams): string {
     '{date}': formattedDate,
     '{school_name}': schoolName || 'GM School',
     '{ecole}': schoolName || 'GM School',
+    '{school_logo}': `*${schoolName || 'GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES'}*\n----------------------------------------`,
+    '{logo_ecole}': `*${schoolName || 'GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES'}*\n----------------------------------------`,
     '{late_minutes}': String(lateMinutes || 0),
     '{retard_minutes}': String(lateMinutes || 0),
   };

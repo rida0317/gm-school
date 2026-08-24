@@ -51,6 +51,11 @@ export function WhatsAppAbsenceModal({
   const { settings } = useSettings();
   const notify = useNotify();
 
+  const schoolName =
+    locale === 'ar'
+      ? settings.school_name_ar || 'مجموعة مدارس الأجيال الصاعدة'
+      : settings.school_name || 'GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES';
+
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ABSENT' | 'LATE' | 'NOT_SENT'>('ALL');
   
@@ -640,9 +645,25 @@ export function WhatsAppAbsenceModal({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  {dir === 'rtl' ? 'نص الرسالة (يمكنك تعديله قبل الإرسال)' : 'Contenu du Message (modifiable)'}
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    {dir === 'rtl' ? 'نص الرسالة (يمكنك تعديله قبل الإرسال)' : 'Contenu du Message (modifiable)'}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const schoolHeader = `*${schoolName}*\n----------------------------------------\n`;
+                      setPreviewModal((prev) => {
+                        if (!prev) return null;
+                        if (prev.message.startsWith(`*${schoolName}*`)) return prev;
+                        return { ...prev, message: `${schoolHeader}${prev.message}` };
+                      });
+                    }}
+                    className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 cursor-pointer"
+                  >
+                    + {dir === 'rtl' ? 'إضافة اسم وشعار المؤسسة' : 'Ajouter En-tête École'}
+                  </button>
+                </div>
                 <textarea
                   rows={8}
                   value={previewModal.message}
