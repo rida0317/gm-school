@@ -172,16 +172,20 @@ export function ZKTecoImportModal({
       console.warn('Supabase gardes shifts fetch error:', err);
     }
 
-    // C. Ensure all current staff members are included
+    // C. Ensure all current staff members are included (Enseignants, Administration, Assistantes, Chauffeurs, Entretien, Gardiens)
     const merged: Record<string, ShiftConfig> = {};
     staffList.forEach((s) => {
-      if (loaded[s.id]) {
-        merged[s.id] = loaded[s.id];
+      const existing = loaded[s.id];
+      if (existing) {
+        merged[s.id] = {
+          ...existing,
+          expectedExit: existing.expectedExit || '16:15',
+        };
       } else {
         merged[s.id] = {
           staffId: s.id,
-          expectedEntry: '08:00',
-          expectedExit: defaultExit,
+          expectedEntry: s.category === 'ENSEIGNANT' ? '08:15' : '08:00',
+          expectedExit: '16:15',
           hasGarde: false,
           hasGardeEntry: false,
           hasGardeLunch: false,
@@ -193,7 +197,7 @@ export function ZKTecoImportModal({
     });
 
     setStaffShifts(merged);
-  }, [staffList, defaultExit]);
+  }, [staffList]);
 
   useEffect(() => {
     if (!isOpen) return;
