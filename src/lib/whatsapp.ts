@@ -17,33 +17,57 @@ export interface AbsenceMessageParams {
 }
 
 export const DEFAULT_WHATSAPP_TEMPLATES = {
-  ar_absence: `السلام عليكم ورحمة الله وبركاته،
+  ar_absence: `🏫 *مجموعة مدارس الأجيال الصاعدة*
+🎓 *GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES*
+━━━━━━━━━━━━━━━━━━━━━━━━
+السلام عليكم ورحمة الله وبركاته،
 السيد(ة) ولي أمر التلميذ(ة) *{student_name}* (القسم: *{class_name}*)،
-نحيطكم علماً بأنه تم تسجيل غياب ابنكم/ابنتكم عن الدراسة بتاريخ *{date}*.
-المرجو التواصل مع إدارة المؤسسة أو الإدلاء بمبرر الغياب.
 
-— إدارة *{school_name}*`,
+نحيطكم علماً بأنه قد تم تسجيل *غياب* ابنكم/ابنتكم عن المدرسة بتاريخ *{date}*.
+المرجو منكم التواصل العاجل مع إدارة المؤسسة أو الإدلاء بمبرر الغياب القانوني.
 
-  ar_late: `السلام عليكم ورحمة الله وبركاته،
+🏢 *إدارة المؤسسة*
+📞 +212 522-001122 | 📍 Casablanca
+🌐 www.gm-school.ma`,
+
+  ar_late: `🏫 *مجموعة مدارس الأجيال الصاعدة*
+🎓 *GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES*
+━━━━━━━━━━━━━━━━━━━━━━━━
+السلام عليكم ورحمة الله وبركاته،
 السيد(ة) ولي أمر التلميذ(ة) *{student_name}* (القسم: *{class_name}*)،
-نخبركم بتسجيل تأخر ابنكم/ابنتكم عن موعد الدخول المدرسي بتاريخ *{date}* (مدة التأخر: *{late_minutes} دقيقة*).
-المرجو الحرص على احترام التوقيت المدرسي.
 
-— إدارة *{school_name}*`,
+نخبركم بتسجيل *تأخر* ابنكم/ابنتكم عن موعد الدخول المدرسي بتاريخ *{date}* (مدة التأخر: *{late_minutes} دقيقة*).
+نرجو منكم حث التلميذ على احترام التوقيت المدرسي لتفادي أي تأثير على مساره الدراسي.
 
-  fr_absence: `Bonjour,
+🏢 *إدارة المؤسسة*
+📞 +212 522-001122 | 📍 Casablanca
+🌐 www.gm-school.ma`,
+
+  fr_absence: `🎓 *GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES*
+🏫 *Établissement d'Enseignement Privé*
+━━━━━━━━━━━━━━━━━━━━━━━━
+Bonjour,
 Cher parent de l'élève *{student_name}* (Classe : *{class_name}*),
-Nous vous informons que votre enfant a été marqué(e) absent(e) le *{date}*.
-Merci de bien vouloir contacter la vie scolaire ou fournir un justificatif d'absence.
 
-— Direction *{school_name}*`,
+Nous vous informons que votre enfant a été enregistré(e) *ABSENT(E)* le *{date}*.
+Merci de bien vouloir prendre contact avec l'administration pour justifier cette absence.
 
-  fr_late: `Bonjour,
+— *Direction Pédagogique*
+📞 +212 522-001122 | 📍 Casablanca
+🌐 www.gm-school.ma`,
+
+  fr_late: `🎓 *GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES*
+🏫 *Établissement d'Enseignement Privé*
+━━━━━━━━━━━━━━━━━━━━━━━━
+Bonjour,
 Cher parent de l'élève *{student_name}* (Classe : *{class_name}*),
-Nous vous signalons un retard de votre enfant à l'école le *{date}* (durée du retard : *{late_minutes} min*).
-Merci de veiller au respect des horaires d'entrée.
 
-— Direction *{school_name}*`,
+Nous vous signalons un *RETARD* de votre enfant à l'entrée de l'établissement le *{date}* (Durée : *{late_minutes} min*).
+Merci de veiller à la ponctualité pour le bon déroulement de ses apprentissages.
+
+— *Direction Pédagogique*
+📞 +212 522-001122 | 📍 Casablanca
+🌐 www.gm-school.ma`,
 };
 
 /**

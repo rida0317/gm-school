@@ -17,14 +17,18 @@ import {
   LogOut,
   Settings,
   UserCheck,
-  ChevronDown
+  ChevronDown,
+  PanelLeftClose,
+  PanelLeftOpen
 } from 'lucide-react';
 
 interface TopbarProps {
   onOpenSidebar: () => void;
+  isSidebarCollapsed?: boolean;
+  onToggleSidebarCollapse?: () => void;
 }
 
-export function Topbar({ onOpenSidebar }: TopbarProps) {
+export function Topbar({ onOpenSidebar, isSidebarCollapsed = false, onToggleSidebarCollapse }: TopbarProps) {
   const { t, dir } = useI18n();
   const { user, profile, signOut, switchRole } = useAuth();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -67,6 +71,7 @@ export function Topbar({ onOpenSidebar }: TopbarProps) {
     <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-3 sm:px-4 md:px-8 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors print:hidden">
       {/* Left section: Hamburger & Search */}
       <div className="flex items-center gap-2 sm:gap-4 flex-1 max-w-xl">
+        {/* Mobile menu button */}
         <button
           type="button"
           onClick={onOpenSidebar}
@@ -75,6 +80,36 @@ export function Topbar({ onOpenSidebar }: TopbarProps) {
         >
           <Menu className="w-5 h-5" />
         </button>
+
+        {/* Desktop Collapse Toggle for Full Screen Table space */}
+        {onToggleSidebarCollapse && (
+          <button
+            type="button"
+            onClick={onToggleSidebarCollapse}
+            className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white bg-slate-100/90 hover:bg-slate-200 dark:bg-slate-800/90 dark:hover:bg-slate-700 rounded-xl transition-all cursor-pointer border border-slate-200/60 dark:border-slate-700 shrink-0"
+            title={
+              isSidebarCollapsed
+                ? dir === 'rtl'
+                  ? 'إظهار القائمة الجانبية'
+                  : 'Afficher la barre latérale'
+                : dir === 'rtl'
+                ? 'إخفاء القائمة الجانبية (شاشة عريضة للجداول)'
+                : 'Masquer la barre latérale (Mode plein écran)'
+            }
+          >
+            {isSidebarCollapsed ? (
+              <>
+                <PanelLeftOpen className="w-4 h-4 text-sky-500" />
+                <span className="hidden xl:inline">{dir === 'rtl' ? 'القائمة' : 'Menu'}</span>
+              </>
+            ) : (
+              <>
+                <PanelLeftClose className="w-4 h-4 text-slate-500" />
+                <span className="hidden xl:inline">{dir === 'rtl' ? 'شاشة كاملة' : 'Plein Écran'}</span>
+              </>
+            )}
+          </button>
+        )}
 
         <div className="flex items-center gap-2 lg:hidden">
           <img src="/logo.png" alt="Logo GM" className="w-8 h-8 object-contain rounded-lg" />

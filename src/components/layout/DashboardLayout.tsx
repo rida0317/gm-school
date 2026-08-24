@@ -13,6 +13,23 @@ import { ShieldAlert, ArrowLeft, Lock, Loader2 } from 'lucide-react';
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('gm_sidebar_collapsed') === 'true';
+    }
+    return false;
+  });
+
+  const toggleSidebarCollapse = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('gm_sidebar_collapsed', String(next));
+      }
+      return next;
+    });
+  };
+
   const pathname = usePathname();
   const router = useRouter();
   const { dir } = useI18n();
@@ -72,10 +89,26 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         aria-hidden="true"
       />
 
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        isCollapsed={sidebarCollapsed}
+      />
 
-      <div className={`flex-1 flex flex-col ${dir === 'rtl' ? 'lg:pr-72 lg:pl-0' : 'lg:pl-72 lg:pr-0'} print:pl-0 print:pr-0 print:m-0 transition-all min-w-0`}>
-        <Topbar onOpenSidebar={() => setSidebarOpen(true)} />
+      <div
+        className={`flex-1 flex flex-col ${
+          sidebarCollapsed
+            ? 'pl-0 pr-0'
+            : dir === 'rtl'
+            ? 'lg:pr-72 lg:pl-0'
+            : 'lg:pl-72 lg:pr-0'
+        } print:pl-0 print:pr-0 print:m-0 transition-all duration-300 min-w-0`}
+      >
+        <Topbar
+          onOpenSidebar={() => setSidebarOpen(true)}
+          isSidebarCollapsed={sidebarCollapsed}
+          onToggleSidebarCollapse={toggleSidebarCollapse}
+        />
         <main className="flex-1 p-3 sm:p-5 md:p-6 lg:p-8 max-w-[1600px] w-full mx-auto print:p-0 print:m-0 print:max-w-none print:w-full animate-in fade-in duration-300 min-w-0 overflow-x-hidden">
           {isPendingApproval ? (
             <div className="min-h-[60vh] flex items-center justify-center p-4">
