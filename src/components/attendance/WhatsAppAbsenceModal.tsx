@@ -655,8 +655,8 @@ export function WhatsAppAbsenceModal({
                       const schoolHeader = `*${schoolName}*\n----------------------------------------\n`;
                       setPreviewModal((prev) => {
                         if (!prev) return null;
-                        if (prev.message.startsWith(`*${schoolName}*`)) return prev;
-                        return { ...prev, message: `${schoolHeader}${prev.message}` };
+                        const body = prev.message.replace(/^(\*[^*]+\*[\r\n]+-+\s*[\r\n]*)/, '');
+                        return { ...prev, message: `${schoolHeader}${body}` };
                       });
                     }}
                     className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 cursor-pointer"

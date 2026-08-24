@@ -42,64 +42,49 @@ export default function SettingsPage() {
   const [activeTarget, setActiveTarget] = useState<'absence' | 'late'>('absence');
 
   const insertTag = (tag: string) => {
-    if (whatsappTab === 'ar') {
-      if (activeTarget === 'absence') {
-        setFormState((prev) => ({
-          ...prev,
-          whatsapp_absence_template_ar: prev.whatsapp_absence_template_ar ? `${prev.whatsapp_absence_template_ar} ${tag}` : tag,
-        }));
-      } else {
-        setFormState((prev) => ({
-          ...prev,
-          whatsapp_late_template_ar: prev.whatsapp_late_template_ar ? `${prev.whatsapp_late_template_ar} ${tag}` : tag,
-        }));
-      }
-    } else {
-      if (activeTarget === 'absence') {
-        setFormState((prev) => ({
-          ...prev,
-          whatsapp_absence_template_fr: prev.whatsapp_absence_template_fr ? `${prev.whatsapp_absence_template_fr} ${tag}` : tag,
-        }));
-      } else {
-        setFormState((prev) => ({
-          ...prev,
-          whatsapp_late_template_fr: prev.whatsapp_late_template_fr ? `${prev.whatsapp_late_template_fr} ${tag}` : tag,
-        }));
-      }
-    }
+    const fieldKey =
+      whatsappTab === 'ar'
+        ? activeTarget === 'absence'
+          ? 'whatsapp_absence_template_ar'
+          : 'whatsapp_late_template_ar'
+        : activeTarget === 'absence'
+        ? 'whatsapp_absence_template_fr'
+        : 'whatsapp_late_template_fr';
+
+    setFormState((prev) => {
+      const current = prev[fieldKey] || '';
+      return {
+        ...prev,
+        [fieldKey]: current ? `${current} ${tag}` : tag,
+      };
+    });
   };
 
   const insertSchoolHeader = (target: 'absence' | 'late') => {
-    const schoolName = whatsappTab === 'ar'
-      ? formState.school_name_ar || 'مجموعة مدارس الأجيال الصاعدة'
-      : formState.school_name || 'GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES';
+    const schoolName =
+      whatsappTab === 'ar'
+        ? formState.school_name_ar || 'مجموعة مدارس الأجيال الصاعدة'
+        : formState.school_name || 'GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES';
     const header = `*${schoolName}*\n----------------------------------------\n`;
 
-    if (whatsappTab === 'ar') {
-      if (target === 'absence') {
-        setFormState((prev) => ({
-          ...prev,
-          whatsapp_absence_template_ar: `${header}${prev.whatsapp_absence_template_ar.replace(/^(\*[^*]+\*\n-+\n)/, '')}`,
-        }));
-      } else {
-        setFormState((prev) => ({
-          ...prev,
-          whatsapp_late_template_ar: `${header}${prev.whatsapp_late_template_ar.replace(/^(\*[^*]+\*\n-+\n)/, '')}`,
-        }));
-      }
-    } else {
-      if (target === 'absence') {
-        setFormState((prev) => ({
-          ...prev,
-          whatsapp_absence_template_fr: `${header}${prev.whatsapp_absence_template_fr.replace(/^(\*[^*]+\*\n-+\n)/, '')}`,
-        }));
-      } else {
-        setFormState((prev) => ({
-          ...prev,
-          whatsapp_late_template_fr: `${header}${prev.whatsapp_late_template_fr.replace(/^(\*[^*]+\*\n-+\n)/, '')}`,
-        }));
-      }
-    }
+    const fieldKey =
+      whatsappTab === 'ar'
+        ? target === 'absence'
+          ? 'whatsapp_absence_template_ar'
+          : 'whatsapp_late_template_ar'
+        : target === 'absence'
+        ? 'whatsapp_absence_template_fr'
+        : 'whatsapp_late_template_fr';
+
+    setFormState((prev) => {
+      const current = prev[fieldKey] || '';
+      // Strip any existing top header if already present
+      const cleaned = current.replace(/^(\*[^*]+\*[\r\n]+-+\s*[\r\n]*)/, '');
+      return {
+        ...prev,
+        [fieldKey]: `${header}${cleaned}`,
+      };
+    });
   };
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
