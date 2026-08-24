@@ -296,7 +296,7 @@ export default function StaffAttendancePage() {
     const isEveningGardeToday = shift && (shift.gardeDays?.includes(currentDayOfWeek) || (shift.hasGarde && currentDayOfWeek >= 1 && currentDayOfWeek <= 5));
 
     const expectedEntry = isMorningGardeToday ? (shift?.expectedEntry || '08:00') : (shift?.expectedEntry || (staff.category === 'ENSEIGNANT' ? '08:15' : '08:00'));
-    const expectedExit = currentDayOfWeek === 5 ? '12:20' : isEveningGardeToday ? (shift?.expectedExit || '16:00') : (shift?.expectedExit || '16:00');
+    const expectedExit = currentDayOfWeek === 5 ? '12:20' : isEveningGardeToday ? (shift?.expectedExit || '16:15') : (shift?.expectedExit || '16:00');
 
     let lateMins = 0;
     let checkIn = expectedEntry;
@@ -1514,7 +1514,7 @@ export default function StaffAttendancePage() {
                                 </span>
                               )}
                               {hasEveningGardeToday && (
-                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-300/60" title={`Garde Soir (${currentDayOfWeek === 5 ? '12:20' : '16:00'})`}>
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-300/60" title={`Garde Soir (${currentDayOfWeek === 5 ? '12:20' : '16:15'})`}>
                                   🌇 Soir
                                 </span>
                               )}

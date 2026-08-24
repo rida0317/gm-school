@@ -72,12 +72,12 @@ const DEFAULT_FLOORS: SchoolFloor[] = [
   { id: 'floor-2', name: '2ème Étage', requiredTeachers: 1, color: 'purple', isMaternelleOnly: false, hasLunchGuard: true },
 ];
 
-// Official School Days (Samedi exclu - Vendredi sortie à 12h20)
+// Official School Days (Samedi exclu - Sortie Garde 16:15 Lun-Jeu, Vendredi sortie à 12h20)
 const SCHOOL_DAYS = [
-  { id: 1, name: 'Lundi', short: 'Lun', exitTime: '16:00', hasLunch: true },
-  { id: 2, name: 'Mardi', short: 'Mar', exitTime: '16:00', hasLunch: true },
-  { id: 3, name: 'Mercredi', short: 'Mer', exitTime: '16:00', hasLunch: true },
-  { id: 4, name: 'Jeudi', short: 'Jeu', exitTime: '16:00', hasLunch: true },
+  { id: 1, name: 'Lundi', short: 'Lun', exitTime: '16:15', hasLunch: true },
+  { id: 2, name: 'Mardi', short: 'Mar', exitTime: '16:15', hasLunch: true },
+  { id: 3, name: 'Mercredi', short: 'Mer', exitTime: '16:15', hasLunch: true },
+  { id: 4, name: 'Jeudi', short: 'Jeu', exitTime: '16:15', hasLunch: true },
   { id: 5, name: 'Vendredi', short: 'Ven', exitTime: '12:20', hasLunch: false },
 ];
 
@@ -1482,7 +1482,7 @@ export default function GardesPlanningPage() {
                                 </div>
                               )}
 
-                              {/* 3. Exit / Evening Garde (16:00 Lun-Jeu / 12:20 Vendredi) */}
+                              {/* 3. Exit / Evening Garde (16:15 Lun-Jeu / 12:20 Vendredi) */}
                               <button
                                 type="button"
                                 onClick={() => {
@@ -1498,7 +1498,7 @@ export default function GardesPlanningPage() {
                                     ? 'bg-purple-600 text-white border-purple-500 shadow-xs'
                                     : 'bg-slate-50 dark:bg-slate-800/80 text-slate-500 border-slate-200 dark:border-slate-700 hover:border-purple-300'
                                 }`}
-                                title={day.id === 5 ? `Garde Sortie Vendredi (12:20)` : `Garde Soir (16:00) le ${day.name}`}
+                                title={day.id === 5 ? `Garde Sortie Vendredi (12:20)` : `Garde Soir (16:15) le ${day.name}`}
                               >
                                 <span>🌇</span>
                                 <span>

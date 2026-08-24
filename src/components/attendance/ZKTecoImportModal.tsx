@@ -92,11 +92,11 @@ export function ZKTecoImportModal({
   // Tolerance in minutes (e.g. 5 minutes grace period)
   const [graceMinutes, setGraceMinutes] = useState<number>(5);
 
-  // Global default shifts (Horaires Officiels : 08:00 - 16:00)
+  // Global default shifts (Horaires Officiels : Entrée 08:00, Sortie Standard 16:00, Sortie Garde 16:15)
   const [defaultEntry, setDefaultEntry] = useState<string>('08:00');
   const [defaultGardeEntry, setDefaultGardeEntry] = useState<string>('08:00');
   const [defaultExit, setDefaultExit] = useState<string>('16:00');
-  const [defaultGardeExit, setDefaultGardeExit] = useState<string>('16:00');
+  const [defaultGardeExit, setDefaultGardeExit] = useState<string>('16:15');
 
   // Per-staff permanent shift / garde configuration
   const [staffShifts, setStaffShifts] = useState<Record<string, ShiftConfig>>({});
@@ -440,9 +440,9 @@ export function ZKTecoImportModal({
         updated.expectedEntry = '08:15';
       }
 
-      // If hasGarde (Sortie) is toggled on, default exit to garde time (16:00)
+      // If hasGarde (Sortie) is toggled on, default exit to garde time (16:15)
       if (updates.hasGarde === true && !updates.expectedExit) {
-        updated.expectedExit = defaultGardeExit || '16:00';
+        updated.expectedExit = defaultGardeExit || '16:15';
       } else if (updates.hasGarde === false && !updates.expectedExit) {
         updated.expectedExit = defaultExit;
       }
@@ -625,12 +625,12 @@ export function ZKTecoImportModal({
         ? (shift.expectedEntry || '08:00')
         : (shift.expectedEntry || (staff.category === 'ENSEIGNANT' ? '08:15' : defaultEntry));
 
-      // Expected exit: if Friday (day 5) -> 12:20; else Mon-Thu -> 16:00
+      // Expected exit: if Friday (day 5) -> 12:20; else Mon-Thu with Garde -> 16:15; else -> 16:00
       let expectedExitTime = shift.expectedExit || defaultExit;
       if (currentDayOfWeek === 5) {
         expectedExitTime = '12:20';
       } else if (isGardeExitToday) {
-        expectedExitTime = shift.expectedExit || defaultGardeExit || '16:00';
+        expectedExitTime = shift.expectedExit || defaultGardeExit || '16:15';
       }
 
       if (times.length === 0) {
@@ -1253,10 +1253,10 @@ export function ZKTecoImportModal({
                                               ? 'bg-purple-600 text-white border-purple-500 shadow-xs'
                                               : 'bg-slate-50 dark:bg-slate-800/80 text-slate-500 border-slate-200 dark:border-slate-700 hover:border-purple-300'
                                           }`}
-                                          title={`Garde Soir (16:30) le ${['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'][dayNum]}`}
+                                          title={`Garde Soir (16:15) le ${['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'][dayNum]}`}
                                         >
                                           <span>🌇</span>
-                                          <span>{isEveningGarde ? '16:30' : 'Soir'}</span>
+                                          <span>{isEveningGarde ? '16:15' : 'Soir'}</span>
                                         </button>
                                       </div>
                                     </td>
@@ -1418,19 +1418,32 @@ export function ZKTecoImportModal({
                                             : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700 hover:border-purple-300'
                                         }`}
                                       >
-                                        <span>{shift.hasGarde ? `⭐ Garde Soir (${shift.expectedExit || '16:30'})` : `Sortie Std (${shift.expectedExit || '16:15'})`}</span>
+                                        <span>{shift.hasGarde ? `⭐ Garde Soir (${shift.expectedExit || '16:15'})` : `Sortie Std (${shift.expectedExit || '16:00'})`}</span>
                                       </button>
 
                                       {/* Exit Presets & Picker */}
                                       <div className="flex items-center gap-1">
                                         <button
                                           type="button"
-                                          onClick={() => updateStaffShift(s.id, { expectedExit: '16:15', hasGarde: false })}
+                                          onClick={() => updateStaffShift(s.id, { expectedExit: '16:00', hasGarde: false })}
+                                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold border cursor-pointer ${
+                                            shift.expectedExit === '16:00'
+                                              ? 'bg-slate-700 text-white border-slate-600'
+                                              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-400'
+                                          }`}
+                                          title="Sortie Standard 16:00"
+                                        >
+                                          16:00
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => updateStaffShift(s.id, { expectedExit: '16:15', hasGarde: true })}
                                           className={`px-1.5 py-0.5 rounded text-[10px] font-bold border cursor-pointer ${
                                             shift.expectedExit === '16:15'
                                               ? 'bg-purple-700 text-white border-purple-600'
                                               : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-purple-400'
                                           }`}
+                                          title="Garde Soir Officielle 16:15"
                                         >
                                           16:15
                                         </button>
@@ -1442,19 +1455,9 @@ export function ZKTecoImportModal({
                                               ? 'bg-purple-700 text-white border-purple-600'
                                               : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-purple-400'
                                           }`}
+                                          title="Sortie prolongée 16:30"
                                         >
                                           16:30
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => updateStaffShift(s.id, { expectedExit: '16:45', hasGarde: true })}
-                                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold border cursor-pointer ${
-                                            shift.expectedExit === '16:45'
-                                              ? 'bg-purple-700 text-white border-purple-600'
-                                              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-purple-400'
-                                          }`}
-                                        >
-                                          16:45
                                         </button>
                                         <input
                                           type="time"
