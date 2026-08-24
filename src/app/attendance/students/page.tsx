@@ -34,8 +34,17 @@ import {
   GraduationCap,
   Layers,
   ChevronDown,
-  Download
+  Download,
+  MessageSquare,
+  Send,
+  Smartphone
 } from 'lucide-react';
+import { WhatsAppAbsenceModal } from '@/components/attendance/WhatsAppAbsenceModal';
+import {
+  openWhatsAppChat,
+  normalizeMoroccanPhone,
+  buildAbsenceMessage
+} from '@/lib/whatsapp';
 
 // Format delay duration helper
 export function formatDelayDuration(minutes: number): string {
@@ -48,9 +57,13 @@ export function formatDelayDuration(minutes: number): string {
 }
 
 export default function StudentAttendancePage() {
-  const { t, dir } = useI18n();
+  const { t, dir, locale } = useI18n();
   const { settings } = useSettings();
   const notify = useNotify();
+
+  // WhatsApp Hub Modal state
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const [sessionSentIds, setSessionSentIds] = useState<Record<string, boolean>>({});
 
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<'pointage' | 'daily_report' | 'monthly_report' | 'semester_report'>('pointage');
@@ -183,6 +196,13 @@ export default function StudentAttendancePage() {
         map[r.student_id] = r;
       });
     return map;
+  }, [attendanceRecords, selectedDate]);
+
+  // Total count of absent and late students for selected date
+  const todayAbsentsAndLatesCount = useMemo(() => {
+    return attendanceRecords.filter(
+      (r) => r.date === selectedDate && (r.status === 'ABSENT' || r.status === 'EXCUSED' || r.status === 'LATE')
+    ).length;
   }, [attendanceRecords, selectedDate]);
 
   // Persist records
@@ -919,6 +939,22 @@ export default function StudentAttendancePage() {
 
           {/* Quick Actions & Exports Dropdowns */}
           <div className="flex items-center gap-2 shrink-0">
+            {/* WhatsApp Absence Hub Button */}
+            <button
+              type="button"
+              onClick={() => setShowWhatsAppModal(true)}
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-teal-600 text-white font-bold text-xs shadow-md shadow-emerald-500/25 transition-all cursor-pointer whitespace-nowrap transform active:scale-95"
+              title={dir === 'rtl' ? 'مركز إرسال رسائل واتساب لأولياء الأمور' : 'Centre d\'envoi WhatsApp aux parents'}
+            >
+              <MessageSquare className="w-4 h-4 shrink-0" />
+              <span>{dir === 'rtl' ? 'إشعارات واتساب' : 'WhatsApp Parents'}</span>
+              {todayAbsentsAndLatesCount > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-white text-emerald-700 text-[10px] font-black leading-none ml-0.5 shadow-2xs">
+                  {todayAbsentsAndLatesCount}
+                </span>
+              )}
+            </button>
+
             {/* Print / PDF Dropdown Hub */}
             <div className="relative">
               <button
@@ -1518,16 +1554,63 @@ export default function StudentAttendancePage() {
                               )}
                             </td>
 
-                            {/* Edit Action Button */}
+                            {/* Edit & WhatsApp Action Buttons */}
                             <td className="py-2.5 px-3 text-right">
-                              <button
-                                type="button"
-                                onClick={() => openEditModal(student)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold transition-colors cursor-pointer"
-                              >
-                                <Edit2 className="w-3 h-3" />
-                                <span>Éditer</span>
-                              </button>
+                              <div className="flex items-center justify-end gap-1.5">
+                                {/* 1-Click WhatsApp Send for Absent / Late */}
+                                {(status === 'ABSENT' || status === 'EXCUSED' || status === 'LATE') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const rawPhone = student.guardian_phone || student.phone;
+                                      const normalized = normalizeMoroccanPhone(rawPhone);
+                                      if (!normalized) {
+                                        setShowWhatsAppModal(true);
+                                        return;
+                                      }
+                                      const isLate = status === 'LATE';
+                                      const template = isLate
+                                        ? locale === 'ar'
+                                          ? settings?.whatsapp_late_template_ar
+                                          : settings?.whatsapp_late_template_fr
+                                        : locale === 'ar'
+                                        ? settings?.whatsapp_absence_template_ar
+                                        : settings?.whatsapp_absence_template_fr;
+                                      const schoolName = locale === 'ar' ? settings?.school_name_ar || settings?.school_name : settings?.school_name;
+                                      const msg = buildAbsenceMessage({
+                                        studentName: `${student.first_name} ${student.last_name}`,
+                                        guardianName: student.guardian_name || '',
+                                        className: student.class?.name || '',
+                                        date: selectedDate,
+                                        schoolName: schoolName || 'GM School',
+                                        isLate,
+                                        lateMinutes: lateMins || 15,
+                                        customTemplate: template,
+                                        locale: locale as 'fr' | 'ar',
+                                      });
+                                      openWhatsAppChat(normalized, msg);
+                                      setSessionSentIds((prev) => ({ ...prev, [student.id]: true }));
+                                    }}
+                                    className={`p-1.5 rounded-xl transition-all cursor-pointer ${
+                                      sessionSentIds[student.id]
+                                        ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300'
+                                        : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-xs hover:shadow-emerald-500/25'
+                                    }`}
+                                    title={dir === 'rtl' ? 'إرسال إشعار واتساب لولي الأمر' : 'Envoyer WhatsApp au parent'}
+                                  >
+                                    <MessageSquare className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => openEditModal(student)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold transition-colors cursor-pointer"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                  <span>Éditer</span>
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -2240,6 +2323,20 @@ export default function StudentAttendancePage() {
             </div>
           </div>
         )}
+
+        {/* WhatsApp Absence & Retard Modal Hub */}
+        <WhatsAppAbsenceModal
+          isOpen={showWhatsAppModal}
+          onClose={() => setShowWhatsAppModal(false)}
+          selectedDate={selectedDate}
+          students={students}
+          attendanceRecords={attendanceRecords}
+          onStudentUpdated={(updatedStudent) => {
+            setStudents((prev) =>
+              prev.map((s) => (s.id === updatedStudent.id ? updatedStudent : s))
+            );
+          }}
+        />
       </div>
     </DashboardLayout>
   );

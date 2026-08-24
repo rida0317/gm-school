@@ -199,6 +199,10 @@ export const translations = {
     no_data: 'Aucune donnée disponible',
     school_name: 'Groupe Scolaire Des Générations Montantes',
     academic_year: 'Année Scolaire',
+    whatsapp_send: 'WhatsApp',
+    whatsapp_hub: 'Centre WhatsApp',
+    whatsapp_send_tooltip: 'Envoyer message WhatsApp au parent',
+    whatsapp_sent: 'Envoyé',
   },
   ar: {
     // Navigation Groups & Items
@@ -392,6 +396,10 @@ export const translations = {
     no_data: 'لا توجد بيانات متاحة',
     school_name: 'مجموعة مدارس الأجيال الصاعدة',
     academic_year: 'السنة الدراسية',
+    whatsapp_send: 'واتساب',
+    whatsapp_hub: 'إشعارات واتساب',
+    whatsapp_send_tooltip: 'إرسال إشعار واتساب لولي الأمر',
+    whatsapp_sent: 'تم الإرسال',
   },
 };
 

@@ -12,8 +12,12 @@ import {
   Save,
   CheckCircle2,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  MessageSquare,
+  Sparkles,
+  RotateCcw
 } from 'lucide-react';
+import { DEFAULT_WHATSAPP_TEMPLATES } from '@/lib/whatsapp';
 
 export default function SettingsPage() {
   const { locale, setLocale, t, dir } = useI18n();
@@ -28,8 +32,13 @@ export default function SettingsPage() {
     phone: settings?.phone || '+212 522-001122',
     address: settings?.address || 'Casablanca, Maroc',
     currency: settings?.currency || 'MAD (Dirham Marocain)',
+    whatsapp_absence_template_ar: settings?.whatsapp_absence_template_ar || DEFAULT_WHATSAPP_TEMPLATES.ar_absence,
+    whatsapp_absence_template_fr: settings?.whatsapp_absence_template_fr || DEFAULT_WHATSAPP_TEMPLATES.fr_absence,
+    whatsapp_late_template_ar: settings?.whatsapp_late_template_ar || DEFAULT_WHATSAPP_TEMPLATES.ar_late,
+    whatsapp_late_template_fr: settings?.whatsapp_late_template_fr || DEFAULT_WHATSAPP_TEMPLATES.fr_late,
   });
 
+  const [whatsappTab, setWhatsappTab] = useState<'ar' | 'fr'>('ar');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -48,9 +57,23 @@ export default function SettingsPage() {
         phone: settings.phone || '+212 522-001122',
         address: settings.address || 'Casablanca, Maroc',
         currency: settings.currency || 'MAD (Dirham Marocain)',
+        whatsapp_absence_template_ar: settings.whatsapp_absence_template_ar || DEFAULT_WHATSAPP_TEMPLATES.ar_absence,
+        whatsapp_absence_template_fr: settings.whatsapp_absence_template_fr || DEFAULT_WHATSAPP_TEMPLATES.fr_absence,
+        whatsapp_late_template_ar: settings.whatsapp_late_template_ar || DEFAULT_WHATSAPP_TEMPLATES.ar_late,
+        whatsapp_late_template_fr: settings.whatsapp_late_template_fr || DEFAULT_WHATSAPP_TEMPLATES.fr_late,
       });
     }
   }, [settings]);
+
+  const handleResetWhatsAppDefaults = () => {
+    setFormState((prev) => ({
+      ...prev,
+      whatsapp_absence_template_ar: DEFAULT_WHATSAPP_TEMPLATES.ar_absence,
+      whatsapp_absence_template_fr: DEFAULT_WHATSAPP_TEMPLATES.fr_absence,
+      whatsapp_late_template_ar: DEFAULT_WHATSAPP_TEMPLATES.ar_late,
+      whatsapp_late_template_fr: DEFAULT_WHATSAPP_TEMPLATES.fr_late,
+    }));
+  };
 
   const handlePerformSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -69,6 +92,10 @@ export default function SettingsPage() {
         address: formState.address.trim(),
         currency: formState.currency.trim(),
         default_locale: locale,
+        whatsapp_absence_template_ar: formState.whatsapp_absence_template_ar.trim(),
+        whatsapp_absence_template_fr: formState.whatsapp_absence_template_fr.trim(),
+        whatsapp_late_template_ar: formState.whatsapp_late_template_ar.trim(),
+        whatsapp_late_template_fr: formState.whatsapp_late_template_fr.trim(),
       });
 
       if (!success) {
@@ -267,6 +294,148 @@ export default function SettingsPage() {
                 />
               </div>
             </div>
+          </div>
+
+          {/* WhatsApp Notification Templates */}
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                  <MessageSquare className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    {dir === 'rtl' ? 'إعدادات رسائل واتساب لأولياء الأمور' : 'Modèles des Messages WhatsApp Parents'}
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    {dir === 'rtl'
+                      ? 'تخصيص نص الرسائل التلقائية التي يتم إرسالها لولياء الأمور عند تسجيل غياب أو تأخر التلميذ.'
+                      : 'Personnalisez les messages pré-remplis lors de l\'envoi direct aux tuteurs.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setWhatsappTab('ar')}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      whatsappTab === 'ar'
+                        ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-900'
+                    }`}
+                  >
+                    العربية 🇲🇦
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWhatsappTab('fr')}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      whatsappTab === 'fr'
+                        ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-900'
+                    }`}
+                  >
+                    Français 🇫🇷
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleResetWhatsAppDefaults}
+                  className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                  title={dir === 'rtl' ? 'استعادة النصوص الافتراضية' : 'Rétablir les modèles par défaut'}
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Dynamic Tags Helper Chips */}
+            <div className="p-3.5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-900/40 text-xs">
+              <div className="flex items-center gap-1.5 font-bold text-emerald-800 dark:text-emerald-300 mb-2">
+                <Sparkles className="w-4 h-4" />
+                <span>{dir === 'rtl' ? 'المتغيرات الديناميكية المتوفرة :' : 'Variables dynamiques disponibles :'}</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { tag: '{student_name}', label: dir === 'rtl' ? 'اسم التلميذ' : 'Nom de l\'élève' },
+                  { tag: '{class_name}', label: dir === 'rtl' ? 'القسم' : 'Classe' },
+                  { tag: '{date}', label: dir === 'rtl' ? 'التاريخ' : 'Date' },
+                  { tag: '{school_name}', label: dir === 'rtl' ? 'اسم المؤسسة' : 'Nom école' },
+                  { tag: '{guardian_name}', label: dir === 'rtl' ? 'اسم الولي' : 'Nom tuteur' },
+                  { tag: '{late_minutes}', label: dir === 'rtl' ? 'دقائق التأخر' : 'Minutes retard' },
+                ].map((item) => (
+                  <span
+                    key={item.tag}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-900 font-mono text-[11px] font-bold text-emerald-700 dark:text-emerald-300 shadow-2xs"
+                  >
+                    <code>{item.tag}</code>
+                    <span className="text-[10px] text-slate-400 font-sans">({item.label})</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Template Editors */}
+            {whatsappTab === 'ar' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4" dir="rtl">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    🔴 نموذج رسالة غياب التلميذ (عربية)
+                  </label>
+                  <textarea
+                    rows={6}
+                    value={formState.whatsapp_absence_template_ar}
+                    onChange={(e) => setFormState({ ...formState, whatsapp_absence_template_ar: e.target.value })}
+                    className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed font-sans"
+                    placeholder="اكتب نموذج رسالة الغياب بالعربية..."
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    🟡 نموذج رسالة تأخر التلميذ (عربية)
+                  </label>
+                  <textarea
+                    rows={6}
+                    value={formState.whatsapp_late_template_ar}
+                    onChange={(e) => setFormState({ ...formState, whatsapp_late_template_ar: e.target.value })}
+                    className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed font-sans"
+                    placeholder="اكتب نموذج رسالة التأخر بالعربية..."
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4" dir="ltr">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    🔴 Modèle Absence Élève (Français)
+                  </label>
+                  <textarea
+                    rows={6}
+                    value={formState.whatsapp_absence_template_fr}
+                    onChange={(e) => setFormState({ ...formState, whatsapp_absence_template_fr: e.target.value })}
+                    className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed font-sans"
+                    placeholder="Rédigez le modèle d'absence en français..."
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    🟡 Modèle Retard Élève (Français)
+                  </label>
+                  <textarea
+                    rows={6}
+                    value={formState.whatsapp_late_template_fr}
+                    onChange={(e) => setFormState({ ...formState, whatsapp_late_template_fr: e.target.value })}
+                    className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed font-sans"
+                    placeholder="Rédigez le modèle de retard en français..."
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end pt-2">

@@ -13,6 +13,10 @@ export interface SchoolSettings {
   address: string;
   currency: string;
   default_locale: 'fr' | 'ar';
+  whatsapp_absence_template_ar?: string;
+  whatsapp_absence_template_fr?: string;
+  whatsapp_late_template_ar?: string;
+  whatsapp_late_template_fr?: string;
 }
 
 export const defaultSettings: SchoolSettings = {
@@ -25,6 +29,10 @@ export const defaultSettings: SchoolSettings = {
   address: 'Casablanca, Maroc',
   currency: 'MAD (Dirham Marocain)',
   default_locale: 'fr',
+  whatsapp_absence_template_ar: '',
+  whatsapp_absence_template_fr: '',
+  whatsapp_late_template_ar: '',
+  whatsapp_late_template_fr: '',
 };
 
 interface SettingsContextType {
@@ -78,6 +86,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           address: data.address || defaultSettings.address,
           currency: data.currency || defaultSettings.currency,
           default_locale: (data.default_locale as 'fr' | 'ar') || defaultSettings.default_locale,
+          whatsapp_absence_template_ar: data.whatsapp_absence_template_ar || '',
+          whatsapp_absence_template_fr: data.whatsapp_absence_template_fr || '',
+          whatsapp_late_template_ar: data.whatsapp_late_template_ar || '',
+          whatsapp_late_template_fr: data.whatsapp_late_template_fr || '',
         };
         setSettings(loaded);
         if (typeof window !== 'undefined') {
@@ -133,6 +145,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           address: merged.address,
           currency: merged.currency,
           default_locale: merged.default_locale,
+          whatsapp_absence_template_ar: merged.whatsapp_absence_template_ar,
+          whatsapp_absence_template_fr: merged.whatsapp_absence_template_fr,
+          whatsapp_late_template_ar: merged.whatsapp_late_template_ar,
+          whatsapp_late_template_fr: merged.whatsapp_late_template_fr,
           updated_at: new Date().toISOString(),
         });
 
