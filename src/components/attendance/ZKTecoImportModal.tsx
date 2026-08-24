@@ -92,10 +92,10 @@ export function ZKTecoImportModal({
   // Tolerance in minutes (e.g. 5 minutes grace period)
   const [graceMinutes, setGraceMinutes] = useState<number>(5);
 
-  // Global default shifts (Horaires Officiels : Entrée 08:00, Sortie Standard 16:00, Sortie Garde 16:15)
-  const [defaultEntry, setDefaultEntry] = useState<string>('08:00');
+  // Global default shifts (Horaires Officiels : Entrée Standard 08:15, Entrée Garde 08:00, Sortie 16:15)
+  const [defaultEntry, setDefaultEntry] = useState<string>('08:15');
   const [defaultGardeEntry, setDefaultGardeEntry] = useState<string>('08:00');
-  const [defaultExit, setDefaultExit] = useState<string>('16:00');
+  const [defaultExit, setDefaultExit] = useState<string>('16:15');
   const [defaultGardeExit, setDefaultGardeExit] = useState<string>('16:15');
 
   // Per-staff permanent shift / garde configuration
@@ -184,7 +184,7 @@ export function ZKTecoImportModal({
       } else {
         merged[s.id] = {
           staffId: s.id,
-          expectedEntry: s.category === 'ENSEIGNANT' ? '08:15' : '08:00',
+          expectedEntry: '08:15',
           expectedExit: '16:15',
           hasGarde: false,
           hasGardeEntry: false,
@@ -480,10 +480,10 @@ export function ZKTecoImportModal({
         (shift.hasGardeLunch && currentDayOfWeek >= 1 && currentDayOfWeek <= 4)
       );
 
-      // Expected entry: if guard morning -> 08:00; else default
+      // Expected entry: 08:00 if morning guard duty today; 08:15 for everyone else
       const expectedEntryTime = isGardeEntryToday
         ? (shift.expectedEntry || '08:00')
-        : (shift.expectedEntry || (staff.category === 'ENSEIGNANT' ? '08:15' : defaultEntry));
+        : (shift.expectedEntry || defaultEntry || '08:15');
 
       // Expected exit: if Friday (day 5) -> 12:20; else Mon-Thu -> 16:15 pour tout le monde sans exception
       let expectedExitTime = shift.expectedExit || defaultExit || '16:15';
@@ -919,7 +919,7 @@ export function ZKTecoImportModal({
                         onClick={() => applyEntryToAll('08:15')}
                         className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-700 hover:border-sky-500 shadow-xs cursor-pointer whitespace-nowrap transition-all"
                       >
-                        08:15 (Par Défaut - Enseignants)
+                        08:15 (Par Défaut - Tout le Personnel)
                       </button>
                       <button
                         onClick={() => applyEntryToAll('08:00')}

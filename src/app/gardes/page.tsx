@@ -157,8 +157,8 @@ export default function GardesPlanningPage() {
   const [syncWarning, setSyncWarning] = useState<string | null>(null);
   const [isSavedFeedback, setIsSavedFeedback] = useState<boolean>(false);
 
-  // Defaults (Horaires Officiels : 08:00 à 16:15, Vendredi 12:20)
-  const [defaultEntry, setDefaultEntry] = useState<string>('08:00');
+  // Defaults (Horaires Officiels : Entrée 08:15, Garde Matin 08:00, Sortie 16:15, Vendredi 12:20)
+  const [defaultEntry, setDefaultEntry] = useState<string>('08:15');
   const [defaultExit, setDefaultExit] = useState<string>('16:15');
 
   // Load teachers, timetable slots, floors, and permanent shifts
@@ -238,7 +238,7 @@ export default function GardesPlanningPage() {
             if (!loadedShifts[t.id]) {
               loadedShifts[t.id] = {
                 staffId: t.id,
-                expectedEntry: '08:00',
+                expectedEntry: '08:15',
                 expectedExit: '16:15',
                 hasGarde: false,
                 hasGardeEntry: false,
@@ -620,7 +620,7 @@ export default function GardesPlanningPage() {
     teachers.forEach((t) => {
       resetShifts[t.id] = {
         staffId: t.id,
-        expectedEntry: '08:00',
+        expectedEntry: '08:15',
         expectedExit: '16:15',
         hasGarde: false,
         hasGardeEntry: false,
@@ -668,7 +668,7 @@ export default function GardesPlanningPage() {
       teachers.forEach((t) => {
         updatedShifts[t.id] = {
           staffId: t.id,
-          expectedEntry: '08:00',
+          expectedEntry: '08:15',
           expectedExit: '16:15',
           hasGarde: false,
           hasGardeEntry: false,
@@ -940,7 +940,7 @@ export default function GardesPlanningPage() {
   const handleExportCSV = () => {
     const headers = ['Matricule', 'Enseignant', 'Matiere', 'Charge_Hebdo', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Total Gardes'];
     const rows = filteredTeachers.map((t) => {
-      const shift = staffShifts[t.id] || { expectedEntry: '08:00', expectedExit: '16:15' };
+      const shift = staffShifts[t.id] || { expectedEntry: '08:15', expectedExit: '16:15' };
       const weeklyHours = teacherWeeklyHoursMap[t.id] || 0;
       
       const dayStatuses = [1, 2, 3, 4, 5].map((dayNum) => {
@@ -1329,7 +1329,7 @@ export default function GardesPlanningPage() {
                   <th key={day.id} className={`px-2 py-3.5 text-center border-l border-slate-200/60 dark:border-slate-800 ${selectedDayFilter === 'ALL' ? 'w-[13.5%]' : 'w-[40%]'}`}>
                     <div className="text-slate-900 dark:text-white font-bold leading-tight">{day.name}</div>
                     <div className="text-[9px] font-normal text-slate-400">
-                      {day.id === 5 ? '08:00 - 12:20' : '08:00 - 16:15'}
+                      {day.id === 5 ? '08:15 - 12:20' : '08:15 - 16:15'}
                     </div>
                   </th>
                 ))}
@@ -1353,7 +1353,7 @@ export default function GardesPlanningPage() {
                 filteredTeachers.map((t) => {
                   const shift = staffShifts[t.id] || {
                     staffId: t.id,
-                    expectedEntry: '08:00',
+                    expectedEntry: '08:15',
                     expectedExit: '16:15',
                     hasGarde: false,
                     hasGardeEntry: false,
@@ -2279,7 +2279,7 @@ export default function GardesPlanningPage() {
               </thead>
               <tbody>
                 {filteredTeachers.map((t) => {
-                  const shift = staffShifts[t.id] || { expectedEntry: '08:00', expectedExit: '16:15' };
+                  const shift = staffShifts[t.id] || { expectedEntry: '08:15', expectedExit: '16:15' };
                   const totalCount = (shift.gardeEntryDays?.length || 0) + (shift.gardeLunchDays?.length || 0) + (shift.gardeDays?.length || 0);
 
                   return (

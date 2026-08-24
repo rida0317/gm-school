@@ -295,14 +295,14 @@ export default function StaffAttendancePage() {
     const isMorningGardeToday = shift && (shift.gardeEntryDays?.includes(currentDayOfWeek) || (shift.hasGardeEntry && currentDayOfWeek >= 1 && currentDayOfWeek <= 5));
     const isEveningGardeToday = shift && (shift.gardeDays?.includes(currentDayOfWeek) || (shift.hasGarde && currentDayOfWeek >= 1 && currentDayOfWeek <= 5));
 
-    const expectedEntry = isMorningGardeToday ? (shift?.expectedEntry || '08:00') : (shift?.expectedEntry || (staff.category === 'ENSEIGNANT' ? '08:15' : '08:00'));
+    const expectedEntry = isMorningGardeToday ? (shift?.expectedEntry || '08:00') : (shift?.expectedEntry || '08:15');
     const expectedExit = currentDayOfWeek === 5 ? '12:20' : (shift?.expectedExit || '16:15');
 
     let lateMins = 0;
     let checkIn = expectedEntry;
     if (newStatus === 'LATE') {
       lateMins = existing?.late_minutes && existing.late_minutes > 0 ? existing.late_minutes : 20;
-      checkIn = '08:25';
+      checkIn = isMorningGardeToday ? '08:20' : '08:35';
     }
 
     const updatedRecord: StaffAttendanceRecord = {
