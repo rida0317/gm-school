@@ -129,7 +129,11 @@ function ClassesContent() {
       });
       if (matched) {
         setSelectedCycle(matched.cycle);
+      } else {
+        setSelectedCycle('ALL');
       }
+    } else {
+      setSelectedCycle('ALL');
     }
   }, [cycleParam]);
 
