@@ -1162,32 +1162,6 @@ export default function StaffAttendancePage() {
       `}</style>
 
       <div className="space-y-6">
-        {/* Printable Official Header */}
-        <div className="hidden print:flex print:items-center print:justify-between print:pb-4 print:mb-4 print:border-b-2 print:border-slate-900">
-          <div className="flex items-center gap-3.5">
-            <img
-              src="/logo.png"
-              alt="Logo GM"
-              className="w-14 h-14 object-contain shrink-0"
-            />
-            <div>
-              <h1 className="text-base font-black uppercase text-slate-900 leading-tight">
-                GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES
-              </h1>
-              <p className="text-[10px] text-slate-700 font-bold">
-                Registre Officiel de Présence, Pointage &amp; Assiduité du Personnel
-              </p>
-              <p className="text-[9px] text-slate-500 font-semibold">
-                Année Scolaire 2025-2026 &bull; Direction des Ressources Humaines
-              </p>
-            </div>
-          </div>
-          <div className="text-right border-2 border-slate-900 px-3 py-1.5 rounded-lg bg-slate-50">
-            <div className="font-black text-xs">POINTAGE PERSONNEL</div>
-            <div className="text-[9pt] font-bold">Date : {new Date().toLocaleDateString('fr-FR')}</div>
-          </div>
-        </div>
-
         {/* Top Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
           <div className="min-w-0 flex-1">
@@ -2132,30 +2106,41 @@ export default function StaffAttendancePage() {
         <div className="hidden print:block print-attendance-sheet">
           <div className="border-b-2 border-slate-900 pb-3 mb-4">
             <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-base font-black uppercase text-slate-900">
-                  {settings.school_name || 'GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES'}
-                </h1>
-                <p className="text-[10pt] font-bold text-slate-700 mt-0.5">
-                  {printReportMode === 'DAILY' && "FEUILLE OFFICIELLE DE POINTAGE ET D'ASSIDUITÉ (JOURNALIER)"}
-                  {printReportMode === 'WEEKLY' && "JOURNAL HEBDOMADAIRE D'AUDIT ET DE PRÉSENCE DU PERSONNEL"}
-                  {printReportMode === 'MONTHLY' && "REGISTRE MENSUEL RÉCAPITULATIF DE POINTAGE ET D'ASSIDUITÉ"}
-                  {printReportMode === 'PERIODIC' && `BILAN D'ASSIDUITÉ DU PERSONNEL (${customStartDate} AU ${customEndDate})`}
-                </p>
-                <p className="text-[8pt] text-slate-600">
-                  Année Scolaire : {settings.academic_year || '2025-2026'} &bull; Établissement Privé &bull; Direction RH
-                </p>
+              <div className="flex items-center gap-3.5">
+                <img
+                  src={settings.logo_url || '/logo.png'}
+                  alt="Logo GM"
+                  className="w-14 h-14 object-contain shrink-0"
+                />
+                <div>
+                  <h1 className="text-base font-black uppercase text-slate-900 leading-tight">
+                    {settings.school_name || 'GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES'}
+                  </h1>
+                  <p className="text-[10pt] font-bold text-slate-700 mt-0.5">
+                    {printReportMode === 'DAILY' && "FEUILLE OFFICIELLE DE POINTAGE ET D'ASSIDUITÉ (JOURNALIER)"}
+                    {printReportMode === 'WEEKLY' && "JOURNAL HEBDOMADAIRE D'AUDIT ET DE PRÉSENCE DU PERSONNEL"}
+                    {printReportMode === 'MONTHLY' && "REGISTRE MENSUEL RÉCAPITULATIF DE POINTAGE ET D'ASSIDUITÉ"}
+                    {printReportMode === 'PERIODIC' && `BILAN D'ASSIDUITÉ DU PERSONNEL (${customStartDate} AU ${customEndDate})`}
+                  </p>
+                  <p className="text-[8pt] text-slate-600">
+                    Année Scolaire : {settings.academic_year || '2025-2026'} &bull; Établissement Privé &bull; Direction RH
+                  </p>
+                </div>
               </div>
 
-              <div className="text-right border border-slate-400 p-2 rounded">
-                <div className="text-[9pt] font-black">
+              <div className="text-right border-2 border-slate-900 p-2 rounded-lg bg-slate-50">
+                <div className="text-[9pt] font-black uppercase">
                   {printReportMode === 'DAILY' && `Date : ${selectedDate}`}
                   {printReportMode === 'WEEKLY' && `Semaine : ${currentWeekDates[0]} au ${currentWeekDates[5]}`}
                   {printReportMode === 'MONTHLY' && `Mois : ${selectedMonth}`}
                   {printReportMode === 'PERIODIC' && `Période : ${customStartDate} au ${customEndDate}`}
                 </div>
-                <div className="text-[8pt] text-slate-700">Taux global de présence : {dailyStats.rate}%</div>
-                <div className="text-[7.5pt] text-slate-500">Généré le : {new Date().toLocaleDateString('fr-FR')} à {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+                <div className="text-[8pt] text-slate-700 font-bold">
+                  Taux global de présence : {currentKpiStats.rate}%
+                </div>
+                <div className="text-[7.5pt] text-slate-500">
+                  Généré le : {new Date().toLocaleDateString('fr-FR')} à {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                </div>
               </div>
             </div>
           </div>
