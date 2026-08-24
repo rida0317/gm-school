@@ -227,10 +227,26 @@ export default function StudentAttendancePage() {
         });
 
       if (currentDayRecords.length > 0) {
-        await supabase.from('student_attendance').upsert(currentDayRecords, { onConflict: 'student_id,date' });
+        const { error } = await supabase
+          .from('student_attendance')
+          .upsert(currentDayRecords, { onConflict: 'student_id,date' });
+
+        if (error) {
+          console.error('Supabase attendance sync error:', error);
+          notify({
+            title: 'Erreur d\'enregistrement',
+            message: `Impossible d'enregistrer dans la base de données: ${error.message}`,
+            type: 'danger',
+          });
+        }
       }
-    } catch (err) {
-      console.warn('DB sync error:', err);
+    } catch (err: any) {
+      console.error('DB sync exception:', err);
+      notify({
+        title: 'Erreur de connexion',
+        message: err?.message || 'Erreur inconnue lors de la sauvegarde',
+        type: 'danger',
+      });
     }
   };
 
