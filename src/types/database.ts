@@ -89,6 +89,7 @@ export interface Teacher {
   specialization?: string;
   contract_type?: TeacherContractType;
   teaching_levels?: string[];
+  teaching_groups?: string[];
   availability?: TeacherAvailabilitySlot[];
   weekly_hours_target?: number;
   hire_date?: string;

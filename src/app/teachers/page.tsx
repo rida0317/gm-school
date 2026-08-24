@@ -110,6 +110,7 @@ export default function TeachersPage() {
   const { t, dir } = useI18n();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [classes, setClasses] = useState<Array<{ id: string; name: string; level: string; group_name?: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'ALL' | 'PLEIN_TEMPS' | 'VACATAIRE'>('ALL');
@@ -126,6 +127,7 @@ export default function TeachersPage() {
     specialization: 'Mathématiques',
     contract_type: 'PLEIN_TEMPS' as TeacherContractType,
     teaching_levels: [] as string[],
+    teaching_groups: [] as string[],
     weekly_hours_target: 24,
     availability: [] as TeacherAvailabilitySlot[],
   });
@@ -137,14 +139,17 @@ export default function TeachersPage() {
     setLoading(true);
     try {
       const supabase = createClient();
-      const [{ data: tchs, error: tchErr }, { data: sbjs, error: sbjErr }] = await Promise.all([
+      const [{ data: tchs, error: tchErr }, { data: sbjs, error: sbjErr }, { data: cls, error: clsErr }] = await Promise.all([
         supabase.from('teachers').select('*').order('last_name'),
         supabase.from('subjects').select('*').order('name'),
+        supabase.from('classes').select('id, name, level, group_name').order('name'),
       ]);
       if (tchs) setTeachers(tchs);
       if (sbjs) setSubjects(sbjs);
+      if (cls) setClasses(cls);
       if (tchErr) console.error(tchErr);
       if (sbjErr) console.error(sbjErr);
+      if (clsErr) console.error(clsErr);
     } catch (err) {
       console.error(err);
     } finally {
@@ -167,26 +172,29 @@ export default function TeachersPage() {
       specialization: subjects.length > 0 ? subjects[0].name : 'Mathématiques',
       contract_type: 'PLEIN_TEMPS',
       teaching_levels: ['CP', 'CE1', 'CE2', 'CM1', 'CM2', 'CE6'], // Default to Primary or clean selection
+      teaching_groups: [],
       weekly_hours_target: 24,
       availability: [],
     });
     setShowModal(true);
   };
 
-  const openEditModal = (t: Teacher) => {
-    setEditingId(t.id);
-    const existingAvailability = Array.isArray(t.availability) ? (t.availability as TeacherAvailabilitySlot[]) : [];
-    const existingLevels = Array.isArray(t.teaching_levels) ? t.teaching_levels : [];
+  const openEditModal = (tch: Teacher) => {
+    setEditingId(tch.id);
+    const existingAvailability = Array.isArray(tch.availability) ? (tch.availability as TeacherAvailabilitySlot[]) : [];
+    const existingLevels = Array.isArray(tch.teaching_levels) ? tch.teaching_levels : [];
+    const existingGroups = Array.isArray(tch.teaching_groups) ? tch.teaching_groups : [];
     setFormData({
-      teacher_code: t.teacher_code || '',
-      first_name: t.first_name || '',
-      last_name: t.last_name || '',
-      email: t.email || '',
-      phone: t.phone || '',
-      specialization: t.specialization || (subjects.length > 0 ? subjects[0].name : 'Mathématiques'),
-      contract_type: (t.contract_type as TeacherContractType) || 'PLEIN_TEMPS',
+      teacher_code: tch.teacher_code || '',
+      first_name: tch.first_name || '',
+      last_name: tch.last_name || '',
+      email: tch.email || '',
+      phone: tch.phone || '',
+      specialization: tch.specialization || (subjects.length > 0 ? subjects[0].name : 'Mathématiques'),
+      contract_type: (tch.contract_type as TeacherContractType) || 'PLEIN_TEMPS',
       teaching_levels: existingLevels,
-      weekly_hours_target: t.weekly_hours_target || (t.contract_type === 'VACATAIRE' ? 10 : 24),
+      teaching_groups: existingGroups,
+      weekly_hours_target: tch.weekly_hours_target || (tch.contract_type === 'VACATAIRE' ? 10 : 24),
       availability: existingAvailability,
     });
     setShowModal(true);
@@ -200,6 +208,31 @@ export default function TeachersPage() {
         return { ...prev, teaching_levels: prev.teaching_levels.filter((l) => l !== lvlValue) };
       } else {
         return { ...prev, teaching_levels: [...prev.teaching_levels, lvlValue] };
+      }
+    });
+  };
+
+  // Toggle single group selection
+  const toggleGroup = (grpName: string) => {
+    setFormData((prev) => {
+      const exists = prev.teaching_groups.includes(grpName);
+      if (exists) {
+        return { ...prev, teaching_groups: prev.teaching_groups.filter((g) => g !== grpName) };
+      } else {
+        return { ...prev, teaching_groups: [...prev.teaching_groups, grpName] };
+      }
+    });
+  };
+
+  // Select all or deselect all groups
+  const selectAllGroups = (availableGrpList: string[]) => {
+    setFormData((prev) => {
+      const allSelected = availableGrpList.every((g) => prev.teaching_groups.includes(g));
+      if (allSelected) {
+        return { ...prev, teaching_groups: prev.teaching_groups.filter((g) => !availableGrpList.includes(g)) };
+      } else {
+        const set = new Set([...prev.teaching_groups, ...availableGrpList]);
+        return { ...prev, teaching_groups: Array.from(set) };
       }
     });
   };
@@ -224,6 +257,11 @@ export default function TeachersPage() {
       }));
     }
   };
+
+  const relevantClasses = useMemo(() => {
+    if (formData.teaching_levels.length === 0) return classes;
+    return classes.filter((cls) => formData.teaching_levels.includes(cls.level));
+  }, [classes, formData.teaching_levels]);
 
   const toggleSlotAvailability = (dayId: number, period: typeof MOROCCAN_55MIN_PERIODS[0]) => {
     const isAlreadySelected = formData.availability.some(
@@ -320,6 +358,7 @@ export default function TeachersPage() {
             specialization: formData.specialization,
             contract_type: formData.contract_type,
             teaching_levels: formData.teaching_levels,
+            teaching_groups: formData.teaching_groups,
             weekly_hours_target: Number(formData.weekly_hours_target),
             availability: formData.contract_type === 'VACATAIRE' ? formData.availability : [],
           })
@@ -354,6 +393,7 @@ export default function TeachersPage() {
             specialization: formData.specialization,
             contract_type: formData.contract_type,
             teaching_levels: formData.teaching_levels,
+            teaching_groups: formData.teaching_groups,
             weekly_hours_target: Number(formData.weekly_hours_target),
             availability: formData.contract_type === 'VACATAIRE' ? formData.availability : [],
             status: 'ACTIVE',
@@ -571,6 +611,7 @@ export default function TeachersPage() {
               const isVacataire = tch.contract_type === 'VACATAIRE';
               const availabilityCount = Array.isArray(tch.availability) ? tch.availability.length : 0;
               const teacherLevels = Array.isArray(tch.teaching_levels) ? tch.teaching_levels : [];
+              const teacherGroups = Array.isArray(tch.teaching_groups) ? tch.teaching_groups : [];
 
               return (
                 <div
@@ -634,6 +675,23 @@ export default function TeachersPage() {
                           )}
                         </div>
                       </div>
+
+                      {/* Teaching Groups & Classes Chips */}
+                      {teacherGroups.length > 0 && (
+                        <div className="flex items-start gap-2 pt-1">
+                          <Users className="w-3.5 h-3.5 text-purple-500 shrink-0 mt-0.5" />
+                          <div className="flex flex-wrap gap-1">
+                            {teacherGroups.map((grp) => (
+                              <span
+                                key={grp}
+                                className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300/40"
+                              >
+                                {grp}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                       <div className="flex items-center gap-2 pt-1">
                         <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -882,6 +940,93 @@ export default function TeachersPage() {
                       </div>
                     );
                   })}
+                </div>
+
+                {/* GROUPES & CLASSES D'ENSEIGNEMENT SECTION */}
+                <div className="p-4 rounded-2xl bg-purple-50/40 dark:bg-purple-950/20 border border-purple-200/60 dark:border-purple-900/40 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-purple-900 dark:text-purple-200">
+                      <Users className="w-4 h-4 text-purple-500" />
+                      <span>{dir === 'rtl' ? 'الأقسام والمجموعات المسندة (Groupes & Classes)' : 'Groupes & Classes Enseignés (Affectation)'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-slate-400">
+                        {formData.teaching_groups.length} {dir === 'rtl' ? 'مجموعة محددة' : 'groupe(s) sélectionné(s)'}
+                      </span>
+                      {relevantClasses.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => selectAllGroups(relevantClasses.map((c) => c.name))}
+                          className="text-[10px] font-bold text-purple-600 dark:text-purple-400 hover:underline cursor-pointer"
+                        >
+                          {relevantClasses.every((c) => formData.teaching_groups.includes(c.name))
+                            ? (dir === 'rtl' ? 'إلغاء التحديد' : 'Tout désélectionner')
+                            : (dir === 'rtl' ? '+ تحديد كل الأقسام' : '+ Tout sélectionner')}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Specific Classes from database matching levels */}
+                  {relevantClasses.length > 0 ? (
+                    <div className="space-y-1.5 pt-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                          {dir === 'rtl' ? 'الأقسام الفعلية للمؤسسة :' : 'Classes réelles de l\'école :'}
+                        </span>
+                        <span className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold">
+                          {relevantClasses.length} {dir === 'rtl' ? 'قسم متوفر' : 'classe(s) disponible(s)'}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {relevantClasses.map((cls) => {
+                          const isSelected = formData.teaching_groups.includes(cls.name);
+                          return (
+                            <button
+                              key={cls.id}
+                              type="button"
+                              onClick={() => toggleGroup(cls.name)}
+                              className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs scale-105'
+                                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                              }`}
+                            >
+                              {isSelected ? '✓ ' : ''}
+                              {cls.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* Quick Generic Group Presets */}
+                  <div className="space-y-1.5 pt-2 border-t border-purple-100 dark:border-purple-900/40">
+                    <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                      {dir === 'rtl' ? 'تسميات المجموعات العامة (G1, G2, Groupe A...) :' : 'Groupes standards / sous-groupes TP :' }
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {['Groupe 1 (G1)', 'Groupe 2 (G2)', 'Groupe 3 (G3)', 'Groupe A', 'Groupe B', 'Groupe C', 'Tous les groupes (الجميع)'].map((preset) => {
+                        const isSelected = formData.teaching_groups.includes(preset);
+                        return (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => toggleGroup(preset)}
+                            className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs scale-105'
+                                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            {isSelected ? '✓ ' : ''}
+                            {preset}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
 
                 {/* VACATAIRE AVAILABILITY SCHEDULE PICKER */}
