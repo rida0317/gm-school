@@ -63,18 +63,26 @@ export default function DashboardPage() {
     stockValuation: 0,
     dispatchesCount: 0,
     substitutionsCount: 0,
-    attendanceRate: 97.4,
+    attendanceRate: 100,
   });
 
   const [recentMovements, setRecentMovements] = useState<any[]>([]);
   const [recentStudents, setRecentStudents] = useState<any[]>([]);
+  const [cycleDistribution, setCycleDistribution] = useState<Array<{ name: string; value: number; color: string }>>([
+    { name: t('maternelle'), value: 0, color: '#38bdf8' },
+    { name: t('primaire'), value: 0, color: '#2563eb' },
+    { name: t('college'), value: 0, color: '#f97316' },
+    { name: t('lycee'), value: 0, color: '#8b5cf6' },
+  ]);
 
-  const cycleDistribution = [
-    { name: t('maternelle'), value: 24, color: '#38bdf8' },
-    { name: t('primaire'), value: 48, color: '#2563eb' },
-    { name: t('college'), value: 36, color: '#f97316' },
-    { name: t('lycee'), value: 28, color: '#8b5cf6' },
-  ];
+  const [attendanceData, setAttendanceData] = useState<Array<{ day: string; presents: number; absents: number }>>([
+    { day: dir === 'rtl' ? 'الإثنين' : 'Lun', presents: 100, absents: 0 },
+    { day: dir === 'rtl' ? 'الثلاثاء' : 'Mar', presents: 100, absents: 0 },
+    { day: dir === 'rtl' ? 'الأربعاء' : 'Mer', presents: 100, absents: 0 },
+    { day: dir === 'rtl' ? 'الخميس' : 'Jeu', presents: 100, absents: 0 },
+    { day: dir === 'rtl' ? 'الجمعة' : 'Ven', presents: 100, absents: 0 },
+    { day: dir === 'rtl' ? 'السبت' : 'Sam', presents: 100, absents: 0 },
+  ]);
 
   const [loading, setLoading] = useState(true);
 
@@ -83,6 +91,33 @@ export default function DashboardPage() {
       try {
         setLoading(true);
         const supabase = createClient();
+
+        // 1. Current Week Dates (Monday to Saturday)
+        const now = new Date();
+        const currentDay = now.getDay(); // 0 is Sunday
+        const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+        const monday = new Date(now);
+        monday.setDate(now.getDate() + distanceToMonday);
+
+        const weekDays = [
+          { key: 0, labelFr: 'Lun', labelAr: 'الإثنين' },
+          { key: 1, labelFr: 'Mar', labelAr: 'الثلاثاء' },
+          { key: 2, labelFr: 'Mer', labelAr: 'الأربعاء' },
+          { key: 3, labelFr: 'Jeu', labelAr: 'الخميس' },
+          { key: 4, labelFr: 'Ven', labelAr: 'الجمعة' },
+          { key: 5, labelFr: 'Sam', labelAr: 'السبت' },
+        ];
+
+        const weekDatesMap = weekDays.map((w) => {
+          const d = new Date(monday);
+          d.setDate(monday.getDate() + w.key);
+          const dateStr = d.toISOString().split('T')[0];
+          return {
+            day: dir === 'rtl' ? w.labelAr : w.labelFr,
+            dateStr,
+          };
+        });
+        const weekDatesList = weekDatesMap.map((w) => w.dateStr);
 
         const [
           { count: studentsCount, data: studentsData },
@@ -93,6 +128,7 @@ export default function DashboardPage() {
           { data: stockProducts },
           { data: stockMovements },
           { count: subsCount },
+          { data: attendanceLogs },
         ] = await Promise.all([
           supabase.from('students').select('*, class:classes(name, level)', { count: 'exact' }).order('created_at', { ascending: false }),
           supabase.from('teachers').select('*', { count: 'exact', head: true }),
@@ -101,8 +137,8 @@ export default function DashboardPage() {
           supabase.from('suppliers').select('*', { count: 'exact', head: true }),
           supabase.from('stock_products').select('quantity, minimum_quantity, purchase_price, value_price, name'),
           supabase.from('stock_movements').select('*, product:stock_products(name, unit)').order('created_at', { ascending: false }).limit(6),
-          // Using a mock promise for substitutions to avoid 404 console errors until the table is created
-          Promise.resolve({ count: null, data: null, error: null }),
+          supabase.from('substitution_requests').select('*', { count: 'exact', head: true }),
+          supabase.from('student_attendance').select('date, status').in('date', weekDatesList),
         ]);
 
         let effectiveProducts = stockProducts;
@@ -119,11 +155,11 @@ export default function DashboardPage() {
           }
         }
 
-        let totalArticles = effectiveProducts ? effectiveProducts.length : 18;
-        let totalUnits = effectiveProducts ? effectiveProducts.reduce((sum: number, p: any) => sum + (Number(p.quantity) || 0), 0) : 1420;
-        let lowStock = effectiveProducts ? effectiveProducts.filter((p: any) => p.quantity > 0 && p.quantity <= (p.minimum_quantity || 5)).length : 3;
-        let outOfStock = effectiveProducts ? effectiveProducts.filter((p: any) => p.quantity <= 0).length : 1;
-        let stockVal = effectiveProducts ? effectiveProducts.reduce((sum: number, p: any) => sum + ((Number(p.quantity) || 0) * (Number(p.purchase_price || p.value_price) || 0)), 0) : 84500;
+        let totalArticles = effectiveProducts ? effectiveProducts.length : 0;
+        let totalUnits = effectiveProducts ? effectiveProducts.reduce((sum: number, p: any) => sum + (Number(p.quantity) || 0), 0) : 0;
+        let lowStock = effectiveProducts ? effectiveProducts.filter((p: any) => p.quantity > 0 && p.quantity <= (p.minimum_quantity || 5)).length : 0;
+        let outOfStock = effectiveProducts ? effectiveProducts.filter((p: any) => p.quantity <= 0).length : 0;
+        let stockVal = effectiveProducts ? effectiveProducts.reduce((sum: number, p: any) => sum + ((Number(p.quantity) || 0) * (Number(p.purchase_price || p.value_price) || 0)), 0) : 0;
 
         let effectiveMovements = stockMovements;
         if (!effectiveMovements || effectiveMovements.length === 0) {
@@ -139,8 +175,8 @@ export default function DashboardPage() {
           }
         }
 
-        let outMovements = effectiveMovements ? effectiveMovements.length : 12;
-        let totalStuds = (studentsCount && studentsCount > 0) ? studentsCount : 136;
+        let outMovements = effectiveMovements ? effectiveMovements.length : 0;
+        const liveTotalStudents = studentsCount ?? (studentsData ? studentsData.length : 0);
 
         if (effectiveMovements) {
           setRecentMovements(effectiveMovements);
@@ -148,22 +184,76 @@ export default function DashboardPage() {
 
         if (studentsData) {
           setRecentStudents(studentsData.slice(0, 4));
+
+          // Compute Real Cycle Distribution
+          let matCount = 0;
+          let primCount = 0;
+          let colCount = 0;
+          let lycCount = 0;
+
+          studentsData.forEach((st: any) => {
+            const lvl = ((st.class?.level || '') + ' ' + (st.class?.name || '')).toUpperCase();
+            if (['TPS', 'PS', 'MS', 'GS'].some((k) => lvl.includes(k))) matCount++;
+            else if (['CP', 'CE1', 'CE2', 'CM1', 'CM2', 'CE6', '1AP', '2AP', '3AP', '4AP', '5AP', '6AP'].some((k) => lvl.includes(k))) primCount++;
+            else if (['1AC', '2AC', '3AC'].some((k) => lvl.includes(k))) colCount++;
+            else if (['TC', '1BAC', '2BAC'].some((k) => lvl.includes(k))) lycCount++;
+            else primCount++;
+          });
+
+          setCycleDistribution([
+            { name: t('maternelle'), value: matCount, color: '#38bdf8' },
+            { name: t('primaire'), value: primCount, color: '#2563eb' },
+            { name: t('college'), value: colCount, color: '#f97316' },
+            { name: t('lycee'), value: lycCount, color: '#8b5cf6' },
+          ]);
         }
 
+        // Compute Real Weekly Attendance from Supabase Logs
+        let totalWeeklyPresentsPercent = 0;
+        let measuredDaysCount = 0;
+
+        const computedAttendanceData = weekDatesMap.map((w) => {
+          const dayLogs = (attendanceLogs || []).filter((log: any) => log.date === w.dateStr);
+          const absentCount = dayLogs.filter((log: any) => log.status === 'ABSENT' || log.status === 'UNEXCUSED').length;
+
+          if (liveTotalStudents > 0) {
+            const presentCount = Math.max(0, liveTotalStudents - absentCount);
+            const percent = Math.round((presentCount / liveTotalStudents) * 100);
+            totalWeeklyPresentsPercent += percent;
+            measuredDaysCount++;
+            return {
+              day: w.day,
+              presents: percent,
+              absents: Math.round((absentCount / liveTotalStudents) * 100),
+            };
+          } else {
+            totalWeeklyPresentsPercent += 100;
+            measuredDaysCount++;
+            return {
+              day: w.day,
+              presents: 100,
+              absents: 0,
+            };
+          }
+        });
+
+        setAttendanceData(computedAttendanceData);
+        const avgAttendanceRate = measuredDaysCount > 0 ? Math.round((totalWeeklyPresentsPercent / measuredDaysCount) * 10) / 10 : 100;
+
         setStats({
-          studentsCount: totalStuds,
-          teachersCount: teachersCount ?? 12,
-          classesCount: classesCount ?? 8,
-          roomsCount: roomsCount ?? 14,
-          suppliersCount: (suppliersCount && suppliersCount > 0) ? suppliersCount : 4,
+          studentsCount: liveTotalStudents,
+          teachersCount: teachersCount ?? 0,
+          classesCount: classesCount ?? 0,
+          roomsCount: roomsCount ?? 0,
+          suppliersCount: suppliersCount ?? 0,
           totalStockArticles: totalArticles,
           totalStockUnits: totalUnits,
           lowStockCount: lowStock,
           outOfStockCount: outOfStock,
           stockValuation: stockVal,
           dispatchesCount: outMovements,
-          substitutionsCount: subsCount ?? 2,
-          attendanceRate: 97.8,
+          substitutionsCount: subsCount ?? 0,
+          attendanceRate: avgAttendanceRate,
         });
       } catch (err) {
         console.error('Error synchronizing dashboard stats:', err);
@@ -173,16 +263,7 @@ export default function DashboardPage() {
     }
 
     loadAllLiveStats();
-  }, []);
-
-  const attendanceData = [
-    { day: dir === 'rtl' ? 'الإثنين' : 'Lun', presents: 96, absents: 4 },
-    { day: dir === 'rtl' ? 'الثلاثاء' : 'Mar', presents: 98, absents: 2 },
-    { day: dir === 'rtl' ? 'الأربعاء' : 'Mer', presents: 95, absents: 5 },
-    { day: dir === 'rtl' ? 'الخميس' : 'Jeu', presents: 97, absents: 3 },
-    { day: dir === 'rtl' ? 'الجمعة' : 'Ven', presents: 99, absents: 1 },
-    { day: dir === 'rtl' ? 'السبت' : 'Sam', presents: 94, absents: 6 },
-  ];
+  }, [t, dir]);
 
   const greetingName = profile
     ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim()
@@ -419,7 +500,7 @@ export default function DashboardPage() {
                 <BarChart data={attendanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
-                  <YAxis tickLine={false} axisLine={false} domain={[80, 100]} tick={{ fill: '#64748b', fontSize: 12 }} />
+                  <YAxis tickLine={false} axisLine={false} domain={[0, 100]} tick={{ fill: '#64748b', fontSize: 12 }} />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: '#0f172a',
@@ -447,25 +528,31 @@ export default function DashboardPage() {
 
               <div className="h-44 w-full my-2">
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={cycleDistribution}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={50}
-                      outerRadius={70}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {cycleDistribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(val: unknown) => `${Number(val || 0)} ${t('student')}`}
-                      contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', color: '#fff', border: '1px solid rgba(56, 189, 248, 0.2)' }}
-                    />
-                  </PieChart>
+                  {stats.studentsCount > 0 ? (
+                    <PieChart>
+                      <Pie
+                        data={cycleDistribution}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={70}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {cycleDistribution.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(val: unknown) => `${Number(val || 0)} ${t('student')}`}
+                        contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', color: '#fff', border: '1px solid rgba(56, 189, 248, 0.2)' }}
+                      />
+                    </PieChart>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-xs text-slate-400 font-medium">
+                      {dir === 'rtl' ? 'لا يوجد تلاميذ مسجلين حالياً' : 'Aucun élève inscrit actuellement'}
+                    </div>
+                  )}
                 </ResponsiveContainer>
               </div>
 
