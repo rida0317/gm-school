@@ -119,6 +119,7 @@ export default function StaffAttendancePage() {
   const [supportStaff, setSupportStaff] = useState<StaffMember[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<StaffAttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [staffShifts, setStaffShifts] = useState<Record<string, ShiftConfig>>({});
 
   // ZKTeco Biometric modal state
   const [isZKTecoModalOpen, setIsZKTecoModalOpen] = useState(false);
@@ -136,7 +137,7 @@ export default function StaffAttendancePage() {
     notes: string;
   } | null>(null);
 
-  // Load teachers from Supabase and support staff from storage/default
+  // Load teachers, records and master gardes planning shifts
   useEffect(() => {
     async function initData() {
       setLoading(true);
@@ -147,6 +148,7 @@ export default function StaffAttendancePage() {
 
         setSupportStaff(DEFAULT_SUPPORT_STAFF);
 
+        // Load attendance
         const { data: att } = await supabase.from('teacher_attendance').select('*');
         if (att) {
           const mapped = att.map((a: any) => ({
@@ -161,6 +163,26 @@ export default function StaffAttendancePage() {
           }));
           setAttendanceRecords(mapped as StaffAttendanceRecord[]);
         }
+
+        // Load master shifts from Supabase & localStorage
+        let loadedShifts: Record<string, ShiftConfig> = {};
+        try {
+          const savedMaster = localStorage.getItem('gm_staff_permanent_shifts_master_v1');
+          if (savedMaster) loadedShifts = JSON.parse(savedMaster);
+        } catch {
+          // ignore
+        }
+
+        const { data: dbPlanning } = await supabase.from('gardes_planning').select('shifts').eq('id', 'master').maybeSingle();
+        if (dbPlanning?.shifts && typeof dbPlanning.shifts === 'object') {
+          loadedShifts = { ...loadedShifts, ...dbPlanning.shifts };
+          try {
+            localStorage.setItem('gm_staff_permanent_shifts_master_v1', JSON.stringify(loadedShifts));
+          } catch {
+            // ignore
+          }
+        }
+        setStaffShifts(loadedShifts);
       } catch (err) {
         console.error('Error initializing attendance data:', err);
       } finally {
@@ -169,6 +191,29 @@ export default function StaffAttendancePage() {
     }
 
     initData();
+
+    // Listen to real-time updates from /gardes or ZKTeco modal
+    const handleGardesUpdate = (e: Event) => {
+      const custom = e as CustomEvent<{ shifts?: Record<string, ShiftConfig> }>;
+      if (custom.detail?.shifts) {
+        setStaffShifts((prev) => ({ ...prev, ...custom.detail?.shifts }));
+      } else {
+        try {
+          const saved = localStorage.getItem('gm_staff_permanent_shifts_master_v1');
+          if (saved) setStaffShifts(JSON.parse(saved));
+        } catch {
+          // ignore
+        }
+      }
+    };
+
+    window.addEventListener('gm_gardes_planning_updated', handleGardesUpdate);
+    window.addEventListener('storage', handleGardesUpdate);
+
+    return () => {
+      window.removeEventListener('gm_gardes_planning_updated', handleGardesUpdate);
+      window.removeEventListener('storage', handleGardesUpdate);
+    };
   }, []);
 
   // Combined full staff roster (Excluding Vacataires - strictly permanent staff)
@@ -245,12 +290,19 @@ export default function StaffAttendancePage() {
   // Quick 1-click update for a staff member status
   const handleQuickStatusChange = (staff: StaffMember, newStatus: AttendanceStatus) => {
     const existing = dailyRecordMap[staff.id];
+    const currentDayOfWeek = new Date(selectedDate).getDay();
+    const shift = staffShifts[staff.id];
+    const isMorningGardeToday = shift && (shift.gardeEntryDays?.includes(currentDayOfWeek) || (shift.hasGardeEntry && currentDayOfWeek >= 1 && currentDayOfWeek <= 5));
+    const isEveningGardeToday = shift && (shift.gardeDays?.includes(currentDayOfWeek) || (shift.hasGarde && currentDayOfWeek >= 1 && currentDayOfWeek <= 5));
+
+    const expectedEntry = isMorningGardeToday ? (shift?.expectedEntry || '08:00') : (shift?.expectedEntry || (staff.category === 'ENSEIGNANT' ? '08:15' : '08:00'));
+    const expectedExit = currentDayOfWeek === 5 ? '12:20' : isEveningGardeToday ? (shift?.expectedExit || '16:00') : (shift?.expectedExit || '16:00');
 
     let lateMins = 0;
-    let checkIn = '08:00';
+    let checkIn = expectedEntry;
     if (newStatus === 'LATE') {
       lateMins = existing?.late_minutes && existing.late_minutes > 0 ? existing.late_minutes : 20;
-      checkIn = '08:20';
+      checkIn = '08:25';
     }
 
     const updatedRecord: StaffAttendanceRecord = {
@@ -258,13 +310,13 @@ export default function StaffAttendancePage() {
       staff_id: staff.id,
       date: selectedDate,
       status: newStatus,
-      check_in_time: newStatus === 'PRESENT' ? '08:00' : newStatus === 'LATE' ? checkIn : undefined,
-      expected_time: '08:00',
-      check_out_time: newStatus === 'PRESENT' || newStatus === 'LATE' ? '16:30' : undefined,
+      check_in_time: newStatus === 'PRESENT' ? expectedEntry : newStatus === 'LATE' ? checkIn : undefined,
+      expected_time: expectedEntry,
+      check_out_time: newStatus === 'PRESENT' || newStatus === 'LATE' ? expectedExit : undefined,
       late_minutes: lateMins,
       is_justified: existing?.is_justified || false,
       justification_reason: existing?.justification_reason || '',
-      notes: existing?.notes || '',
+      notes: existing?.notes || (isMorningGardeToday ? 'Garde Matin' : isEveningGardeToday ? 'Garde Soir' : ''),
     };
 
     const nextRecords = [
@@ -1432,6 +1484,12 @@ export default function StaffAttendancePage() {
                       const lateMins = rec?.late_minutes || 0;
                       const isJustified = rec?.is_justified || false;
 
+                      const currentDayOfWeek = new Date(selectedDate).getDay(); // 1=Lun, ..., 5=Ven
+                      const shift = staffShifts[staff.id];
+                      const hasMorningGardeToday = shift && (shift.gardeEntryDays?.includes(currentDayOfWeek) || (shift.hasGardeEntry && currentDayOfWeek >= 1 && currentDayOfWeek <= 5));
+                      const hasEveningGardeToday = shift && (shift.gardeDays?.includes(currentDayOfWeek) || (shift.hasGarde && currentDayOfWeek >= 1 && currentDayOfWeek <= 5));
+                      const hasLunchGardeToday = shift && (shift.gardeLunchDays?.includes(currentDayOfWeek) || (shift.hasGardeLunch && currentDayOfWeek >= 1 && currentDayOfWeek <= 4));
+
                       return (
                         <tr key={staff.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
                           {/* Matricule */}
@@ -1441,8 +1499,25 @@ export default function StaffAttendancePage() {
 
                           {/* Collaborateur */}
                           <td className="py-2.5 px-3 overflow-hidden">
-                            <div className="font-bold text-slate-900 dark:text-white text-xs truncate" title={`${staff.first_name} ${staff.last_name}`}>
-                              {staff.first_name} {staff.last_name}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-slate-900 dark:text-white text-xs truncate" title={`${staff.first_name} ${staff.last_name}`}>
+                                {staff.first_name} {staff.last_name}
+                              </span>
+                              {hasMorningGardeToday && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 border border-sky-300/60" title="Garde Matin (08:00)">
+                                  🌅 Matin
+                                </span>
+                              )}
+                              {hasLunchGardeToday && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-300/60" title="Garde Déjeuner">
+                                  🍽️ Midi
+                                </span>
+                              )}
+                              {hasEveningGardeToday && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-300/60" title={`Garde Soir (${currentDayOfWeek === 5 ? '12:20' : '16:00'})`}>
+                                  🌇 Soir
+                                </span>
+                              )}
                             </div>
                             <div className="text-[10px] text-slate-400 truncate font-normal">
                               {staff.phone || staff.email || 'Personnel GM'}

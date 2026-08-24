@@ -300,11 +300,18 @@ export default function GardesPlanningPage() {
     const f = floorsToSave || floors;
     const m = maternelleIdsToSave || maternelleTeacherIds;
 
-    // Cache locally immediately
+    // Cache locally immediately & broadcast update
     try {
       localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(s));
       localStorage.setItem(STORAGE_KEY_FLOORS, JSON.stringify(f));
       localStorage.setItem(STORAGE_KEY_MATERNELLE_IDS, JSON.stringify(m));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('gm_gardes_planning_updated', {
+            detail: { shifts: s, floors: f, maternelle_teacher_ids: m },
+          })
+        );
+      }
     } catch {
       // ignore
     }

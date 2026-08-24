@@ -33,12 +33,15 @@ import {
 
 export interface ShiftConfig {
   staffId: string;
-  expectedEntry: string; // e.g. "08:00" or "08:15" or "07:45"
-  expectedExit: string;  // e.g. "16:00", "16:15", "16:30"
+  expectedEntry: string; // e.g. "08:00" or "08:15"
+  expectedExit: string;  // e.g. "16:00", "12:20"
   hasGarde: boolean;     // true if guard duty sortie today
   gardeDays?: number[];  // [1, 2, ...] days of week for Garde Sortie
   hasGardeEntry?: boolean; // true if guard duty entrée today
   gardeEntryDays?: number[]; // [1, 2, ...] days of week for Garde Entrée
+  hasGardeLunch?: boolean;
+  gardeLunchDays?: number[]; // [1, 2, ...] days of week for Garde Déjeuner
+  assignedFloors?: Record<number, string>; // dayNum -> floorId
 }
 
 export interface ParsedPunch {
@@ -136,7 +139,64 @@ export function ZKTecoImportModal({
     loadTimetable();
   }, [isOpen]);
 
-  // 1. Initialize permanent master shifts & global settings from localStorage
+  // 1. Initialize permanent master shifts & global settings from Supabase & localStorage
+  const loadShiftsFromMasterAndDb = React.useCallback(async () => {
+    let loaded: Record<string, ShiftConfig> = {};
+
+    // A. Read from localStorage for instantaneous display
+    try {
+      const savedMaster = localStorage.getItem(STORAGE_KEY_MASTER);
+      if (savedMaster) {
+        loaded = JSON.parse(savedMaster);
+      }
+    } catch {
+      // ignore
+    }
+
+    // B. Fetch authoritative data from Supabase 'gardes_planning'
+    try {
+      const supabase = createClient();
+      const { data: dbPlanning } = await supabase
+        .from('gardes_planning')
+        .select('shifts')
+        .eq('id', 'master')
+        .maybeSingle();
+
+      if (dbPlanning?.shifts && typeof dbPlanning.shifts === 'object') {
+        loaded = { ...loaded, ...dbPlanning.shifts };
+        try {
+          localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(loaded));
+        } catch {
+          // ignore
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase gardes shifts fetch error:', err);
+    }
+
+    // C. Ensure all current staff members are included
+    const merged: Record<string, ShiftConfig> = {};
+    staffList.forEach((s) => {
+      if (loaded[s.id]) {
+        merged[s.id] = loaded[s.id];
+      } else {
+        merged[s.id] = {
+          staffId: s.id,
+          expectedEntry: '08:00',
+          expectedExit: defaultExit,
+          hasGarde: false,
+          hasGardeEntry: false,
+          hasGardeLunch: false,
+          gardeDays: [],
+          gardeEntryDays: [],
+          gardeLunchDays: [],
+        };
+      }
+    });
+
+    setStaffShifts(merged);
+  }, [staffList, defaultExit]);
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -154,46 +214,26 @@ export function ZKTecoImportModal({
       // ignore
     }
 
-    // Load permanent master shifts
-    try {
-      const savedMaster = localStorage.getItem(STORAGE_KEY_MASTER);
-      if (savedMaster) {
-        const parsed = JSON.parse(savedMaster);
-        // Ensure all current staff members are included
-        const merged: Record<string, ShiftConfig> = {};
-        staffList.forEach((s) => {
-          if (parsed[s.id]) {
-            merged[s.id] = parsed[s.id];
-          } else {
-            merged[s.id] = {
-              staffId: s.id,
-              expectedEntry: '08:00',
-              expectedExit: defaultExit,
-              hasGarde: false,
-              hasGardeEntry: false,
-            };
-          }
-        });
-        setStaffShifts(merged);
-        return;
-      }
-    } catch {
-      // ignore
-    }
+    loadShiftsFromMasterAndDb();
 
-    // Default fallback configuration for each staff (Default: 08:00 for all)
-    const initialMap: Record<string, ShiftConfig> = {};
-    staffList.forEach((s) => {
-      initialMap[s.id] = {
-        staffId: s.id,
-        expectedEntry: '08:00',
-        expectedExit: defaultExit,
-        hasGarde: false,
-        hasGardeEntry: false,
-      };
-    });
-    setStaffShifts(initialMap);
-  }, [isOpen, staffList, defaultEntry, defaultExit]);
+    // Listen to live updates from /gardes page or other tabs
+    const handleLiveUpdate = (e: Event) => {
+      const custom = e as CustomEvent<{ shifts?: Record<string, ShiftConfig> }>;
+      if (custom.detail?.shifts) {
+        setStaffShifts((prev) => ({ ...prev, ...custom.detail?.shifts }));
+      } else {
+        loadShiftsFromMasterAndDb();
+      }
+    };
+
+    window.addEventListener('gm_gardes_planning_updated', handleLiveUpdate);
+    window.addEventListener('storage', handleLiveUpdate);
+
+    return () => {
+      window.removeEventListener('gm_gardes_planning_updated', handleLiveUpdate);
+      window.removeEventListener('storage', handleLiveUpdate);
+    };
+  }, [isOpen, loadShiftsFromMasterAndDb]);
 
   // ⚡ Synchronize Gardes with Timetable Slots
   const handleSyncWithTimetable = async () => {
@@ -337,14 +377,33 @@ export function ZKTecoImportModal({
     }
   };
 
-  // Save permanent master shift configs and global settings
-  const handleSavePermanentPlanning = () => {
+  // Save permanent master shift configs and global settings to Supabase and localStorage
+  const persistShiftsToSupabaseAndLocal = async (nextShifts: Record<string, ShiftConfig>) => {
     try {
-      // Save per-staff master
-      localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(staffShifts));
-      // Save date-specific snapshot
-      localStorage.setItem(`gm_staff_shifts_${selectedDate}`, JSON.stringify(staffShifts));
-      // Save global default settings
+      localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(nextShifts));
+      localStorage.setItem(`gm_staff_shifts_${selectedDate}`, JSON.stringify(nextShifts));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('gm_gardes_planning_updated', {
+            detail: { shifts: nextShifts },
+          })
+        );
+      }
+
+      const supabase = createClient();
+      await supabase.from('gardes_planning').upsert({
+        id: 'master',
+        shifts: nextShifts,
+        updated_at: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.warn('Failed to save shifts to Supabase:', err);
+    }
+  };
+
+  const handleSavePermanentPlanning = async () => {
+    try {
+      await persistShiftsToSupabaseAndLocal(staffShifts);
       localStorage.setItem(
         STORAGE_KEY_GLOBAL,
         JSON.stringify({
@@ -358,11 +417,11 @@ export function ZKTecoImportModal({
       setIsSavedFeedback(true);
       setTimeout(() => setIsSavedFeedback(false), 3000);
     } catch (err) {
-      console.warn('Failed to save to localStorage:', err);
+      console.warn('Failed to save planning:', err);
     }
   };
 
-  // Update specific shift config in state and auto-persist
+  // Update specific shift config in state and auto-persist to Supabase & localStorage
   const updateStaffShift = (staffId: string, updates: Partial<ShiftConfig>) => {
     setStaffShifts((prev) => {
       const current = prev[staffId] || {
@@ -381,21 +440,15 @@ export function ZKTecoImportModal({
         updated.expectedEntry = '08:15';
       }
 
-      // If hasGarde (Sortie) is toggled on, default exit to garde time (e.g. 16:30)
+      // If hasGarde (Sortie) is toggled on, default exit to garde time (16:00)
       if (updates.hasGarde === true && !updates.expectedExit) {
-        updated.expectedExit = defaultGardeExit;
+        updated.expectedExit = defaultGardeExit || '16:00';
       } else if (updates.hasGarde === false && !updates.expectedExit) {
         updated.expectedExit = defaultExit;
       }
 
       const next = { ...prev, [staffId]: updated };
-      // Auto-persist immediately so user never loses their changes
-      try {
-        localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(next));
-        localStorage.setItem(`gm_staff_shifts_${selectedDate}`, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
+      persistShiftsToSupabaseAndLocal(next);
       return next;
     });
   };
@@ -410,12 +463,7 @@ export function ZKTecoImportModal({
           expectedEntry: time,
         };
       });
-      try {
-        localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(next));
-        localStorage.setItem(`gm_staff_shifts_${selectedDate}`, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
+      persistShiftsToSupabaseAndLocal(next);
       return next;
     });
   };
@@ -558,12 +606,32 @@ export function ZKTecoImportModal({
         hasGardeEntry: false,
       };
 
-      // Check recurring guard duty days
-      const isGardeEntryToday = shift.hasGardeEntry || (shift.gardeEntryDays && shift.gardeEntryDays.includes(currentDayOfWeek));
-      const isGardeExitToday = shift.hasGarde || (shift.gardeDays && shift.gardeDays.includes(currentDayOfWeek));
+      // Check recurring guard duty days from master planning
+      const isGardeEntryToday = Boolean(
+        shift.gardeEntryDays?.includes(currentDayOfWeek) ||
+        (shift.hasGardeEntry && currentDayOfWeek >= 1 && currentDayOfWeek <= 5)
+      );
+      const isGardeExitToday = Boolean(
+        shift.gardeDays?.includes(currentDayOfWeek) ||
+        (shift.hasGarde && currentDayOfWeek >= 1 && currentDayOfWeek <= 5)
+      );
+      const isGardeLunchToday = Boolean(
+        shift.gardeLunchDays?.includes(currentDayOfWeek) ||
+        (shift.hasGardeLunch && currentDayOfWeek >= 1 && currentDayOfWeek <= 4)
+      );
 
-      const expectedEntryTime = isGardeEntryToday ? (shift.expectedEntry || defaultGardeEntry) : (shift.expectedEntry || defaultEntry);
-      const expectedExitTime = isGardeExitToday ? (shift.expectedExit || defaultGardeExit) : (shift.expectedExit || defaultExit);
+      // Expected entry: if guard morning -> 08:00; else default
+      const expectedEntryTime = isGardeEntryToday
+        ? (shift.expectedEntry || '08:00')
+        : (shift.expectedEntry || (staff.category === 'ENSEIGNANT' ? '08:15' : defaultEntry));
+
+      // Expected exit: if Friday (day 5) -> 12:20; else Mon-Thu -> 16:00
+      let expectedExitTime = shift.expectedExit || defaultExit;
+      if (currentDayOfWeek === 5) {
+        expectedExitTime = '12:20';
+      } else if (isGardeExitToday) {
+        expectedExitTime = shift.expectedExit || defaultGardeExit || '16:00';
+      }
 
       if (times.length === 0) {
         // No punch -> ABSENT
@@ -616,12 +684,15 @@ export function ZKTecoImportModal({
         notes = `Retard de ${lateMins} min (Arrivée : ${firstPunch} vs Prévu : ${expectedEntryTime})`;
       }
       if (isGardeEntryToday) {
-        notes += (notes ? ' • ' : '') + `Garde Matin (${expectedEntryTime})`;
+        notes += (notes ? ' • ' : '') + `🌅 Garde Matin (${expectedEntryTime})`;
+      }
+      if (isGardeLunchToday) {
+        notes += (notes ? ' • ' : '') + `🍽️ Garde Déjeuner`;
       }
       if (isGardeExitToday && !gardeRespected) {
-        notes += (notes ? ' • ' : '') + `Départ anticipé (${lastPunch || '-'} vs fin garde ${expectedExitTime})`;
+        notes += (notes ? ' • ' : '') + `⚠️ Départ anticipé (${lastPunch || '-'} vs fin garde ${expectedExitTime})`;
       } else if (isGardeExitToday) {
-        notes += (notes ? ' • ' : '') + `Garde Soir respectée (${expectedExitTime})`;
+        notes += (notes ? ' • ' : '') + `🌇 Garde Soir respectée (${expectedExitTime})`;
       }
 
       return {
@@ -907,27 +978,43 @@ export function ZKTecoImportModal({
                       <h4 className="text-xs sm:text-sm font-black uppercase text-sky-950 dark:text-sky-200 tracking-wider">
                         Planning Permanent des Horaires &amp; Gardes
                       </h4>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-200/80 dark:bg-sky-900/80 text-sky-800 dark:text-sky-200 border border-sky-300/60 dark:border-sky-700 shrink-0">
-                        Mémorisé automatiquement
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300/60 shrink-0">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>Synchronisé avec Planning des Gardes</span>
                       </span>
                     </div>
                     <p className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl">
-                      Réglez les heures prévues (08:00 / 08:15) et activez la garde (16:30) pour les enseignants concernés. Toute modification est sauvegardée définitivement.
+                      Réglez les heures prévues (08:00 / 08:15) et activez la garde (16:00 / Ven 12:20) pour les enseignants. Toute modification dans le <strong>Planning des Gardes</strong> ou ici est synchronisée en temps réel.
                     </p>
                   </div>
 
                   {/* Right Column: Timetable Sync, Tolerance Select & Save Button */}
                   <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 shrink-0">
+                    {/* 🔄 Reload from Planning des Gardes */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        loadShiftsFromMasterAndDb();
+                        setIsSavedFeedback(true);
+                        setTimeout(() => setIsSavedFeedback(false), 2500);
+                      }}
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-2xl text-xs font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-sky-500 shadow-xs transition-all cursor-pointer whitespace-nowrap"
+                      title="Recharge immédiatement la dernière version du Planning des Gardes depuis Supabase"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 text-sky-500" />
+                      <span>Recharger Planning</span>
+                    </button>
+
                     {/* ⚡ Sync with Timetable Button */}
                     <button
                       type="button"
                       onClick={handleSyncWithTimetable}
                       disabled={isSyncingTimetable}
                       className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-md shadow-amber-500/25 transition-all cursor-pointer whitespace-nowrap"
-                      title="Analyse l'emploi du temps pour attribuer la Garde Matin (08:00) aux enseignants libres le matin (sans séance P1/P2), et la Garde Soir (16:30) à ceux libres l'après-midi"
+                      title="Analyse l'emploi du temps pour attribuer la Garde Matin (08:00) aux enseignants libres le matin, et la Garde Soir à ceux libres l'après-midi"
                     >
                       <Zap className={`w-4 h-4 ${isSyncingTimetable ? 'animate-spin' : ''}`} />
-                      <span>{isSyncingTimetable ? 'Analyse en cours...' : '⚡ Synchroniser Emploi du Temps'}</span>
+                      <span>{isSyncingTimetable ? 'Analyse en cours...' : '⚡ Sync Emploi du Temps'}</span>
                     </button>
 
                     <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs">
