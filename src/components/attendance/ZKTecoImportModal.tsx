@@ -625,12 +625,12 @@ export function ZKTecoImportModal({
         ? (shift.expectedEntry || '08:00')
         : (shift.expectedEntry || (staff.category === 'ENSEIGNANT' ? '08:15' : defaultEntry));
 
-      // Expected exit: if Friday (day 5) -> 12:20; else Mon-Thu with Garde -> 16:15; else -> 16:00
-      let expectedExitTime = shift.expectedExit || defaultExit;
+      // Expected exit: if Friday (day 5) -> 12:20; else Mon-Thu -> 16:15 pour tout le monde sans exception
+      let expectedExitTime = shift.expectedExit || defaultExit || '16:15';
       if (currentDayOfWeek === 5) {
         expectedExitTime = '12:20';
-      } else if (isGardeExitToday) {
-        expectedExitTime = shift.expectedExit || defaultGardeExit || '16:15';
+      } else {
+        expectedExitTime = shift.expectedExit || defaultExit || '16:15';
       }
 
       if (times.length === 0) {
@@ -984,7 +984,7 @@ export function ZKTecoImportModal({
                       </span>
                     </div>
                     <p className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl">
-                      Réglez les heures prévues (08:00 / 08:15) et activez la garde (16:00 / Ven 12:20) pour les enseignants. Toute modification dans le <strong>Planning des Gardes</strong> ou ici est synchronisée en temps réel.
+                      Réglez les heures prévues (08:00 / 08:15) et la sortie générale à <strong>16:15</strong> (Ven 12:20) pour tous les enseignants et le personnel. Toute modification dans le <strong>Planning des Gardes</strong> ou ici est synchronisée en temps réel.
                     </p>
                   </div>
 

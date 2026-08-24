@@ -296,7 +296,7 @@ export default function StaffAttendancePage() {
     const isEveningGardeToday = shift && (shift.gardeDays?.includes(currentDayOfWeek) || (shift.hasGarde && currentDayOfWeek >= 1 && currentDayOfWeek <= 5));
 
     const expectedEntry = isMorningGardeToday ? (shift?.expectedEntry || '08:00') : (shift?.expectedEntry || (staff.category === 'ENSEIGNANT' ? '08:15' : '08:00'));
-    const expectedExit = currentDayOfWeek === 5 ? '12:20' : isEveningGardeToday ? (shift?.expectedExit || '16:15') : (shift?.expectedExit || '16:00');
+    const expectedExit = currentDayOfWeek === 5 ? '12:20' : (shift?.expectedExit || '16:15');
 
     let lateMins = 0;
     let checkIn = expectedEntry;
