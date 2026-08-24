@@ -160,15 +160,49 @@ export function PaymentReceiptModal({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 font-medium text-slate-800">
+                {/* Tuition Fee Row */}
                 <tr>
                   <td className="py-3 px-3">
                     <div className="font-bold text-slate-900">Frais de Scolarité & Enseignement</div>
                     <div className="text-[10px] text-slate-500">Mode : {methodLabel} {record.reference ? `(Réf: ${record.reference})` : ''}</div>
                   </td>
                   <td className="py-3 px-3 text-center font-bold text-slate-700">{monthName}</td>
-                  <td className="py-3 px-3 text-right font-mono font-semibold">{record.amount.toLocaleString()} MAD</td>
-                  <td className="py-3 px-3 text-right font-mono font-black text-emerald-700 text-sm">{record.paid_amount.toLocaleString()} MAD</td>
+                  <td className="py-3 px-3 text-right font-mono font-semibold">
+                    {(record.tuition_amount !== undefined && record.tuition_amount !== null
+                      ? record.tuition_amount
+                      : record.has_transport && record.transport_amount
+                      ? record.amount - record.transport_amount
+                      : record.amount
+                    ).toLocaleString()} MAD
+                  </td>
+                  <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
+                    {(record.tuition_amount !== undefined && record.tuition_amount !== null
+                      ? record.tuition_amount
+                      : record.has_transport && record.transport_amount
+                      ? record.amount - record.transport_amount
+                      : record.amount
+                    ).toLocaleString()} MAD
+                  </td>
                 </tr>
+
+                {/* Transport Fee Row (if active) */}
+                {(record.has_transport || (record.transport_amount !== undefined && record.transport_amount > 0)) && (
+                  <tr className="bg-amber-50/40">
+                    <td className="py-2.5 px-3">
+                      <div className="font-bold text-amber-900 flex items-center gap-1.5">
+                        <span>🚌 Frais de Transport Scolaire</span>
+                      </div>
+                      <div className="text-[10px] text-amber-700">Abonnement mensuel transport</div>
+                    </td>
+                    <td className="py-2.5 px-3 text-center font-bold text-slate-700">{monthName}</td>
+                    <td className="py-2.5 px-3 text-right font-mono font-semibold text-amber-900">
+                      {(record.transport_amount || 400).toLocaleString()} MAD
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-900">
+                      {(record.transport_amount || 400).toLocaleString()} MAD
+                    </td>
+                  </tr>
+                )}
               </tbody>
               <tfoot>
                 <tr className="bg-slate-50 border-t-2 border-slate-300 font-bold">

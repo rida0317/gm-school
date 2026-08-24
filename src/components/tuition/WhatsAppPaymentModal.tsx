@@ -93,7 +93,26 @@ export function WhatsAppPaymentModal({
     return students
       .map((student) => {
         const payment = paymentMap[student.id];
-        const totalFee = payment?.amount || defaultMonthlyFee;
+
+        const baseTuition =
+          student.custom_tuition_fee !== undefined && student.custom_tuition_fee !== null && Number(student.custom_tuition_fee) > 0
+            ? Number(student.custom_tuition_fee)
+            : (() => {
+                const lvl = ((student.class?.level || '') + ' ' + (student.class?.name || '')).toUpperCase();
+                if (['TPS', 'PS', 'MS', 'GS'].some(k => lvl.includes(k))) return Number(settings.tuition_fee_maternelle || 1300);
+                if (['CP', 'CE1', 'CE2', 'CM1', 'CM2', '1AP', '2AP', '3AP', '4AP', '5AP', '6AP'].some(k => lvl.includes(k))) return Number(settings.tuition_fee_primaire || 1500);
+                if (['1AC', '2AC', '3AC'].some(k => lvl.includes(k))) return Number(settings.tuition_fee_college || 1800);
+                if (['TC', '1BAC', '2BAC'].some(k => lvl.includes(k))) return Number(settings.tuition_fee_lycee || 2200);
+                return Number(settings.tuition_fee_primaire || 1500);
+              })();
+
+        const transportFee = student.has_transport
+          ? student.transport_fee !== undefined && student.transport_fee !== null
+            ? Number(student.transport_fee)
+            : Number(settings.default_transport_fee || 400)
+          : 0;
+
+        const totalFee = payment?.amount !== undefined ? payment.amount : (baseTuition + transportFee);
         const paidAmount = payment?.paid_amount || 0;
         const dueAmount = totalFee - paidAmount;
         const isPaid = payment?.status === 'PAID' || (paidAmount >= totalFee && totalFee > 0);
@@ -101,6 +120,8 @@ export function WhatsAppPaymentModal({
         return {
           student,
           payment,
+          baseTuition,
+          transportFee,
           totalFee,
           paidAmount,
           dueAmount,

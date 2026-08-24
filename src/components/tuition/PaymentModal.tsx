@@ -13,7 +13,9 @@ import {
   FileText,
   Printer,
   CheckCircle2,
-  DollarSign
+  DollarSign,
+  Bus,
+  Coins
 } from 'lucide-react';
 
 export interface TuitionPaymentRecord {
@@ -24,6 +26,9 @@ export interface TuitionPaymentRecord {
   month: string;
   amount: number;
   paid_amount: number;
+  tuition_amount?: number;
+  transport_amount?: number;
+  has_transport?: boolean;
   status: 'PAID' | 'PENDING' | 'OVERDUE' | 'PARTIAL';
   payment_method?: 'CASH' | 'CHECK' | 'TRANSFER' | 'CARD';
   payment_date?: string;
@@ -57,7 +62,34 @@ export function PaymentModal({
   const { dir } = useI18n();
   const { settings } = useSettings();
 
-  const initialAmount = existingRecord?.amount || defaultMonthlyFee;
+  // 1. Calculate base tuition fee (custom or by cycle)
+  const baseTuitionFee = React.useMemo(() => {
+    if (existingRecord?.tuition_amount !== undefined && existingRecord.tuition_amount !== null) {
+      return Number(existingRecord.tuition_amount);
+    }
+    if (student.custom_tuition_fee !== undefined && student.custom_tuition_fee !== null && Number(student.custom_tuition_fee) > 0) {
+      return Number(student.custom_tuition_fee);
+    }
+    const lvl = ((student.class?.level || '') + ' ' + (student.class?.name || '')).toUpperCase();
+    if (['TPS', 'PS', 'MS', 'GS'].some(k => lvl.includes(k))) return Number(settings.tuition_fee_maternelle || 1300);
+    if (['CP', 'CE1', 'CE2', 'CM1', 'CM2', '1AP', '2AP', '3AP', '4AP', '5AP', '6AP'].some(k => lvl.includes(k))) return Number(settings.tuition_fee_primaire || 1500);
+    if (['1AC', '2AC', '3AC'].some(k => lvl.includes(k))) return Number(settings.tuition_fee_college || 1800);
+    if (['TC', '1BAC', '2BAC'].some(k => lvl.includes(k))) return Number(settings.tuition_fee_lycee || 2200);
+    return Number(settings.tuition_fee_primaire || 1500);
+  }, [student, settings, existingRecord]);
+
+  // 2. Calculate transport fee
+  const hasTransport = existingRecord?.has_transport !== undefined ? Boolean(existingRecord.has_transport) : Boolean(student.has_transport);
+  const baseTransportFee = hasTransport
+    ? existingRecord?.transport_amount !== undefined
+      ? Number(existingRecord.transport_amount)
+      : student.transport_fee !== undefined && student.transport_fee !== null
+      ? Number(student.transport_fee)
+      : Number(settings.default_transport_fee || 400)
+    : 0;
+
+  const defaultTotalDue = baseTuitionFee + baseTransportFee;
+  const initialAmount = existingRecord?.amount || defaultTotalDue;
   const initialPaid = existingRecord?.paid_amount !== undefined ? existingRecord.paid_amount : initialAmount;
 
   const [amount, setAmount] = useState<number>(initialAmount);
@@ -92,6 +124,9 @@ export function PaymentModal({
       month: monthKey,
       amount: Number(amount),
       paid_amount: Number(paidAmount),
+      tuition_amount: baseTuitionFee,
+      transport_amount: baseTransportFee,
+      has_transport: hasTransport,
       status: calculatedStatus,
       payment_method: paymentMethod,
       payment_date: paymentDate,
@@ -122,7 +157,7 @@ export function PaymentModal({
             </div>
             <div>
               <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
-                {dir === 'rtl' ? 'تسجيل أداء الواجب الشهري' : 'Enregistrer un Règlement'}
+                {dir === 'rtl' ? 'تسجيل أداء الواجب الشهري والنقل' : 'Enregistrer un Règlement'}
               </h3>
               <p className="text-xs text-slate-400 font-medium">
                 {monthName} &bull; {academicYear}
@@ -149,8 +184,16 @@ export function PaymentModal({
               <div className="text-sm font-bold text-slate-900 dark:text-white">
                 {student.first_name} {student.last_name}
               </div>
-              <div className="text-xs text-slate-400">
-                {student.student_code} &bull; <span className="font-semibold text-sky-600 dark:text-sky-400">{student.class?.name || 'Sans Classe'}</span>
+              <div className="text-xs text-slate-400 flex items-center gap-1.5 flex-wrap">
+                <span>{student.student_code}</span>
+                <span>&bull;</span>
+                <span className="font-semibold text-sky-600 dark:text-sky-400">{student.class?.name || 'Sans Classe'}</span>
+                {hasTransport && (
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-extrabold text-[10px]">
+                    <Bus className="w-3 h-3" />
+                    <span>Transport</span>
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -160,11 +203,25 @@ export function PaymentModal({
           </div>
         </div>
 
+        {/* Breakdown Summary Banner */}
+        <div className="p-3 rounded-xl bg-slate-100/80 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 grid grid-cols-2 gap-2 text-xs">
+          <div className="space-y-0.5">
+            <span className="text-slate-500 text-[11px] block">{dir === 'rtl' ? 'واجب التمدرس (Scolarité) :' : 'Frais de Scolarité :'}</span>
+            <span className="font-mono font-bold text-slate-900 dark:text-white">{baseTuitionFee.toLocaleString()} MAD</span>
+          </div>
+          <div className="space-y-0.5 text-right sm:text-left">
+            <span className="text-slate-500 text-[11px] block">{dir === 'rtl' ? 'النقل المدرسي (Transport) :' : 'Transport Scolaire :'}</span>
+            <span className="font-mono font-bold text-amber-700 dark:text-amber-400">
+              {hasTransport ? `${baseTransportFee.toLocaleString()} MAD` : dir === 'rtl' ? 'غير مفعل' : 'Inactif (0 MAD)'}
+            </span>
+          </div>
+        </div>
+
         {/* Amounts */}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-              {dir === 'rtl' ? 'الواجب الشهري المستحق (MAD)' : 'Frais de Scolarité (MAD)'}
+              {dir === 'rtl' ? 'إجمالي المستحق (MAD)' : 'Total Dû Mensuel (MAD)'}
             </label>
             <div className="relative">
               <input

@@ -126,6 +126,9 @@ export interface Student {
   status: string;
   guardian_name?: string;
   guardian_phone?: string;
+  custom_tuition_fee?: number;
+  has_transport?: boolean;
+  transport_fee?: number;
   class?: ClassEntity;
   created_at: string;
 }

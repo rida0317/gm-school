@@ -20,6 +20,11 @@ export interface SchoolSettings {
   whatsapp_late_template_fr?: string;
   whatsapp_payment_template_ar?: string;
   whatsapp_payment_template_fr?: string;
+  tuition_fee_maternelle?: number;
+  tuition_fee_primaire?: number;
+  tuition_fee_college?: number;
+  tuition_fee_lycee?: number;
+  default_transport_fee?: number;
 }
 
 export const defaultSettings: SchoolSettings = {
@@ -39,6 +44,11 @@ export const defaultSettings: SchoolSettings = {
   whatsapp_late_template_fr: '',
   whatsapp_payment_template_ar: '',
   whatsapp_payment_template_fr: '',
+  tuition_fee_maternelle: 1300,
+  tuition_fee_primaire: 1500,
+  tuition_fee_college: 1800,
+  tuition_fee_lycee: 2200,
+  default_transport_fee: 400,
 };
 
 interface SettingsContextType {

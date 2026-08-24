@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useI18n } from '@/lib/i18n';
+import { useSettings } from '@/lib/settings';
 import { createClient } from '@/lib/supabase/client';
 import { Student, ClassEntity } from '@/types/database';
 import { useConfirm, useNotify } from '@/lib/modal-service';
@@ -17,11 +18,15 @@ import {
   Trash2,
   Edit2,
   X,
-  UserCheck
+  UserCheck,
+  Bus,
+  Coins,
+  CreditCard
 } from 'lucide-react';
 
 export default function StudentsPage() {
   const { t, dir } = useI18n();
+  const { settings } = useSettings();
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<ClassEntity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,6 +49,9 @@ export default function StudentsPage() {
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'GRADUATED',
     guardian_name: '',
     guardian_phone: '',
+    custom_tuition_fee: '' as string | number,
+    has_transport: false,
+    transport_fee: '' as string | number,
   });
 
   const confirm = useConfirm();
@@ -91,6 +99,9 @@ export default function StudentsPage() {
       status: 'ACTIVE',
       guardian_name: '',
       guardian_phone: '',
+      custom_tuition_fee: '',
+      has_transport: false,
+      transport_fee: '',
     });
     setShowModal(true);
   };
@@ -110,6 +121,9 @@ export default function StudentsPage() {
       status: student.status as 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'GRADUATED' || 'ACTIVE',
       guardian_name: student.guardian_name || '',
       guardian_phone: student.guardian_phone || '',
+      custom_tuition_fee: student.custom_tuition_fee !== undefined && student.custom_tuition_fee !== null ? student.custom_tuition_fee : '',
+      has_transport: Boolean(student.has_transport),
+      transport_fee: student.transport_fee !== undefined && student.transport_fee !== null ? student.transport_fee : '',
     });
     setShowModal(true);
   };
@@ -118,6 +132,9 @@ export default function StudentsPage() {
     e.preventDefault();
     try {
       const supabase = createClient();
+
+      const customTuitionVal = formData.custom_tuition_fee !== '' ? Number(formData.custom_tuition_fee) : null;
+      const transportFeeVal = formData.has_transport && formData.transport_fee !== '' ? Number(formData.transport_fee) : null;
 
       if (editingStudent) {
         // UPDATE existing student
@@ -136,8 +153,13 @@ export default function StudentsPage() {
             status: formData.status,
             guardian_name: formData.guardian_name.trim() || null,
             guardian_phone: formData.guardian_phone.trim() || null,
+            custom_tuition_fee: customTuitionVal,
+            has_transport: formData.has_transport,
+            transport_fee: transportFeeVal,
           })
           .eq('id', editingStudent.id);
+
+        if (error) throw error;
 
         logAuditEvent({
           action: 'STUDENT_UPDATED',
@@ -171,6 +193,9 @@ export default function StudentsPage() {
             status: formData.status,
             guardian_name: formData.guardian_name.trim() || null,
             guardian_phone: formData.guardian_phone.trim() || null,
+            custom_tuition_fee: customTuitionVal,
+            has_transport: formData.has_transport,
+            transport_fee: transportFeeVal,
           },
         ]);
 
@@ -585,9 +610,83 @@ export default function StudentsPage() {
                   </div>
                 </div>
 
+                {/* Financial & Transport Section */}
+                <div className="p-3.5 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 space-y-3">
+                  <div className="flex items-center gap-2 text-xs font-bold text-amber-800 dark:text-amber-300">
+                    <Coins className="w-4 h-4 text-amber-600" />
+                    <span>{dir === 'rtl' ? 'الواجب الشهري والنقل المدرسي (Frais & Transport)' : 'Frais de Scolarité & Transport'}</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Custom Tuition Fee Override */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        {dir === 'rtl' ? 'واجب شهري مخصص (MAD)' : 'Frais Scolarité Spécifique (MAD)'}
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.custom_tuition_fee}
+                        onChange={(e) => setFormData({ ...formData, custom_tuition_fee: e.target.value })}
+                        placeholder={dir === 'rtl' ? 'اتركه فارغاً للاعتماد على تعريفة السلك' : 'Vide = Tarif cycle par défaut'}
+                        className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs"
+                      />
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">
+                        {dir === 'rtl' ? 'لتطبيق تخفيض الأخوة أو منحة دراسية' : 'Pour remise fratrie ou tarif spécial'}
+                      </span>
+                    </div>
+
+                    {/* Transport Scolaire Toggle & Amount */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                          <Bus className="w-3.5 h-3.5 text-amber-600" />
+                          <span>{dir === 'rtl' ? 'النقل المدرسي' : 'Transport Scolaire'}</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextState = !formData.has_transport;
+                            setFormData({
+                              ...formData,
+                              has_transport: nextState,
+                              transport_fee: nextState && !formData.transport_fee ? (settings.default_transport_fee || 400) : formData.transport_fee,
+                            });
+                          }}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            formData.has_transport ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                              formData.has_transport ? (dir === 'rtl' ? '-translate-x-4' : 'translate-x-4') : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {formData.has_transport ? (
+                        <div className="relative animate-in fade-in">
+                          <input
+                            type="number"
+                            value={formData.transport_fee}
+                            onChange={(e) => setFormData({ ...formData, transport_fee: e.target.value })}
+                            placeholder={String(settings.default_transport_fee || 400)}
+                            className="w-full h-10 px-3 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 text-xs font-black text-amber-700 dark:text-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-slate-400">MAD/mois</span>
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-slate-400 italic py-2">
+                          {dir === 'rtl' ? 'التلميذ غير مستفيد من النقل المدرسي' : 'Non inscrit au transport scolaire'}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 <div className="w-full min-w-0">
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 truncate">
-                    t('address')
+                    {t('address')}
                   </label>
                   <input
                     type="text"

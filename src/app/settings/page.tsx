@@ -19,7 +19,9 @@ import {
   Upload,
   Image as ImageIcon,
   Camera,
-  Trash2
+  Trash2,
+  Bus,
+  Coins
 } from 'lucide-react';
 import { DEFAULT_WHATSAPP_TEMPLATES } from '@/lib/whatsapp';
 
@@ -44,6 +46,11 @@ export default function SettingsPage() {
     whatsapp_late_template_fr: settings?.whatsapp_late_template_fr || DEFAULT_WHATSAPP_TEMPLATES.fr_late,
     whatsapp_payment_template_ar: settings?.whatsapp_payment_template_ar || DEFAULT_WHATSAPP_TEMPLATES.ar_payment,
     whatsapp_payment_template_fr: settings?.whatsapp_payment_template_fr || DEFAULT_WHATSAPP_TEMPLATES.fr_payment,
+    tuition_fee_maternelle: settings?.tuition_fee_maternelle !== undefined ? settings.tuition_fee_maternelle : 1300,
+    tuition_fee_primaire: settings?.tuition_fee_primaire !== undefined ? settings.tuition_fee_primaire : 1500,
+    tuition_fee_college: settings?.tuition_fee_college !== undefined ? settings.tuition_fee_college : 1800,
+    tuition_fee_lycee: settings?.tuition_fee_lycee !== undefined ? settings.tuition_fee_lycee : 2200,
+    default_transport_fee: settings?.default_transport_fee !== undefined ? settings.default_transport_fee : 400,
   });
 
   const [whatsappTab, setWhatsappTab] = useState<'ar' | 'fr'>('ar');
@@ -150,6 +157,11 @@ export default function SettingsPage() {
         whatsapp_late_template_fr: settings.whatsapp_late_template_fr || DEFAULT_WHATSAPP_TEMPLATES.fr_late,
         whatsapp_payment_template_ar: settings.whatsapp_payment_template_ar || DEFAULT_WHATSAPP_TEMPLATES.ar_payment,
         whatsapp_payment_template_fr: settings.whatsapp_payment_template_fr || DEFAULT_WHATSAPP_TEMPLATES.fr_payment,
+        tuition_fee_maternelle: settings.tuition_fee_maternelle !== undefined ? settings.tuition_fee_maternelle : 1300,
+        tuition_fee_primaire: settings.tuition_fee_primaire !== undefined ? settings.tuition_fee_primaire : 1500,
+        tuition_fee_college: settings.tuition_fee_college !== undefined ? settings.tuition_fee_college : 1800,
+        tuition_fee_lycee: settings.tuition_fee_lycee !== undefined ? settings.tuition_fee_lycee : 2200,
+        default_transport_fee: settings.default_transport_fee !== undefined ? settings.default_transport_fee : 400,
       });
     }
   }, [settings]);
@@ -190,6 +202,11 @@ export default function SettingsPage() {
         whatsapp_late_template_fr: formState.whatsapp_late_template_fr.trim(),
         whatsapp_payment_template_ar: formState.whatsapp_payment_template_ar.trim(),
         whatsapp_payment_template_fr: formState.whatsapp_payment_template_fr.trim(),
+        tuition_fee_maternelle: Number(formState.tuition_fee_maternelle),
+        tuition_fee_primaire: Number(formState.tuition_fee_primaire),
+        tuition_fee_college: Number(formState.tuition_fee_college),
+        tuition_fee_lycee: Number(formState.tuition_fee_lycee),
+        default_transport_fee: Number(formState.default_transport_fee),
       });
 
       if (!success) {
@@ -461,6 +478,130 @@ export default function SettingsPage() {
                   placeholder="MAD (Dirham Marocain)"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
+              </div>
+            </div>
+          </div>
+
+          {/* Grille Tarifaire par Cycle & Transport Scolaire Card */}
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                  <Coins className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    {dir === 'rtl' ? 'التعريفة الشهرية حسب السلك والنقل المدرسي' : 'Grille Tarifaire par Cycle & Transport Scolaire'}
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    {dir === 'rtl'
+                      ? 'الواجب الشهري الأساسي لكل سلك دراسي وتعريفة النقل المدرسي القياسية (يمكن تخصيصها لكل تلميذ).'
+                      : 'Tarifs mensuels standards par cycle et transport (personnalisables par élève).'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Cycle Tuition Rates Grid */}
+            <div className="space-y-3">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                {dir === 'rtl' ? 'واجبات التمدرس الشهرية حسب السلك (MAD)' : 'Frais de Scolarité Mensuels par Cycle (MAD)'}
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* 1. Maternelle */}
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-800 dark:text-white">
+                    🎨 {dir === 'rtl' ? 'التعليم الأولي (Maternelle)' : 'Cycle Maternelle'}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={formState.tuition_fee_maternelle}
+                      onChange={(e) => setFormState({ ...formState, tuition_fee_maternelle: Number(e.target.value) })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">MAD</span>
+                  </div>
+                </div>
+
+                {/* 2. Primaire */}
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-800 dark:text-white">
+                    📚 {dir === 'rtl' ? 'التعليم الابتدائي (Primaire)' : 'Cycle Primaire'}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={formState.tuition_fee_primaire}
+                      onChange={(e) => setFormState({ ...formState, tuition_fee_primaire: Number(e.target.value) })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">MAD</span>
+                  </div>
+                </div>
+
+                {/* 3. Collège */}
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-800 dark:text-white">
+                    🔬 {dir === 'rtl' ? 'التعليم الإعدادي (Collège)' : 'Cycle Collège'}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={formState.tuition_fee_college}
+                      onChange={(e) => setFormState({ ...formState, tuition_fee_college: Number(e.target.value) })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">MAD</span>
+                  </div>
+                </div>
+
+                {/* 4. Lycée */}
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-800 dark:text-white">
+                    🎓 {dir === 'rtl' ? 'التعليم الثانوي (Lycée)' : 'Cycle Lycée'}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={formState.tuition_fee_lycee}
+                      onChange={(e) => setFormState({ ...formState, tuition_fee_lycee: Number(e.target.value) })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">MAD</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Transport Scolaire Standard Rate */}
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-transparent border border-amber-200/70 dark:border-amber-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-400 shrink-0">
+                    <Bus className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                      {dir === 'rtl' ? 'التعريفة الشهرية القياسية للنقل المدرسي' : 'Tarif Mensuel Standard du Transport Scolaire'}
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {dir === 'rtl'
+                        ? 'المبلغ الافتراضي الذي يُطبق عند تفعيل خدمة النقل للتلميذ.'
+                        : 'Montant appliqué par défaut lorsqu\'un élève est inscrit au transport scolaire.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="w-full sm:w-48 relative shrink-0">
+                  <input
+                    type="number"
+                    value={formState.default_transport_fee}
+                    onChange={(e) => setFormState({ ...formState, default_transport_fee: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 text-sm font-black text-amber-700 dark:text-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">MAD</span>
+                </div>
               </div>
             </div>
           </div>

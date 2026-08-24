@@ -35,7 +35,9 @@ import {
   CheckCheck,
   TrendingUp,
   Percent,
-  Plus
+  Plus,
+  Bus,
+  Coins
 } from 'lucide-react';
 
 const MONTHS_CONFIG = [
@@ -77,6 +79,7 @@ export default function TuitionPage() {
   const [selectedCycle, setSelectedCycle] = useState<string>('ALL');
   const [selectedClassId, setSelectedClassId] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PAID' | 'UNPAID'>('ALL');
+  const [transportFilter, setTransportFilter] = useState<'ALL' | 'WITH_TRANSPORT' | 'NO_TRANSPORT'>('ALL');
 
   // Modals state
   const [paymentModalStudent, setPaymentModalStudent] = useState<Student | null>(null);
@@ -93,6 +96,43 @@ export default function TuitionPage() {
     locale === 'ar'
       ? settings.school_name_ar || 'مجموعة مدارس الأجيال الصاعدة'
       : settings.school_name || 'GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES';
+
+  // Helper to compute fee breakdown for any student
+  const getStudentFeeBreakdown = (student: Student) => {
+    const customTuition =
+      student.custom_tuition_fee !== undefined && student.custom_tuition_fee !== null && Number(student.custom_tuition_fee) > 0
+        ? Number(student.custom_tuition_fee)
+        : null;
+
+    const cycleTuition = (() => {
+      const lvl = ((student.class?.level || '') + ' ' + (student.class?.name || '')).toUpperCase();
+      if (['TPS', 'PS', 'MS', 'GS'].some((k) => lvl.includes(k))) return Number(settings.tuition_fee_maternelle || 1300);
+      if (['CP', 'CE1', 'CE2', 'CM1', 'CM2', '1AP', '2AP', '3AP', '4AP', '5AP', '6AP'].some((k) => lvl.includes(k))) return Number(settings.tuition_fee_primaire || 1500);
+      if (['1AC', '2AC', '3AC'].some((k) => lvl.includes(k))) return Number(settings.tuition_fee_college || 1800);
+      if (['TC', '1BAC', '2BAC'].some((k) => lvl.includes(k))) return Number(settings.tuition_fee_lycee || 2200);
+      return Number(settings.tuition_fee_primaire || 1500);
+    })();
+
+    const baseTuition = customTuition !== null ? customTuition : cycleTuition;
+    const isCustom = customTuition !== null;
+
+    const hasTransport = Boolean(student.has_transport);
+    const transportFee = hasTransport
+      ? student.transport_fee !== undefined && student.transport_fee !== null
+        ? Number(student.transport_fee)
+        : Number(settings.default_transport_fee || 400)
+      : 0;
+
+    const totalMonthlyDue = baseTuition + transportFee;
+
+    return {
+      baseTuition,
+      isCustom,
+      hasTransport,
+      transportFee,
+      totalMonthlyDue,
+    };
+  };
 
   // Load students, classes and payment records
   const loadData = async () => {
@@ -142,10 +182,10 @@ export default function TuitionPage() {
       if (selectedCycle !== 'ALL') {
         const lvl = ((student.class?.level || '') + ' ' + (student.class?.name || '')).toUpperCase();
         let studentCycle = 'PRIMAIRE';
-        if (['TPS', 'PS', 'MS', 'GS'].some(k => lvl.includes(k))) studentCycle = 'MATERNELLE';
-        else if (['CP', 'CE1', 'CE2', 'CM1', 'CM2', '1AP', '2AP', '3AP', '4AP', '5AP', '6AP'].some(k => lvl.includes(k))) studentCycle = 'PRIMAIRE';
-        else if (['1AC', '2AC', '3AC'].some(k => lvl.includes(k))) studentCycle = 'COLLEGE';
-        else if (['TC', '1BAC', '2BAC'].some(k => lvl.includes(k))) studentCycle = 'LYCEE';
+        if (['TPS', 'PS', 'MS', 'GS'].some((k) => lvl.includes(k))) studentCycle = 'MATERNELLE';
+        else if (['CP', 'CE1', 'CE2', 'CM1', 'CM2', '1AP', '2AP', '3AP', '4AP', '5AP', '6AP'].some((k) => lvl.includes(k))) studentCycle = 'PRIMAIRE';
+        else if (['1AC', '2AC', '3AC'].some((k) => lvl.includes(k))) studentCycle = 'COLLEGE';
+        else if (['TC', '1BAC', '2BAC'].some((k) => lvl.includes(k))) studentCycle = 'LYCEE';
 
         if (studentCycle !== selectedCycle) return false;
       }
@@ -153,9 +193,15 @@ export default function TuitionPage() {
       // Class filter
       if (selectedClassId !== 'ALL' && student.class_id !== selectedClassId) return false;
 
+      // Transport filter
+      if (transportFilter === 'WITH_TRANSPORT' && !student.has_transport) return false;
+      if (transportFilter === 'NO_TRANSPORT' && student.has_transport) return false;
+
       // Status filter
+      const feeInfo = getStudentFeeBreakdown(student);
       const payment = currentMonthPaymentMap[student.id];
-      const isPaid = payment?.status === 'PAID' || (payment && payment.paid_amount >= payment.amount && payment.amount > 0);
+      const totalFee = payment?.amount !== undefined ? payment.amount : feeInfo.totalMonthlyDue;
+      const isPaid = payment?.status === 'PAID' || (payment && payment.paid_amount >= totalFee && totalFee > 0);
       if (statusFilter === 'PAID' && !isPaid) return false;
       if (statusFilter === 'UNPAID' && isPaid) return false;
 
@@ -171,7 +217,7 @@ export default function TuitionPage() {
 
       return true;
     });
-  }, [students, currentMonthPaymentMap, selectedCycle, selectedClassId, statusFilter, searchQuery]);
+  }, [students, currentMonthPaymentMap, selectedCycle, selectedClassId, statusFilter, transportFilter, searchQuery, settings]);
 
   // Financial KPIs for the selected month
   const financialStats = useMemo(() => {
@@ -180,10 +226,14 @@ export default function TuitionPage() {
     let totalCollected = 0;
     let countPaid = 0;
     let countUnpaid = 0;
+    let totalTransportCount = 0;
 
     students.forEach((student) => {
+      if (student.has_transport) totalTransportCount++;
+
+      const feeInfo = getStudentFeeBreakdown(student);
       const payment = currentMonthPaymentMap[student.id];
-      const fee = payment?.amount || defaultMonthlyFee;
+      const fee = payment?.amount !== undefined ? payment.amount : feeInfo.totalMonthlyDue;
       const paid = payment?.paid_amount || 0;
 
       totalForecast += fee;
@@ -207,8 +257,9 @@ export default function TuitionPage() {
       recoveryRate,
       countPaid,
       countUnpaid,
+      totalTransportCount,
     };
-  }, [students, currentMonthPaymentMap, defaultMonthlyFee]);
+  }, [students, currentMonthPaymentMap, settings]);
 
   // Handle saving payment
   const handleSavePayment = async (record: TuitionPaymentRecord, printImmediately = false) => {
@@ -221,6 +272,9 @@ export default function TuitionPage() {
         month: record.month,
         amount: record.amount,
         paid_amount: record.paid_amount,
+        tuition_amount: record.tuition_amount || null,
+        transport_amount: record.transport_amount || 0,
+        has_transport: Boolean(record.has_transport),
         status: record.status,
         payment_method: record.payment_method || 'CASH',
         payment_date: record.payment_date || new Date().toISOString().split('T')[0],
@@ -500,6 +554,17 @@ export default function TuitionPage() {
               ))}
             </select>
 
+            {/* Transport Filter */}
+            <select
+              value={transportFilter}
+              onChange={(e) => setTransportFilter(e.target.value as any)}
+              className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+            >
+              <option value="ALL">{dir === 'rtl' ? '🚌 كل التلاميذ' : '🚌 Tous (Transport + Normal)'}</option>
+              <option value="WITH_TRANSPORT">{dir === 'rtl' ? '🚌 بالنقل المدرسي' : '🚌 Avec Transport'}</option>
+              <option value="NO_TRANSPORT">{dir === 'rtl' ? 'بدون نقل' : 'Sans Transport'}</option>
+            </select>
+
             {/* Status */}
             <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl gap-0.5">
               {[
@@ -533,7 +598,7 @@ export default function TuitionPage() {
                   <th className="py-3.5 px-4 w-36 whitespace-nowrap">Matricule</th>
                   <th className="py-3.5 px-4 min-w-[220px]">Élève & Tuteur</th>
                   <th className="py-3.5 px-4 w-40 whitespace-nowrap">Classe & Niveau</th>
-                  <th className="py-3.5 px-4 min-w-[180px]">Montant & Statut</th>
+                  <th className="py-3.5 px-4 min-w-[200px]">Montant & Statut</th>
                   <th className="py-3.5 px-4 min-w-[200px]">Règlement & Reçu</th>
                   <th className="py-3.5 px-4 min-w-[190px] text-right whitespace-nowrap">Actions</th>
                 </tr>
@@ -548,8 +613,9 @@ export default function TuitionPage() {
                   </tr>
                 ) : (
                   filteredStudents.map((student) => {
+                    const feeInfo = getStudentFeeBreakdown(student);
                     const payment = currentMonthPaymentMap[student.id];
-                    const totalFee = payment?.amount || defaultMonthlyFee;
+                    const totalFee = payment?.amount !== undefined ? payment.amount : feeInfo.totalMonthlyDue;
                     const paidAmount = payment?.paid_amount || 0;
                     const dueAmount = totalFee - paidAmount;
                     const isPaid = payment?.status === 'PAID' || (paidAmount >= totalFee && totalFee > 0);
@@ -599,7 +665,7 @@ export default function TuitionPage() {
                           </div>
                         </td>
 
-                        {/* 4. Montant & Statut */}
+                        {/* 4. Montant & Statut with Breakdown */}
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
                             {isPaid ? (
@@ -625,10 +691,25 @@ export default function TuitionPage() {
                               <span className="text-emerald-600 font-bold">{paidAmount.toLocaleString()} MAD</span>
                             ) : isPartial ? (
                               <span>
-                                <span className="text-emerald-600">{paidAmount.toLocaleString()}</span> / <span className="text-slate-800 dark:text-slate-200">{totalFee.toLocaleString()} MAD</span>
+                                <span className="text-emerald-600 font-bold">{paidAmount.toLocaleString()}</span> / <span className="text-slate-800 dark:text-slate-200">{totalFee.toLocaleString()} MAD</span>
                               </span>
                             ) : (
                               <span className="text-rose-600 font-bold">{totalFee.toLocaleString()} MAD</span>
+                            )}
+                          </div>
+
+                          {/* Detail Badges (Custom discount & Transport) */}
+                          <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                            {feeInfo.isCustom && (
+                              <span className="inline-flex items-center text-[10px] text-amber-800 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-950/50 px-1.5 py-0.2 rounded font-bold">
+                                ⭐ {dir === 'rtl' ? 'واجب خاص' : 'Spécial'} ({feeInfo.baseTuition} DH)
+                              </span>
+                            )}
+                            {feeInfo.hasTransport && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] text-blue-800 dark:text-blue-300 bg-blue-100/70 dark:bg-blue-950/50 px-1.5 py-0.2 rounded font-extrabold">
+                                <Bus className="w-2.5 h-2.5" />
+                                <span>+{feeInfo.transportFee} DH</span>
+                              </span>
                             )}
                           </div>
                         </td>
