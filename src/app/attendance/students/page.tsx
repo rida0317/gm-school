@@ -1397,29 +1397,21 @@ export default function StudentAttendancePage() {
         </div>
 
         {/* ------------------------------------------------------------- */}
-        {/* TAB 1: POINTAGE QUOTIDIEN ÉLÈVES (Fixed Responsive Grid)     */}
+        {/* TAB 1: POINTAGE QUOTIDIEN ÉLÈVES (Fluid Responsive Table)    */}
         {/* ------------------------------------------------------------- */}
         {activeTab === 'pointage' && (
           <div className="space-y-3 animate-in fade-in duration-300 print:hidden">
-            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs table-fixed min-w-[760px]">
-                  <colgroup>
-                    <col className="w-[11%]" />
-                    <col className="w-[24%]" />
-                    <col className="w-[20%]" />
-                    <col className="w-[27%]" />
-                    <col className="w-[10%]" />
-                    <col className="w-[8%]" />
-                  </colgroup>
-                  <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-bold uppercase tracking-wider">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+              <div className="overflow-x-auto w-full">
+                <table className="w-full text-left text-xs divide-y divide-slate-200 dark:divide-slate-800">
+                  <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 font-bold uppercase tracking-wider text-[11px]">
                     <tr>
-                      <th className="py-3 px-3">Matricule</th>
-                      <th className="py-3 px-3">Élève</th>
-                      <th className="py-3 px-3">Classe &amp; Niveau</th>
-                      <th className="py-3 px-3 text-center">Pointage &amp; Statut</th>
-                      <th className="py-3 px-3 text-center">Retard</th>
-                      <th className="py-3 px-3 text-right">Actions</th>
+                      <th className="py-3 px-4 w-36 whitespace-nowrap">Matricule</th>
+                      <th className="py-3 px-4 min-w-[200px]">Élève &amp; Tuteur</th>
+                      <th className="py-3 px-4 w-44 whitespace-nowrap">Classe &amp; Niveau</th>
+                      <th className="py-3 px-4 text-center min-w-[240px] whitespace-nowrap">Pointage &amp; Statut</th>
+                      <th className="py-3 px-4 text-center w-28 whitespace-nowrap">Retard</th>
+                      <th className="py-3 px-4 text-right min-w-[170px] whitespace-nowrap">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
@@ -1439,38 +1431,42 @@ export default function StudentAttendancePage() {
                         return (
                           <tr key={student.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
                             {/* Matricule */}
-                            <td className="py-2.5 px-3 font-mono font-bold text-slate-500 dark:text-slate-400 truncate">
+                            <td className="py-3.5 px-4 font-mono font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
                               {student.student_code}
                             </td>
 
-                            {/* Élève */}
-                            <td className="py-2.5 px-3 overflow-hidden">
-                              <div className="font-bold text-slate-900 dark:text-white text-xs truncate" title={`${student.first_name} ${student.last_name}`}>
+                            {/* Élève & Tuteur */}
+                            <td className="py-3.5 px-4">
+                              <div className="font-bold text-slate-900 dark:text-white text-xs" title={`${student.first_name} ${student.last_name}`}>
                                 {student.first_name} {student.last_name}
                               </div>
-                              <div className="text-[10px] text-slate-400 truncate font-normal">
-                                {student.phone || student.email || 'Élève inscrit'}
+                              <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                                {student.guardian_phone || student.phone ? (
+                                  <span>{student.guardian_phone || student.phone} {student.guardian_name ? `(${student.guardian_name})` : ''}</span>
+                                ) : (
+                                  <span className="text-slate-300 dark:text-slate-600 italic">Aucun téléphone</span>
+                                )}
                               </div>
                             </td>
 
                             {/* Classe & Niveau Badge */}
-                            <td className="py-2.5 px-3 overflow-hidden">
+                            <td className="py-3.5 px-4 whitespace-nowrap">
                               <span
-                                className="inline-block max-w-full truncate px-2 py-0.5 rounded-lg text-[10px] font-bold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 align-middle"
+                                className="inline-flex items-center px-2.5 py-1 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold text-[11px] border border-blue-200/50 dark:border-blue-900/50"
                                 title={`${student.class?.name || 'Non assigné'} (${student.class?.level || '-'})`}
                               >
                                 {student.class?.name || 'Non assigné'} &bull; {student.class?.level || '-'}
                               </span>
                             </td>
 
-                            {/* Status Pill Box (Responsive Grid 3 columns + Justification toggle when Absent) */}
-                            <td className="py-2.5 px-3 text-center">
+                            {/* Status Pill Box (3 Button switcher + Justification below when Absent) */}
+                            <td className="py-3.5 px-4 text-center whitespace-nowrap">
                               <div className="flex flex-col items-center gap-1.5 justify-center">
-                                <div className="inline-grid grid-cols-3 gap-0.5 p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 w-full max-w-[210px]">
+                                <div className="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                                   <button
                                     type="button"
                                     onClick={() => handleQuickStatusChange(student, 'PRESENT')}
-                                    className={`px-1 py-1 rounded-lg text-[10px] font-bold truncate transition-all cursor-pointer ${
+                                    className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
                                       status === 'PRESENT'
                                         ? 'bg-emerald-500 text-white shadow-xs'
                                         : 'text-slate-600 dark:text-slate-400 hover:text-emerald-600'
@@ -1482,7 +1478,7 @@ export default function StudentAttendancePage() {
                                   <button
                                     type="button"
                                     onClick={() => handleQuickStatusChange(student, 'LATE')}
-                                    className={`px-1 py-1 rounded-lg text-[10px] font-bold truncate transition-all cursor-pointer ${
+                                    className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
                                       status === 'LATE'
                                         ? 'bg-amber-500 text-white shadow-xs'
                                         : 'text-slate-600 dark:text-slate-400 hover:text-amber-600'
@@ -1494,7 +1490,7 @@ export default function StudentAttendancePage() {
                                   <button
                                     type="button"
                                     onClick={() => handleQuickStatusChange(student, 'ABSENT')}
-                                    className={`px-1 py-1 rounded-lg text-[10px] font-bold truncate transition-all cursor-pointer ${
+                                    className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
                                       status === 'ABSENT' || status === 'EXCUSED'
                                         ? 'bg-rose-500 text-white shadow-xs'
                                         : 'text-slate-600 dark:text-slate-400 hover:text-rose-600'
@@ -1504,26 +1500,21 @@ export default function StudentAttendancePage() {
                                   </button>
                                 </div>
 
-                                {/* Justification toggle button (Actif / Désactivé style) when status is ABSENT */}
+                                {/* Justification toggle button when Absent */}
                                 {(status === 'ABSENT' || status === 'EXCUSED') && (
                                   <button
                                     type="button"
                                     onClick={() => handleToggleJustification(student)}
-                                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shadow-xs animate-in fade-in zoom-in-95 duration-150 ${
+                                    className={`inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-bold transition-all cursor-pointer shadow-2xs ${
                                       isJustified || status === 'EXCUSED'
-                                        ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/80 border border-emerald-300/40'
-                                        : 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 hover:bg-rose-200 dark:hover:bg-rose-900/80 border border-rose-300/40'
+                                        ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300/40 hover:bg-emerald-200'
+                                        : 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-300/40 hover:bg-rose-200'
                                     }`}
-                                    title={
-                                      isJustified || status === 'EXCUSED'
-                                        ? 'Absence justifiée (cliquer pour marquer non justifiée)'
-                                        : 'Absence non justifiée (cliquer pour justifier)'
-                                    }
                                   >
                                     <span
-                                      className={`w-2 h-2 rounded-full ${
+                                      className={`w-1.5 h-1.5 rounded-full ${
                                         isJustified || status === 'EXCUSED'
-                                          ? 'bg-emerald-500 animate-pulse'
+                                          ? 'bg-emerald-500'
                                           : 'bg-rose-500'
                                       }`}
                                     />
@@ -1534,30 +1525,20 @@ export default function StudentAttendancePage() {
                             </td>
 
                             {/* Delay Duration */}
-                            <td className="py-2.5 px-3 text-center overflow-hidden">
+                            <td className="py-3.5 px-4 text-center whitespace-nowrap">
                               {status === 'LATE' ? (
-                                <span className="inline-block max-w-full truncate px-1.5 py-0.5 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-mono text-[10px] font-bold">
+                                <span className="inline-block px-2.5 py-1 rounded bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 font-mono text-[11px] font-bold border border-amber-300/50">
                                   {formatDelayDuration(lateMins)}
                                 </span>
-                              ) : status === 'ABSENT' || status === 'EXCUSED' ? (
-                                <span
-                                  className={`inline-block max-w-full truncate px-1.5 py-0.5 rounded-lg text-[10px] font-bold ${
-                                    isJustified || status === 'EXCUSED'
-                                      ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
-                                      : 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300'
-                                  }`}
-                                >
-                                  {isJustified || status === 'EXCUSED' ? 'Absence Justifiée' : 'Non Justifiée'}
-                                </span>
                               ) : (
-                                <span className="text-slate-400 font-mono text-[11px]">0 min</span>
+                                <span className="text-slate-400 font-mono text-xs">-</span>
                               )}
                             </td>
 
-                            {/* Edit & WhatsApp Action Buttons */}
-                            <td className="py-2.5 px-3 text-right">
-                              <div className="flex items-center justify-end gap-1.5">
-                                {/* 1-Click WhatsApp Send for Absent / Late */}
+                            {/* Actions & WhatsApp Buttons */}
+                            <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-2">
+                                {/* WhatsApp Send Button for Absent / Late */}
                                 {(status === 'ABSENT' || status === 'EXCUSED' || status === 'LATE') && (
                                   <button
                                     type="button"
@@ -1591,23 +1572,24 @@ export default function StudentAttendancePage() {
                                       openWhatsAppChat(normalized, msg);
                                       setSessionSentIds((prev) => ({ ...prev, [student.id]: true }));
                                     }}
-                                    className={`p-1.5 rounded-xl transition-all cursor-pointer ${
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-bold transition-all cursor-pointer shadow-xs ${
                                       sessionSentIds[student.id]
-                                        ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300'
-                                        : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-xs hover:shadow-emerald-500/25'
+                                        ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300'
+                                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                                     }`}
-                                    title={dir === 'rtl' ? 'إرسال إشعار واتساب لولي الأمر' : 'Envoyer WhatsApp au parent'}
+                                    title={dir === 'rtl' ? 'إرسال إشعار واتساب لولي الأمر' : 'Envoyer message WhatsApp au parent'}
                                   >
-                                    <MessageSquare className="w-3.5 h-3.5" />
+                                    <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+                                    <span>{sessionSentIds[student.id] ? (dir === 'rtl' ? 'تم الإرسال' : 'Envoyé') : 'WhatsApp'}</span>
                                   </button>
                                 )}
 
                                 <button
                                   type="button"
                                   onClick={() => openEditModal(student)}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold transition-colors cursor-pointer"
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
                                 >
-                                  <Edit2 className="w-3 h-3" />
+                                  <Edit2 className="w-3.5 h-3.5 shrink-0" />
                                   <span>Éditer</span>
                                 </button>
                               </div>
