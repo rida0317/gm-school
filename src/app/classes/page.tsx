@@ -111,14 +111,22 @@ function ClassesContent() {
   const confirm = useConfirm();
   const notify = useNotify();
 
+  const normalizeText = (str: string) =>
+    str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
   // Sync cycle query param from navigation
   useEffect(() => {
     if (cycleParam) {
-      const matched = SCHOOL_CYCLES.find(
-        (c) =>
-          c.name.toLowerCase() === cycleParam.toLowerCase() ||
-          c.cycle.toLowerCase().includes(cycleParam.toLowerCase())
-      );
+      const cleanParam = normalizeText(cycleParam);
+      const matched = SCHOOL_CYCLES.find((c) => {
+        const cleanName = normalizeText(c.name);
+        const cleanCycle = normalizeText(c.cycle);
+        return (
+          cleanName === cleanParam ||
+          cleanCycle.includes(cleanParam) ||
+          cleanParam.includes(cleanName)
+        );
+      });
       if (matched) {
         setSelectedCycle(matched.cycle);
       }

@@ -268,6 +268,9 @@ export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) 
       .filter((group) => group.items.length > 0);
   }, [currentRole, rawNavigationGroups]);
 
+  const normalizeText = (str: string) =>
+    str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
   // Check if an item is active
   const isItemActive = (item: NavItem) => {
     const [itemPath, itemQuery] = item.href.split('?');
@@ -275,7 +278,9 @@ export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) 
 
     if (itemQuery) {
       const paramValue = new URLSearchParams(itemQuery).get('cycle');
-      return cycleQuery?.toLowerCase() === paramValue?.toLowerCase();
+      if (!cycleQuery && !paramValue) return true;
+      if (!cycleQuery || !paramValue) return false;
+      return normalizeText(cycleQuery) === normalizeText(paramValue);
     }
 
     if (item.href === '/classes') {
