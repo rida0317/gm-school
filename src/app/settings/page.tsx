@@ -521,35 +521,57 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Dynamic Tags Interactive Insertion Hub */}
-            <div className="p-3.5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-900/40 text-xs space-y-2">
+            {/* Target Template Tabs (Absence / Late / Payment) */}
+            <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+              {[
+                {
+                  key: 'absence',
+                  label: dir === 'rtl' ? '🔴 نموذج رسالة الغياب' : '🔴 Modèle Absence Élève',
+                  desc: dir === 'rtl' ? 'يُرسل عند تسجيل غياب تلميذ' : 'Envoyé lors d\'une absence',
+                },
+                {
+                  key: 'late',
+                  label: dir === 'rtl' ? '🟡 نموذج رسالة التأخر' : '🟡 Modèle Retard Élève',
+                  desc: dir === 'rtl' ? 'يُرسل عند تسجيل تأخر تلميذ' : 'Envoyé lors d\'un retard',
+                },
+                {
+                  key: 'payment',
+                  label: dir === 'rtl' ? '💳 نموذج تذكير الواجب الشهري' : '💳 Modèle Rappel Frais Scolarité',
+                  desc: dir === 'rtl' ? 'يُرسل لتذكير أولياء الأمور بالأداء' : 'Envoyé pour le rappel des frais',
+                },
+              ].map((target) => {
+                const isActive = activeTarget === target.key;
+                return (
+                  <button
+                    key={target.key}
+                    type="button"
+                    onClick={() => setActiveTarget(target.key as any)}
+                    className={`flex-1 min-w-[200px] py-2.5 px-4 rounded-xl font-extrabold text-xs transition-all cursor-pointer flex flex-col items-center sm:items-start gap-0.5 ${
+                      isActive
+                        ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-300 shadow-md shadow-emerald-500/10 border border-emerald-500/30'
+                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="text-xs">{target.label}</span>
+                    <span className="text-[10px] font-normal text-slate-400 hidden sm:inline">{target.desc}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Dynamic Tags Interactive Insertion Hub for active target */}
+            <div className="p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-900/40 text-xs space-y-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 font-bold text-emerald-800 dark:text-emerald-300">
-                  <Sparkles className="w-4 h-4" />
-                  <span>{dir === 'rtl' ? 'انقر على أي زر لإضافته مباشرة في نص الرسالة :' : 'Cliquez sur un bouton pour l\'insérer dans le modèle :'}</span>
+                  <Sparkles className="w-4 h-4 text-emerald-600" />
+                  <span>
+                    {dir === 'rtl'
+                      ? 'انقر على أي زر لإضافته مباشرة في النموذج المختار أعلاه :'
+                      : 'Cliquez sur un bouton pour l\'insérer dans le modèle sélectionné ci-dessus :'}
+                  </span>
                 </div>
-                <div className="flex items-center gap-1 text-[11px] text-slate-500 font-semibold">
-                  <span>{dir === 'rtl' ? 'الخانة المحددة :' : 'Cible :'}</span>
-                  <div className="inline-flex p-0.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                    {[
-                      { key: 'absence', label: dir === 'rtl' ? '🔴 الغياب' : '🔴 Absence' },
-                      { key: 'late', label: dir === 'rtl' ? '🟡 التأخر' : '🟡 Retard' },
-                      { key: 'payment', label: dir === 'rtl' ? '💳 الواجب الشهري' : '💳 Scolarité' },
-                    ].map((target) => (
-                      <button
-                        key={target.key}
-                        type="button"
-                        onClick={() => setActiveTarget(target.key as any)}
-                        className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
-                          activeTarget === target.key
-                            ? 'bg-emerald-600 text-white shadow-xs'
-                            : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
-                        }`}
-                      >
-                        {target.label}
-                      </button>
-                    ))}
-                  </div>
+                <div className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                  {dir === 'rtl' ? 'النموذج النشط حالياً :' : 'Modèle actif :'} <span className="font-bold underline">{activeTarget === 'absence' ? 'الغياب' : activeTarget === 'late' ? 'التأخر' : 'الواجب الشهري'}</span>
                 </div>
               </div>
 
@@ -567,12 +589,20 @@ export default function SettingsPage() {
                 {[
                   { tag: '{student_name}', label: dir === 'rtl' ? 'اسم التلميذ' : 'Nom de l\'élève' },
                   { tag: '{class_name}', label: dir === 'rtl' ? 'القسم' : 'Classe' },
-                  { tag: '{month}', label: dir === 'rtl' ? 'الشهر' : 'Mois' },
-                  { tag: '{amount}', label: dir === 'rtl' ? 'المبلغ' : 'Montant' },
-                  { tag: '{date}', label: dir === 'rtl' ? 'التاريخ' : 'Date' },
+                  ...(activeTarget === 'payment'
+                    ? [
+                        { tag: '{month}', label: dir === 'rtl' ? 'الشهر' : 'Mois' },
+                        { tag: '{amount}', label: dir === 'rtl' ? 'المبلغ' : 'Montant' },
+                      ]
+                    : []),
+                  ...(activeTarget === 'late'
+                    ? [{ tag: '{late_minutes}', label: dir === 'rtl' ? 'دقائق التأخر' : 'Minutes retard' }]
+                    : []),
+                  ...(activeTarget !== 'payment'
+                    ? [{ tag: '{date}', label: dir === 'rtl' ? 'التاريخ' : 'Date' }]
+                    : []),
                   { tag: '{school_name}', label: dir === 'rtl' ? 'اسم المؤسسة' : 'Nom école' },
                   { tag: '{guardian_name}', label: dir === 'rtl' ? 'اسم الولي' : 'Nom tuteur' },
-                  { tag: '{late_minutes}', label: dir === 'rtl' ? 'دقائق التأخر' : 'Minutes retard' },
                 ].map((item) => (
                   <button
                     key={item.tag}
@@ -588,192 +618,113 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Template Editors */}
-            {whatsappTab === 'ar' ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4" dir="rtl">
-                {/* 1. Absence */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                      🔴 رسالة غياب التلميذ
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => insertSchoolHeader('absence')}
-                      className={`text-[11px] font-bold cursor-pointer transition-colors ${
-                        /^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_absence_template_ar)
-                          ? 'text-rose-600 hover:text-rose-700'
-                          : 'text-emerald-600 hover:text-emerald-700'
-                      }`}
-                    >
-                      {/^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_absence_template_ar)
-                        ? '✕ حذف الرأس'
-                        : '+ إضافة الرأس'}
-                    </button>
-                  </div>
-                  <textarea
-                    rows={6}
-                    value={formState.whatsapp_absence_template_ar}
-                    onFocus={() => setActiveTarget('absence')}
-                    onChange={(e) => setFormState({ ...formState, whatsapp_absence_template_ar: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed font-sans"
-                    placeholder="اكتب نموذج رسالة الغياب بالعربية..."
-                  />
-                </div>
+            {/* Single Full-Width Template Editor based on activeTarget & whatsappTab */}
+            <div className="space-y-2">
+              {/* Header with Title and Header Toggle */}
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
+                  {whatsappTab === 'ar'
+                    ? activeTarget === 'absence'
+                      ? '🔴 نص رسالة غياب التلميذ (عربية)'
+                      : activeTarget === 'late'
+                      ? '🟡 نص رسالة تأخر التلميذ (عربية)'
+                      : '💳 نص رسالة تذكير الواجب الشهري (عربية)'
+                    : activeTarget === 'absence'
+                    ? '🔴 Modèle du Message d\'Absence (Français)'
+                    : activeTarget === 'late'
+                    ? '🟡 Modèle du Message de Retard (Français)'
+                    : '💳 Modèle de Rappel Frais de Scolarité (Français)'}
+                </label>
 
-                {/* 2. Late */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                      🟡 رسالة تأخر التلميذ
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => insertSchoolHeader('late')}
-                      className={`text-[11px] font-bold cursor-pointer transition-colors ${
-                        /^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_late_template_ar)
-                          ? 'text-rose-600 hover:text-rose-700'
-                          : 'text-emerald-600 hover:text-emerald-700'
-                      }`}
-                    >
-                      {/^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_late_template_ar)
-                        ? '✕ حذف الرأس'
-                        : '+ إضافة الرأس'}
-                    </button>
-                  </div>
-                  <textarea
-                    rows={6}
-                    value={formState.whatsapp_late_template_ar}
-                    onFocus={() => setActiveTarget('late')}
-                    onChange={(e) => setFormState({ ...formState, whatsapp_late_template_ar: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed font-sans"
-                    placeholder="اكتب نموذج رسالة التأخر بالعربية..."
-                  />
-                </div>
-
-                {/* 3. Tuition / Payment Reminder */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                      💳 رسالة تذكير الواجب الشهري
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => insertSchoolHeader('payment')}
-                      className={`text-[11px] font-bold cursor-pointer transition-colors ${
-                        /^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_payment_template_ar)
-                          ? 'text-rose-600 hover:text-rose-700'
-                          : 'text-emerald-600 hover:text-emerald-700'
-                      }`}
-                    >
-                      {/^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_payment_template_ar)
-                        ? '✕ حذف الرأس'
-                        : '+ إضافة الرأس'}
-                    </button>
-                  </div>
-                  <textarea
-                    rows={6}
-                    value={formState.whatsapp_payment_template_ar}
-                    onFocus={() => setActiveTarget('payment')}
-                    onChange={(e) => setFormState({ ...formState, whatsapp_payment_template_ar: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed font-sans"
-                    placeholder="اكتب نموذج رسالة تذكير الواجب الشهري بالعربية..."
-                  />
-                </div>
+                <button
+                  type="button"
+                  onClick={() => insertSchoolHeader(activeTarget)}
+                  className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer border ${
+                    /^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(
+                      whatsappTab === 'ar'
+                        ? activeTarget === 'absence'
+                          ? formState.whatsapp_absence_template_ar
+                          : activeTarget === 'late'
+                          ? formState.whatsapp_late_template_ar
+                          : formState.whatsapp_payment_template_ar
+                        : activeTarget === 'absence'
+                        ? formState.whatsapp_absence_template_fr
+                        : activeTarget === 'late'
+                        ? formState.whatsapp_late_template_fr
+                        : formState.whatsapp_payment_template_fr
+                    )
+                      ? 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100 dark:bg-rose-950/40 dark:border-rose-900 dark:text-rose-300'
+                      : 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:border-emerald-900 dark:text-emerald-300'
+                  }`}
+                >
+                  {/^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(
+                    whatsappTab === 'ar'
+                      ? activeTarget === 'absence'
+                        ? formState.whatsapp_absence_template_ar
+                        : activeTarget === 'late'
+                        ? formState.whatsapp_late_template_ar
+                        : formState.whatsapp_payment_template_ar
+                      : activeTarget === 'absence'
+                      ? formState.whatsapp_absence_template_fr
+                      : activeTarget === 'late'
+                      ? formState.whatsapp_late_template_fr
+                      : formState.whatsapp_payment_template_fr
+                  ) ? (
+                    <>
+                      <span>✕</span>
+                      <span>{dir === 'rtl' ? 'حذف اسم وشعار المؤسسة من الرأس' : 'Retirer En-tête / Logo École'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>+</span>
+                      <span>{dir === 'rtl' ? 'إضافة اسم وشعار المؤسسة في الرأس' : 'Ajouter En-tête / Logo École'}</span>
+                    </>
+                  )}
+                </button>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4" dir="ltr">
-                {/* 1. Absence */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                      🔴 Modèle Absence Élève
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => insertSchoolHeader('absence')}
-                      className={`text-[11px] font-bold cursor-pointer transition-colors ${
-                        /^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_absence_template_fr)
-                          ? 'text-rose-600 hover:text-rose-700'
-                          : 'text-emerald-600 hover:text-emerald-700'
-                      }`}
-                    >
-                      {/^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_absence_template_fr)
-                        ? '✕ Retirer En-tête'
-                        : '+ En-tête'}
-                    </button>
-                  </div>
-                  <textarea
-                    rows={6}
-                    value={formState.whatsapp_absence_template_fr}
-                    onFocus={() => setActiveTarget('absence')}
-                    onChange={(e) => setFormState({ ...formState, whatsapp_absence_template_fr: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed font-sans"
-                    placeholder="Rédigez le modèle d'absence en français..."
-                  />
-                </div>
 
-                {/* 2. Late */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                      🟡 Modèle Retard Élève
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => insertSchoolHeader('late')}
-                      className={`text-[11px] font-bold cursor-pointer transition-colors ${
-                        /^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_late_template_fr)
-                          ? 'text-rose-600 hover:text-rose-700'
-                          : 'text-emerald-600 hover:text-emerald-700'
-                      }`}
-                    >
-                      {/^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_late_template_fr)
-                        ? '✕ Retirer En-tête'
-                        : '+ En-tête'}
-                    </button>
-                  </div>
-                  <textarea
-                    rows={6}
-                    value={formState.whatsapp_late_template_fr}
-                    onFocus={() => setActiveTarget('late')}
-                    onChange={(e) => setFormState({ ...formState, whatsapp_late_template_fr: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed font-sans"
-                    placeholder="Rédigez le modèle de retard en français..."
-                  />
-                </div>
+              {/* Full Width Textarea */}
+              <textarea
+                rows={9}
+                dir={whatsappTab === 'ar' ? 'rtl' : 'ltr'}
+                value={
+                  whatsappTab === 'ar'
+                    ? activeTarget === 'absence'
+                      ? formState.whatsapp_absence_template_ar
+                      : activeTarget === 'late'
+                      ? formState.whatsapp_late_template_ar
+                      : formState.whatsapp_payment_template_ar
+                    : activeTarget === 'absence'
+                    ? formState.whatsapp_absence_template_fr
+                    : activeTarget === 'late'
+                    ? formState.whatsapp_late_template_fr
+                    : formState.whatsapp_payment_template_fr
+                }
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const fieldKey =
+                    whatsappTab === 'ar'
+                      ? activeTarget === 'absence'
+                        ? 'whatsapp_absence_template_ar'
+                        : activeTarget === 'late'
+                        ? 'whatsapp_late_template_ar'
+                        : 'whatsapp_payment_template_ar'
+                      : activeTarget === 'absence'
+                      ? 'whatsapp_absence_template_fr'
+                      : activeTarget === 'late'
+                      ? 'whatsapp_late_template_fr'
+                      : 'whatsapp_payment_template_fr';
 
-                {/* 3. Tuition / Payment Reminder */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                      💳 Modèle Rappel Frais Scolarité
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => insertSchoolHeader('payment')}
-                      className={`text-[11px] font-bold cursor-pointer transition-colors ${
-                        /^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_payment_template_fr)
-                          ? 'text-rose-600 hover:text-rose-700'
-                          : 'text-emerald-600 hover:text-emerald-700'
-                      }`}
-                    >
-                      {/^\*[^*]+\*[\r\n]+-+\s*[\r\n]*/.test(formState.whatsapp_payment_template_fr)
-                        ? '✕ Retirer En-tête'
-                        : '+ En-tête'}
-                    </button>
-                  </div>
-                  <textarea
-                    rows={6}
-                    value={formState.whatsapp_payment_template_fr}
-                    onFocus={() => setActiveTarget('payment')}
-                    onChange={(e) => setFormState({ ...formState, whatsapp_payment_template_fr: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed font-sans"
-                    placeholder="Rédigez le modèle de rappel de paiement en français..."
-                  />
-                </div>
-              </div>
-            )}
+                  setFormState({ ...formState, [fieldKey]: val });
+                }}
+                className="w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed font-sans shadow-inner"
+                placeholder={
+                  whatsappTab === 'ar'
+                    ? 'اكتب نص النموذج هنا...'
+                    : 'Rédigez le modèle de message ici...'
+                }
+              />
+            </div>
           </div>
 
           <div className="flex justify-end pt-2">
