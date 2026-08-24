@@ -264,9 +264,18 @@ export default function StaffAttendancePage() {
     return map;
   }, [attendanceRecords, selectedDate]);
 
-  // Save changes to Supabase
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Save changes to Supabase & localStorage
   const persistAttendanceRecords = async (newRecords: StaffAttendanceRecord[]) => {
     setAttendanceRecords(newRecords);
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('gm_staff_attendance_records_v2', JSON.stringify(newRecords));
+      }
+    } catch {
+      // ignore
+    }
 
     try {
       const supabase = createClient();
@@ -284,6 +293,44 @@ export default function StaffAttendancePage() {
       }
     } catch (err) {
       console.warn('DB sync error:', err);
+    }
+  };
+
+  // Explicit Save Handler for Manual Pointage Entry
+  const handleSavePointage = async () => {
+    setIsSaving(true);
+    try {
+      const nextRecords = [...attendanceRecords];
+      filteredStaff.forEach((staff) => {
+        const existing = dailyRecordMap[staff.id];
+        if (!existing) {
+          nextRecords.push({
+            id: `att-${staff.id}-${selectedDate}`,
+            staff_id: staff.id,
+            date: selectedDate,
+            status: 'PRESENT',
+            check_in_time: '08:00',
+            expected_time: '08:00',
+            late_minutes: 0,
+            is_justified: false,
+          });
+        }
+      });
+
+      await persistAttendanceRecords(nextRecords);
+      notify({
+        title: 'Pointage Enregistré !',
+        message: `Les pointages du personnel pour la date du ${selectedDate} ont été enregistrés avec succès.`,
+        type: 'success',
+      });
+    } catch (err) {
+      notify({
+        title: 'Erreur',
+        message: 'Erreur lors de la sauvegarde du pointage.',
+        type: 'danger',
+      });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -559,6 +606,7 @@ export default function StaffAttendancePage() {
     const rate = totalStaff > 0 ? Math.round(((presentCount + lateCount) / totalStaff) * 100) : 100;
 
     return {
+      titleLabel: "Présents à l'heure",
       totalStaff,
       presentCount,
       lateCount,
@@ -569,6 +617,7 @@ export default function StaffAttendancePage() {
       absentCount,
       absentJustifiedCount,
       absentUnjustifiedCount: absentCount - (absentJustifiedCount - excusedCount),
+      totalJustified: lateJustifiedCount + absentJustifiedCount,
       rate,
     };
   }, [filteredStaff, dailyRecordMap]);
@@ -745,6 +794,130 @@ export default function StaffAttendancePage() {
       };
     });
   }, [filteredStaff, attendanceRecords, customStartDate, customEndDate]);
+
+  // Monthly KPI Aggregated Stats
+  const monthlyStats = useMemo(() => {
+    let presentDays = 0;
+    let lateCount = 0;
+    let totalLateMins = 0;
+    let lateJustified = 0;
+    let absentDays = 0;
+    let absentJustified = 0;
+    let totalRecordedDays = 0;
+
+    monthlyStaffSummary.forEach((item) => {
+      presentDays += item.presentDays;
+      lateCount += item.lateCount;
+      totalLateMins += item.totalLateMins;
+      lateJustified += item.lateJustified;
+      absentDays += item.absentDays;
+      absentJustified += item.absentJustified;
+      totalRecordedDays += item.totalRecordedDays;
+    });
+
+    const rate = totalRecordedDays > 0 ? Math.round(((presentDays + lateCount) / totalRecordedDays) * 100) : 100;
+
+    return {
+      titleLabel: 'Présences Mensuelles',
+      totalStaff: filteredStaff.length,
+      presentCount: presentDays,
+      lateCount,
+      totalLateMins,
+      totalLateFormatted: formatDelayDuration(totalLateMins),
+      lateJustifiedCount: lateJustified,
+      lateUnjustifiedCount: lateCount - lateJustified,
+      absentCount: absentDays,
+      absentJustifiedCount: absentJustified,
+      absentUnjustifiedCount: absentDays - absentJustified,
+      totalJustified: lateJustified + absentJustified,
+      rate,
+    };
+  }, [monthlyStaffSummary, filteredStaff]);
+
+  // Semester KPI Aggregated Stats
+  const semesterStats = useMemo(() => {
+    let presentDays = 0;
+    let lateCount = 0;
+    let totalLateMins = 0;
+    let lateJustified = 0;
+    let absentDays = 0;
+    let absentJustified = 0;
+    let totalRecordedDays = 0;
+
+    semesterStaffSummary.forEach((item) => {
+      presentDays += item.presentDays;
+      lateCount += item.lateCount;
+      totalLateMins += item.totalLateMins;
+      lateJustified += item.lateJustified;
+      absentDays += item.absentDays;
+      absentJustified += item.absentJustified;
+      totalRecordedDays += item.totalRecordedDays;
+    });
+
+    const rate = totalRecordedDays > 0 ? Math.round(((presentDays + lateCount) / totalRecordedDays) * 100) : 100;
+
+    return {
+      titleLabel: 'Présences Semestrielles',
+      totalStaff: filteredStaff.length,
+      presentCount: presentDays,
+      lateCount,
+      totalLateMins,
+      totalLateFormatted: formatDelayDuration(totalLateMins),
+      lateJustifiedCount: lateJustified,
+      lateUnjustifiedCount: lateCount - lateJustified,
+      absentCount: absentDays,
+      absentJustifiedCount: absentJustified,
+      absentUnjustifiedCount: absentDays - absentJustified,
+      totalJustified: lateJustified + absentJustified,
+      rate,
+    };
+  }, [semesterStaffSummary, filteredStaff]);
+
+  // Periodic KPI Aggregated Stats
+  const periodicStats = useMemo(() => {
+    let presentDays = 0;
+    let lateCount = 0;
+    let totalLateMins = 0;
+    let lateJustified = 0;
+    let absentDays = 0;
+    let absentJustified = 0;
+    let totalRecordedDays = 0;
+
+    periodicStaffSummary.forEach((item) => {
+      presentDays += item.presentDays;
+      lateCount += item.lateCount;
+      totalLateMins += item.totalLateMins;
+      lateJustified += item.lateJustified;
+      absentDays += item.absentDays;
+      absentJustified += item.absentJustified;
+      totalRecordedDays += item.totalRecordedDays;
+    });
+
+    const rate = totalRecordedDays > 0 ? Math.round(((presentDays + lateCount) / totalRecordedDays) * 100) : 100;
+
+    return {
+      titleLabel: 'Présences Périodiques',
+      totalStaff: filteredStaff.length,
+      presentCount: presentDays,
+      lateCount,
+      totalLateMins,
+      totalLateFormatted: formatDelayDuration(totalLateMins),
+      lateJustifiedCount: lateJustified,
+      lateUnjustifiedCount: lateCount - lateJustified,
+      absentCount: absentDays,
+      absentJustifiedCount: absentJustified,
+      absentUnjustifiedCount: absentDays - absentJustified,
+      totalJustified: lateJustified + absentJustified,
+      rate,
+    };
+  }, [periodicStaffSummary, filteredStaff]);
+
+  // Current active KPI Stats based on active tab
+  const currentKpiStats = useMemo(() => {
+    if (activeTab === 'monthly_report') return monthlyStats;
+    if (activeTab === 'semester_report') return semesterStats;
+    return dailyStats;
+  }, [activeTab, monthlyStats, semesterStats, dailyStats]);
 
   // Export Daily CSV
   const handleExportDailyCSV = () => {
@@ -1323,9 +1496,9 @@ export default function StaffAttendancePage() {
             </div>
             <div>
               <div className="text-2xl font-black text-slate-900 dark:text-white">
-                {dailyStats.presentCount} <span className="text-xs text-slate-400 font-semibold">/ {dailyStats.totalStaff}</span>
+                {currentKpiStats.presentCount} <span className="text-xs text-slate-400 font-semibold">{activeTab === 'pointage' || activeTab === 'daily_report' ? `/ ${currentKpiStats.totalStaff}` : 'j/total'}</span>
               </div>
-              <div className="text-xs font-bold text-slate-500 dark:text-slate-400">Présents à l&apos;heure ({dailyStats.rate}%)</div>
+              <div className="text-xs font-bold text-slate-500 dark:text-slate-400">{currentKpiStats.titleLabel} ({currentKpiStats.rate}%)</div>
             </div>
           </div>
 
@@ -1335,10 +1508,10 @@ export default function StaffAttendancePage() {
             </div>
             <div>
               <div className="text-2xl font-black text-amber-600 dark:text-amber-400">
-                {dailyStats.lateCount} <span className="text-xs text-slate-400 font-semibold font-mono">({dailyStats.totalLateFormatted})</span>
+                {currentKpiStats.lateCount} <span className="text-xs text-slate-400 font-semibold font-mono">({currentKpiStats.totalLateFormatted})</span>
               </div>
               <div className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                Retards ({dailyStats.lateJustifiedCount} justifié{dailyStats.lateJustifiedCount > 1 ? 's' : ''})
+                Retards ({currentKpiStats.lateJustifiedCount} justifié{currentKpiStats.lateJustifiedCount > 1 ? 's' : ''})
               </div>
             </div>
           </div>
@@ -1349,10 +1522,10 @@ export default function StaffAttendancePage() {
             </div>
             <div>
               <div className="text-2xl font-black text-rose-600 dark:text-rose-400">
-                {dailyStats.absentCount}
+                {currentKpiStats.absentCount}
               </div>
               <div className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                Absences ({dailyStats.absentJustifiedCount} justifiée{dailyStats.absentJustifiedCount > 1 ? 's' : ''})
+                Absences ({currentKpiStats.absentJustifiedCount} justifiée{currentKpiStats.absentJustifiedCount > 1 ? 's' : ''})
               </div>
             </div>
           </div>
@@ -1363,7 +1536,7 @@ export default function StaffAttendancePage() {
             </div>
             <div>
               <div className="text-2xl font-black text-purple-600 dark:text-purple-400">
-                {dailyStats.lateJustifiedCount + dailyStats.absentJustifiedCount}
+                {currentKpiStats.totalJustified}
               </div>
               <div className="text-xs font-bold text-slate-500 dark:text-slate-400">Total Justifiés (Motif validé)</div>
             </div>
@@ -1426,15 +1599,26 @@ export default function StaffAttendancePage() {
               </div>
             )}
 
-            {/* Quick Action: Mark all present */}
+            {/* Quick Action: Mark all present & Save Button */}
             {activeTab === 'pointage' && (
-              <button
-                type="button"
-                onClick={handleMarkAllPresent}
-                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer whitespace-nowrap shrink-0"
-              >
-                Tout pointer Présent
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleMarkAllPresent}
+                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold shadow-xs transition-all cursor-pointer whitespace-nowrap"
+                >
+                  Tout pointer Présent
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSavePointage}
+                  disabled={isSaving}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs font-black shadow-md shadow-emerald-500/25 transition-all cursor-pointer whitespace-nowrap hover:scale-105 active:scale-95 disabled:opacity-50"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>{isSaving ? 'Enregistrement...' : '💾 Enregistrer'}</span>
+                </button>
+              </div>
             )}
 
             {/* Search Input */}
@@ -1642,6 +1826,25 @@ export default function StaffAttendancePage() {
                   </tbody>
                 </table>
               </div>
+            </div>
+
+            {/* Bottom Save & Confirmation Bar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-950 to-sky-950 text-white border border-sky-500/30 shadow-xl">
+              <div className="flex items-center gap-2 text-xs">
+                <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>
+                  Pointage du <strong>{selectedDate}</strong> : {dailyStats.presentCount} présent(s), {dailyStats.lateCount} retard(s), {dailyStats.absentCount} absence(s).
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleSavePointage}
+                disabled={isSaving}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs font-black shadow-lg shadow-emerald-500/30 transition-all cursor-pointer hover:scale-105 active:scale-95 disabled:opacity-50"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>{isSaving ? 'Enregistrement en cours...' : 'Valider & Enregistrer le Pointage'}</span>
+              </button>
             </div>
           </div>
         )}
