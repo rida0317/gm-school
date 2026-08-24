@@ -53,7 +53,7 @@ const PRESET_CATEGORIES = [
   { id: 'SPORT', name: 'Sport & EPS', ar: 'الرياضة والأنشطة', icon: Dumbbell, color: 'from-amber-500 to-orange-600' },
 ];
 
-// Realistic Sample School Inventory
+// Realistic Sample School Inventory with Native SVG Vector Icons
 const DEFAULT_PRODUCTS: Partial<StockProduct>[] = [
   {
     id: 'prod-1',
@@ -65,7 +65,6 @@ const DEFAULT_PRODUCTS: Partial<StockProduct>[] = [
     purchase_price: 42,
     value_price: 42,
     status: 'IN_STOCK',
-    image_url: 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?w=500&auto=format&fit=crop&q=60',
     category: { id: 'FOURNITURES', name: 'Fournitures & Papeterie' },
   },
   {
@@ -78,7 +77,6 @@ const DEFAULT_PRODUCTS: Partial<StockProduct>[] = [
     purchase_price: 25,
     value_price: 25,
     status: 'IN_STOCK',
-    image_url: 'https://images.unsplash.com/photo-1585336261026-77894a4c6a6f?w=500&auto=format&fit=crop&q=60',
     category: { id: 'FOURNITURES', name: 'Fournitures & Papeterie' },
   },
   {
@@ -91,7 +89,6 @@ const DEFAULT_PRODUCTS: Partial<StockProduct>[] = [
     purchase_price: 3800,
     value_price: 3800,
     status: 'IN_STOCK',
-    image_url: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=500&auto=format&fit=crop&q=60',
     category: { id: 'INFORMATIQUE', name: 'Informatique & IT' },
   },
   {
@@ -104,7 +101,6 @@ const DEFAULT_PRODUCTS: Partial<StockProduct>[] = [
     purchase_price: 35,
     value_price: 35,
     status: 'LOW_STOCK',
-    image_url: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=500&auto=format&fit=crop&q=60',
     category: { id: 'PEDAGOGIE', name: 'Arts & Pédagogie' },
   },
   {
@@ -117,7 +113,6 @@ const DEFAULT_PRODUCTS: Partial<StockProduct>[] = [
     purchase_price: 95,
     value_price: 95,
     status: 'IN_STOCK',
-    image_url: 'https://images.unsplash.com/photo-1584744982491-665216d95f8b?w=500&auto=format&fit=crop&q=60',
     category: { id: 'HYGIENE', name: 'Hygiène & Entretien' },
   },
   {
@@ -130,7 +125,6 @@ const DEFAULT_PRODUCTS: Partial<StockProduct>[] = [
     purchase_price: 180,
     value_price: 180,
     status: 'IN_STOCK',
-    image_url: 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=500&auto=format&fit=crop&q=60',
     category: { id: 'SPORT', name: 'Sport & EPS' },
   },
   {
@@ -143,7 +137,6 @@ const DEFAULT_PRODUCTS: Partial<StockProduct>[] = [
     purchase_price: 1250,
     value_price: 1250,
     status: 'LOW_STOCK',
-    image_url: 'https://images.unsplash.com/photo-1582719471384-894fbb16e074?w=500&auto=format&fit=crop&q=60',
     category: { id: 'SCIENCES', name: 'Sciences & Labo' },
   },
   {
@@ -156,47 +149,184 @@ const DEFAULT_PRODUCTS: Partial<StockProduct>[] = [
     purchase_price: 28,
     value_price: 28,
     status: 'OUT_OF_STOCK',
-    image_url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=60',
     category: { id: 'HYGIENE', name: 'Hygiène & Entretien' },
   },
 ];
 
-export function getArticleImage(product: Partial<StockProduct>): string {
-  if (product.image_url && product.image_url.trim().length > 0 && !product.image_url.includes('example.com')) {
-    return product.image_url;
-  }
-
+export function ProductVisualBox({
+  product,
+  isOutOfStock,
+  isLow,
+}: {
+  product: StockProduct;
+  isOutOfStock: boolean;
+  isLow: boolean;
+}) {
   const name = (product.name || '').toLowerCase();
   const sku = (product.sku || '').toLowerCase();
-  const cat = (product.category?.name || (typeof product.category_id === 'string' ? product.category_id : '')).toLowerCase();
+  const catId = product.category?.id || (typeof product.category_id === 'string' ? product.category_id : '');
 
-  // 1. Cables & HDMI / Connectique
-  if (name.includes('hdmi') || name.includes('cable') || name.includes('câble') || sku.includes('hdmi') || sku.includes('cab')) {
-    return '/stock/hdmi.svg';
+  // Determine icon & gradient theme
+  let theme = {
+    gradient: 'from-sky-500/20 via-blue-500/10 to-indigo-500/25',
+    circleBg: 'bg-blue-500/15 border-blue-400/30 text-blue-600 dark:text-blue-400',
+    Icon: BookOpen,
+    accentGlow: 'rgba(56, 189, 248, 0.25)',
+  };
+
+  if (
+    catId === 'INFORMATIQUE' ||
+    name.includes('hdmi') ||
+    name.includes('projecteur') ||
+    name.includes('pc') ||
+    name.includes('it') ||
+    sku.includes('it')
+  ) {
+    theme = {
+      gradient: 'from-violet-600/25 via-purple-600/15 to-indigo-600/25',
+      circleBg: 'bg-purple-500/15 border-purple-400/30 text-purple-600 dark:text-purple-400',
+      Icon: Laptop,
+      accentGlow: 'rgba(168, 85, 247, 0.25)',
+    };
+  } else if (
+    catId === 'PEDAGOGIE' ||
+    name.includes('peinture') ||
+    name.includes('gouache') ||
+    name.includes('art') ||
+    sku.includes('art')
+  ) {
+    theme = {
+      gradient: 'from-pink-500/25 via-rose-500/15 to-amber-500/20',
+      circleBg: 'bg-rose-500/15 border-rose-400/30 text-rose-600 dark:text-rose-400',
+      Icon: Palette,
+      accentGlow: 'rgba(244, 63, 94, 0.25)',
+    };
+  } else if (
+    catId === 'SCIENCES' ||
+    name.includes('microscope') ||
+    name.includes('labo') ||
+    name.includes('chimie') ||
+    sku.includes('sci')
+  ) {
+    theme = {
+      gradient: 'from-emerald-500/25 via-teal-500/15 to-cyan-500/20',
+      circleBg: 'bg-emerald-500/15 border-emerald-400/30 text-emerald-600 dark:text-emerald-400',
+      Icon: FlaskConical,
+      accentGlow: 'rgba(16, 185, 129, 0.25)',
+    };
+  } else if (
+    catId === 'HYGIENE' ||
+    name.includes('gel') ||
+    name.includes('essuie') ||
+    name.includes('savon') ||
+    name.includes('nettoyage') ||
+    sku.includes('hyg')
+  ) {
+    theme = {
+      gradient: 'from-teal-500/25 via-cyan-500/15 to-sky-500/20',
+      circleBg: 'bg-teal-500/15 border-teal-400/30 text-teal-600 dark:text-teal-400',
+      Icon: SprayCan,
+      accentGlow: 'rgba(20, 184, 166, 0.25)',
+    };
+  } else if (
+    catId === 'SPORT' ||
+    name.includes('ballon') ||
+    name.includes('sport') ||
+    name.includes('eps') ||
+    sku.includes('spt')
+  ) {
+    theme = {
+      gradient: 'from-amber-500/25 via-orange-500/15 to-yellow-500/20',
+      circleBg: 'bg-amber-500/15 border-amber-400/30 text-amber-600 dark:text-amber-400',
+      Icon: Dumbbell,
+      accentGlow: 'rgba(245, 158, 11, 0.25)',
+    };
+  } else if (
+    name.includes('papier') ||
+    name.includes('rame') ||
+    name.includes('a4') ||
+    sku.includes('pap')
+  ) {
+    theme = {
+      gradient: 'from-sky-500/25 via-blue-500/15 to-indigo-500/20',
+      circleBg: 'bg-sky-500/15 border-sky-400/30 text-sky-600 dark:text-sky-400',
+      Icon: FileText,
+      accentGlow: 'rgba(14, 165, 233, 0.25)',
+    };
+  } else if (
+    name.includes('marqueur') ||
+    name.includes('stylo') ||
+    name.includes('feutre') ||
+    sku.includes('mrk')
+  ) {
+    theme = {
+      gradient: 'from-blue-500/25 via-indigo-500/15 to-violet-500/20',
+      circleBg: 'bg-indigo-500/15 border-indigo-400/30 text-indigo-600 dark:text-indigo-400',
+      Icon: Sparkles,
+      accentGlow: 'rgba(99, 102, 241, 0.25)',
+    };
   }
 
-  // 2. Projectors & Screens / Vidéoprojecteur
-  if (name.includes('projecteur') || name.includes('vidéo') || name.includes('video') || sku.includes('epson') || sku.includes('prj') || sku.includes('proj')) {
-    return '/stock/projector.svg';
-  }
+  const { Icon } = theme;
 
-  // 3. Paper / Ramettes / Cahiers / Cartons
-  if (name.includes('papier') || name.includes('rame') || name.includes('ramette') || name.includes('carton') || sku.includes('pap') || sku.includes('a4')) {
-    return '/stock/paper.svg';
-  }
+  return (
+    <div className={`relative h-44 w-full bg-gradient-to-br ${theme.gradient} bg-slate-950 overflow-hidden flex items-center justify-center border-b border-slate-200/60 dark:border-slate-800/80`}>
+      {/* Background SVG Dot Pattern */}
+      <svg className="absolute inset-0 w-full h-full opacity-20 pointer-events-none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <pattern id={`pattern-${product.id}`} width="20" height="20" patternUnits="userSpaceOnUse">
+            <circle cx="2" cy="2" r="1.5" fill="currentColor" className="text-white" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill={`url(#pattern-${product.id})`} />
+      </svg>
 
-  // 4. Whiteboard Markers / Stylos / Marqueurs
-  if (name.includes('marqueur') || name.includes('stylo') || name.includes('feutre') || name.includes('tableau') || sku.includes('mrq') || sku.includes('mrk')) {
-    return '/stock/markers.svg';
-  }
+      {/* Radial Ambient Glow */}
+      <div
+        className="absolute w-28 h-28 rounded-full blur-2xl pointer-events-none opacity-60 group-hover:opacity-90 transition-opacity"
+        style={{ background: theme.accentGlow }}
+      />
 
-  // 5. Hand Sanitizer / Gel / Hygiène / Nettoyage / Savon
-  if (name.includes('gel') || name.includes('hydro') || name.includes('savon') || name.includes('désinfectant') || name.includes('entretien') || sku.includes('gel') || sku.includes('hyg')) {
-    return '/stock/gel.svg';
-  }
+      {/* Main SVG Logo / Icon Glass Squircle */}
+      <div className={`relative z-10 w-20 h-20 rounded-3xl ${theme.circleBg} backdrop-blur-md border p-4 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+        <Icon className="w-10 h-10 drop-shadow-sm" />
+      </div>
 
-  // Default School Supplies
-  return '/stock/default.svg';
+      {/* Category Badge Floating Top Left */}
+      <div className="absolute top-2.5 left-2.5 z-20">
+        <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-slate-950/85 backdrop-blur-md text-white shadow-xs border border-white/10">
+          {product.category?.name || 'Général'}
+        </span>
+      </div>
+
+      {/* SKU Badge Floating Top Right */}
+      <div className="absolute top-2.5 right-2.5 z-20">
+        <span className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold bg-white/90 dark:bg-slate-900/90 text-slate-700 dark:text-slate-200 shadow-xs border border-slate-200/50 dark:border-slate-700/50">
+          {product.sku}
+        </span>
+      </div>
+
+      {/* Stock Status Badge Bottom Right */}
+      <div className="absolute bottom-2.5 right-2.5 z-20">
+        {isOutOfStock ? (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-rose-600 text-white shadow-md animate-pulse">
+            <AlertTriangle className="w-3 h-3" />
+            Rupture
+          </span>
+        ) : isLow ? (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-amber-500 text-slate-950 shadow-md">
+            <AlertTriangle className="w-3 h-3" />
+            Stock Faible
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-emerald-600 text-white shadow-md">
+            <CheckCircle2 className="w-3 h-3" />
+            En Stock
+          </span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function StockPage() {
@@ -1284,54 +1414,7 @@ export default function StockPage() {
                     >
                       {/* Product Visual Box Header */}
                       <div>
-                        {/* Image Container with Dynamic Photo */}
-                        <div className="relative h-40 w-full bg-slate-900 overflow-hidden flex items-center justify-center">
-                          <img
-                            src={getArticleImage(product)}
-                            alt={product.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                            onError={(e) => {
-                              const target = e.currentTarget;
-                              if (!target.src.includes('default.svg')) {
-                                target.src = '/stock/default.svg';
-                              }
-                            }}
-                          />
-
-                          {/* Category Badge Floating */}
-                          <div className="absolute top-2.5 left-2.5">
-                            <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-slate-950/80 backdrop-blur-md text-white shadow-xs">
-                              {product.category?.name || 'Général'}
-                            </span>
-                          </div>
-
-                          {/* SKU Badge Floating */}
-                          <div className="absolute top-2.5 right-2.5">
-                            <span className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold bg-white/90 dark:bg-slate-900/90 text-slate-700 dark:text-slate-200 shadow-xs">
-                              {product.sku}
-                            </span>
-                          </div>
-
-                          {/* Stock Status Badge */}
-                          <div className="absolute bottom-2.5 right-2.5">
-                            {isOutOfStock ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-rose-600 text-white shadow-md animate-pulse">
-                                <AlertTriangle className="w-3 h-3" />
-                                Rupture
-                              </span>
-                            ) : isLow ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-amber-500 text-slate-950 shadow-md">
-                                <AlertTriangle className="w-3 h-3" />
-                                Stock Faible
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-emerald-600 text-white shadow-md">
-                                <CheckCircle2 className="w-3 h-3" />
-                                En Stock
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                        <ProductVisualBox product={product} isOutOfStock={isOutOfStock} isLow={isLow} />
 
                         {/* Article Info */}
                         <div className="p-4 space-y-2">
