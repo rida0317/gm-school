@@ -227,29 +227,41 @@ export default function RoomsPage() {
 
                   <div className="mt-4 space-y-2 text-xs text-slate-500 dark:text-slate-400">
                     <div className="flex items-center justify-between">
-                      <span>Type d&apos;espace :</span>
-                      <strong className="text-slate-800 dark:text-slate-200">{room.type}</strong>
+                      <span>{dir === 'rtl' ? 'نوع القاعة :' : "Type d'espace :"}</span>
+                      <strong className="text-slate-800 dark:text-slate-200">
+                        {dir === 'rtl'
+                          ? room.type === 'Classroom'
+                            ? 'قاعة دراسية'
+                            : room.type === 'Laboratory'
+                            ? 'مختبر علمي'
+                            : room.type === 'Computer Room'
+                            ? 'قاعة المعلوميات'
+                            : room.type === 'Sports Room'
+                            ? 'فضاء رياضي'
+                            : 'قاعة اجتماعات'
+                          : room.type}
+                      </strong>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span>Capacité maximale :</span>
-                      <strong className="text-slate-800 dark:text-slate-200">{room.capacity} Places</strong>
+                      <span>{dir === 'rtl' ? 'الطاقة الاستيعابية :' : 'Capacité maximale :'}</span>
+                      <strong className="text-slate-800 dark:text-slate-200">{room.capacity} {dir === 'rtl' ? 'مقعد' : 'Places'}</strong>
                     </div>
                   </div>
                 </div>
 
                 <div className="pt-3 mt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <span className="text-[10px] text-slate-400 font-medium">Action rapide</span>
+                  <span className="text-[10px] text-slate-400 font-medium">{t('actions')}</span>
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => openEditModal(room)}
-                      title="Modifier la salle"
+                      title={dir === 'rtl' ? 'تعديل القاعة' : 'Modifier la salle'}
                       className="p-2 text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-white rounded-xl hover:bg-sky-50 dark:hover:bg-sky-950/50 transition-colors cursor-pointer"
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDelete(room.id, room.name)}
-                      title="Supprimer la salle"
+                      title={dir === 'rtl' ? 'حذف القاعة' : 'Supprimer la salle'}
                       className="p-2 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -271,7 +283,9 @@ export default function RoomsPage() {
                     <DoorClosed className="w-5 h-5" />
                   </div>
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                    {editingId ? 'Modifier la Salle' : 'Ajouter une Nouvelle Salle'}
+                    {editingId
+                      ? dir === 'rtl' ? 'تعديل بيانات القاعة' : 'Modifier la Salle'
+                      : dir === 'rtl' ? 'إضافة قاعة جديدة' : 'Ajouter une Nouvelle Salle'}
                   </h3>
                 </div>
                 <button
@@ -285,7 +299,7 @@ export default function RoomsPage() {
               <form onSubmit={handleSave} className="space-y-4 mt-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Numéro / Code (ex: R101, LAB-1)
+                    {dir === 'rtl' ? 'رمز / رقم القاعة (مثال: R101, LAB-1)' : 'Numéro / Code (ex: R101, LAB-1)'}
                   </label>
                   <input
                     type="text"
@@ -298,7 +312,7 @@ export default function RoomsPage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Nom Descriptif
+                    {dir === 'rtl' ? 'اسم القاعة الوصفي' : 'Nom Descriptif'}
                   </label>
                   <input
                     type="text"
@@ -312,24 +326,24 @@ export default function RoomsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Type
+                      {dir === 'rtl' ? 'نوع القاعة' : 'Type'}
                     </label>
                     <select
                       value={formData.type}
                       onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
                     >
-                      <option value="Classroom">Salle de Cours</option>
-                      <option value="Laboratory">Laboratoire</option>
-                      <option value="Computer Room">Informatique</option>
-                      <option value="Sports Room">Sport</option>
-                      <option value="Meeting Room">Réunion</option>
+                      <option value="Classroom">{dir === 'rtl' ? 'قاعة دراسية' : 'Salle de Cours'}</option>
+                      <option value="Laboratory">{dir === 'rtl' ? 'مختبر علمي' : 'Laboratoire'}</option>
+                      <option value="Computer Room">{dir === 'rtl' ? 'قاعة المعلوميات' : 'Informatique'}</option>
+                      <option value="Sports Room">{dir === 'rtl' ? 'فضاء رياضي' : 'Sport'}</option>
+                      <option value="Meeting Room">{dir === 'rtl' ? 'قاعة اجتماعات' : 'Réunion'}</option>
                     </select>
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Capacité
+                      {dir === 'rtl' ? 'الطاقة الاستيعابية' : 'Capacité'}
                     </label>
                     <input
                       type="number"
@@ -346,13 +360,15 @@ export default function RoomsPage() {
                     onClick={() => setShowModal(false)}
                     className="px-4 py-2.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
                   >
-                    Annuler
+                    {t('cancel')}
                   </button>
                   <button
                     type="submit"
                     className="px-6 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 rounded-xl shadow-lg shadow-sky-500/25 transition-all cursor-pointer"
                   >
-                    {editingId ? 'Enregistrer les Modifications' : 'Créer la Salle'}
+                    {editingId
+                      ? dir === 'rtl' ? 'حفظ التعديلات' : 'Enregistrer les Modifications'
+                      : dir === 'rtl' ? 'إنشاء القاعة' : 'Créer la Salle'}
                   </button>
                 </div>
               </form>

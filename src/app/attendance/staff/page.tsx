@@ -1215,8 +1215,8 @@ export default function StaffAttendancePage() {
                     <div className="flex items-center gap-2">
                       <Clock className="w-4 h-4 text-sky-500" />
                       <div>
-                        <div>1. Rapport Journalier / Quotidien</div>
-                        <div className="text-[10px] text-slate-400 font-normal">Date : {selectedDate}</div>
+                        <div>{dir === 'rtl' ? '1. التقرير اليومي للموظفين' : '1. Rapport Journalier / Quotidien'}</div>
+                        <div className="text-[10px] text-slate-400 font-normal">{dir === 'rtl' ? `التاريخ : ${selectedDate}` : `Date : ${selectedDate}`}</div>
                       </div>
                     </div>
                   </button>
@@ -1228,8 +1228,8 @@ export default function StaffAttendancePage() {
                     <div className="flex items-center gap-2">
                       <FileSpreadsheet className="w-4 h-4 text-indigo-500" />
                       <div>
-                        <div>2. Journal Hebdomadaire (Semaine)</div>
-                        <div className="text-[10px] text-slate-400 font-normal">Semaine du {currentWeekDates[0]} au {currentWeekDates[5]}</div>
+                        <div>{dir === 'rtl' ? '2. السجل الأسبوعي للموظفين' : '2. Journal Hebdomadaire (Semaine)'}</div>
+                        <div className="text-[10px] text-slate-400 font-normal">{dir === 'rtl' ? `الأسبوع : من ${currentWeekDates[0]} إلى ${currentWeekDates[5]}` : `Semaine du ${currentWeekDates[0]} au ${currentWeekDates[5]}`}</div>
                       </div>
                     </div>
                   </button>
@@ -1241,8 +1241,8 @@ export default function StaffAttendancePage() {
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-emerald-500" />
                       <div>
-                        <div>3. Bilan Mensuel (Mois Complet)</div>
-                        <div className="text-[10px] text-slate-400 font-normal">Mois : {selectedMonth}</div>
+                        <div>{dir === 'rtl' ? '3. الحصيلة الشهرية للموظفين' : '3. Bilan Mensuel (Mois Complet)'}</div>
+                        <div className="text-[10px] text-slate-400 font-normal">{dir === 'rtl' ? `الشهر : ${selectedMonth}` : `Mois : ${selectedMonth}`}</div>
                       </div>
                     </div>
                   </button>
@@ -1257,8 +1257,8 @@ export default function StaffAttendancePage() {
                     <div className="flex items-center gap-2">
                       <Award className="w-4 h-4 text-purple-500" />
                       <div>
-                        <div>4. Bilan Périodique Personnalisé</div>
-                        <div className="text-[10px] text-slate-400 font-normal">Choisir Date Début ➔ Date Fin</div>
+                        <div>{dir === 'rtl' ? '4. تقرير دوري مخصص للموظفين' : '4. Bilan Périodique Personnalisé'}</div>
+                        <div className="text-[10px] text-slate-400 font-normal">{dir === 'rtl' ? 'تحديد تاريخ البداية والنهاية' : 'Choisir Date Début ➔ Date Fin'}</div>
                       </div>
                     </div>
                   </button>
@@ -1292,8 +1292,8 @@ export default function StaffAttendancePage() {
                   >
                     <Download className="w-4 h-4 text-emerald-500 shrink-0" />
                     <div>
-                      <div>1. Exporter Pointage Journalier</div>
-                      <div className="text-[10px] text-slate-400 font-normal">Jour : {selectedDate}</div>
+                      <div>{dir === 'rtl' ? '1. تصدير الحضور اليومي' : '1. Exporter Pointage Journalier'}</div>
+                      <div className="text-[10px] text-slate-400 font-normal">{dir === 'rtl' ? `اليوم : ${selectedDate}` : `Jour : ${selectedDate}`}</div>
                     </div>
                   </button>
 
@@ -1303,8 +1303,8 @@ export default function StaffAttendancePage() {
                   >
                     <Download className="w-4 h-4 text-indigo-500 shrink-0" />
                     <div>
-                      <div>2. Exporter Journal Hebdomadaire</div>
-                      <div className="text-[10px] text-slate-400 font-normal">Semaine du {currentWeekDates[0]} au {currentWeekDates[5]}</div>
+                      <div>{dir === 'rtl' ? '2. تصدير السجل الأسبوعي' : '2. Exporter Journal Hebdomadaire'}</div>
+                      <div className="text-[10px] text-slate-400 font-normal">{dir === 'rtl' ? `الأسبوع : من ${currentWeekDates[0]} إلى ${currentWeekDates[5]}` : `Semaine du ${currentWeekDates[0]} au ${currentWeekDates[5]}`}</div>
                     </div>
                   </button>
 
@@ -1314,8 +1314,8 @@ export default function StaffAttendancePage() {
                   >
                     <Download className="w-4 h-4 text-teal-500 shrink-0" />
                     <div>
-                      <div>3. Exporter Bilan Mensuel</div>
-                      <div className="text-[10px] text-slate-400 font-normal">Mois : {selectedMonth}</div>
+                      <div>{dir === 'rtl' ? '3. تصدير الحصيلة الشهرية' : '3. Exporter Bilan Mensuel'}</div>
+                      <div className="text-[10px] text-slate-400 font-normal">{dir === 'rtl' ? `الشهر : ${selectedMonth}` : `Mois : ${selectedMonth}`}</div>
                     </div>
                   </button>
 

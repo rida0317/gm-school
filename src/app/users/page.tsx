@@ -319,7 +319,7 @@ export default function UsersManagementPage() {
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Total Comptes
+                {dir === 'rtl' ? 'مجموع الحسابات' : 'Total Comptes'}
               </span>
               <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center">
                 <UserPlus className="w-4 h-4" />
@@ -328,7 +328,7 @@ export default function UsersManagementPage() {
             <div className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
               {users.length}
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">Tous rôles confondus</p>
+            <p className="text-[11px] text-slate-400 mt-1">{dir === 'rtl' ? 'جميع الرتب والمستخدمين' : 'Tous rôles confondus'}</p>
           </div>
 
           <div
@@ -342,7 +342,7 @@ export default function UsersManagementPage() {
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-                En Attente d&apos;Approbation
+                {dir === 'rtl' ? 'في انتظار التفعيل' : "En Attente d'Approbation"}
               </span>
               <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center">
                 <Clock className="w-4 h-4" />
@@ -352,7 +352,7 @@ export default function UsersManagementPage() {
               {pendingUsers.length}
             </div>
             <p className="text-[11px] text-amber-600/80 dark:text-amber-400/80 mt-1">
-              Nouvelles inscriptions à valider
+              {dir === 'rtl' ? 'تسجيلات جديدة تتطلب التفعيل' : 'Nouvelles inscriptions à valider'}
             </p>
           </div>
 
@@ -366,7 +366,7 @@ export default function UsersManagementPage() {
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-                Comptes Actifs
+                {dir === 'rtl' ? 'الحسابات النشطة' : 'Comptes Actifs'}
               </span>
               <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
                 <CheckCircle2 className="w-4 h-4" />
@@ -375,7 +375,7 @@ export default function UsersManagementPage() {
             <div className="mt-2 text-2xl font-black text-emerald-600 dark:text-emerald-400">
               {activeUsers.length}
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">Accès autorisé à la plateforme</p>
+            <p className="text-[11px] text-slate-400 mt-1">{dir === 'rtl' ? 'حسابات مفعلة ومرخص لها' : 'Accès autorisé à la plateforme'}</p>
           </div>
         </div>
 
@@ -385,11 +385,11 @@ export default function UsersManagementPage() {
             <div className="flex items-center gap-2 mb-3">
               <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
               <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                Demandes d&apos;inscription nécessitant votre validation ({pendingUsers.length})
+                {dir === 'rtl' ? `طلبات تسجيل تتطلب تفعيلك (${pendingUsers.length})` : `Demandes d'inscription nécessitant votre validation (${pendingUsers.length})`}
               </h2>
             </div>
             <p className="text-xs text-slate-600 dark:text-slate-300 mb-4">
-              Ces collaborateurs se sont inscrits et ne peuvent pas se connecter tant que vous n&apos;avez pas approuvé leur compte ci-dessous.
+              {dir === 'rtl' ? 'قام هؤلاء الموظفون بإنشاء حساباتهم، ولا يمكنهم الدخول حتى تقوم بتفعيل حساباتهم أدناه.' : "Ces collaborateurs se sont inscrits et ne peuvent pas se connecter tant que vous n'avez pas approuvé leur compte ci-dessous."}
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -418,7 +418,7 @@ export default function UsersManagementPage() {
                       )}
                     </div>
                     <span className="text-[10px] px-2 py-1 rounded-lg bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 font-semibold border border-amber-300/50">
-                      En Attente
+                      {dir === 'rtl' ? 'في الانتظار' : 'En Attente'}
                     </span>
                   </div>
 
@@ -429,13 +429,13 @@ export default function UsersManagementPage() {
                       className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-xs shadow-md shadow-emerald-500/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
                     >
                       <CheckCircle2 className="w-4 h-4" />
-                      <span>Approuver & Activer</span>
+                      <span>{dir === 'rtl' ? 'تفعيل الحساب' : 'Approuver & Activer'}</span>
                     </button>
                     <button
                       onClick={() => handleDelete(pUser)}
                       disabled={actionLoadingId === pUser.id}
                       className="p-2 rounded-xl text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 transition-all cursor-pointer"
-                      title="Rejeter / Supprimer la demande"
+                      title={dir === 'rtl' ? 'رفض وحذف الطلب' : 'Rejeter / Supprimer la demande'}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -449,32 +449,32 @@ export default function UsersManagementPage() {
         {/* Filter and Search Bar */}
         <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row gap-3 items-center justify-between">
           <div className="relative w-full sm:w-80">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Search className={`w-4 h-4 text-slate-400 absolute ${dir === 'rtl' ? 'right-3.5' : 'left-3.5'} top-1/2 -translate-y-1/2`} />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Rechercher par nom, email..."
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              placeholder={dir === 'rtl' ? 'بحث بالاسم، البريد...' : 'Rechercher par nom, email...'}
+              className={`w-full ${dir === 'rtl' ? 'pr-10 pl-4' : 'pl-10 pr-4'} py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500`}
             />
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <div className="flex items-center gap-1.5 text-xs text-slate-500">
               <Filter className="w-3.5 h-3.5" />
-              <span>Rôle:</span>
+              <span>{dir === 'rtl' ? 'الرتبة :' : 'Rôle:'}</span>
             </div>
             <select
               value={filterRole}
               onChange={(e) => setFilterRole(e.target.value)}
               className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
             >
-              <option value="ALL">Tous les rôles</option>
-              <option value="SUPER_ADMIN">Super Admin</option>
-              <option value="ADMIN">Directeur</option>
-              <option value="TEACHER">Enseignant</option>
-              <option value="SUPERVISOR">Surveillant Général</option>
-              <option value="STOCK_MANAGER">Gestionnaire Stock</option>
+              <option value="ALL">{dir === 'rtl' ? 'جميع الرتب' : 'Tous les rôles'}</option>
+              <option value="SUPER_ADMIN">{dir === 'rtl' ? 'المسؤول العام (Super Admin)' : 'Super Admin'}</option>
+              <option value="ADMIN">{dir === 'rtl' ? 'المدير (Directeur)' : 'Directeur'}</option>
+              <option value="TEACHER">{dir === 'rtl' ? 'أستاذ (Enseignant)' : 'Enseignant'}</option>
+              <option value="SUPERVISOR">{dir === 'rtl' ? 'حارس عام (Surveillant Général)' : 'Surveillant Général'}</option>
+              <option value="STOCK_MANAGER">{dir === 'rtl' ? 'مسؤول المخزن (Gestionnaire Stock)' : 'Gestionnaire Stock'}</option>
             </select>
           </div>
         </div>
@@ -485,11 +485,11 @@ export default function UsersManagementPage() {
             <table className="w-full text-left text-xs sm:text-sm">
               <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 <tr>
-                  <th className="px-6 py-4">Utilisateur</th>
-                  <th className="px-6 py-4">Contact</th>
-                  <th className="px-6 py-4">Rôle & Permissions</th>
-                  <th className="px-6 py-4">Statut</th>
-                  <th className="px-6 py-4 text-right">Actions d&apos;Administration</th>
+                  <th className="px-6 py-4">{dir === 'rtl' ? 'المستخدم' : 'Utilisateur'}</th>
+                  <th className="px-6 py-4">{dir === 'rtl' ? 'معلومات الاتصال' : 'Contact'}</th>
+                  <th className="px-6 py-4">{dir === 'rtl' ? 'الرتبة والصلاحيات' : 'Rôle & Permissions'}</th>
+                  <th className="px-6 py-4">{dir === 'rtl' ? 'الحالة' : 'Statut'}</th>
+                  <th className="px-6 py-4 text-right">{t('actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
@@ -498,14 +498,14 @@ export default function UsersManagementPage() {
                     <td colSpan={5} className="text-center py-12 text-slate-400">
                       <div className="flex items-center justify-center gap-2">
                         <RefreshCw className="w-4 h-4 animate-spin text-sky-500" />
-                        <span>Chargement des utilisateurs...</span>
+                        <span>{t('loading')}</span>
                       </div>
                     </td>
                   </tr>
                 ) : filteredUsers.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="text-center py-12 text-slate-400">
-                      Aucun utilisateur trouvé.
+                      {t('no_data')}
                     </td>
                   </tr>
                 ) : (
@@ -537,7 +537,7 @@ export default function UsersManagementPage() {
                                 {u.first_name} {u.last_name}
                               </div>
                               <div className="text-[11px] text-slate-400">
-                                Inscrit le {new Date(u.created_at || Date.now()).toLocaleDateString('fr-FR')}
+                                {dir === 'rtl' ? 'تاريخ التسجيل :' : 'Inscrit le'} {new Date(u.created_at || Date.now()).toLocaleDateString(dir === 'rtl' ? 'ar-MA' : 'fr-FR')}
                               </div>
                             </div>
                           </div>
@@ -546,7 +546,7 @@ export default function UsersManagementPage() {
                         {/* Contact */}
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-xs text-slate-700 dark:text-slate-300">{u.email}</div>
-                          <div className="text-[11px] text-slate-400">{u.phone || 'Non renseigné'}</div>
+                          <div className="text-[11px] text-slate-400">{u.phone || (dir === 'rtl' ? 'غير محدد' : 'Non renseigné')}</div>
                         </td>
 
                         {/* Role selection */}
@@ -554,7 +554,7 @@ export default function UsersManagementPage() {
                           {currentUserRole === 'ADMIN' && u.role === 'SUPER_ADMIN' ? (
                             <span className="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300 border border-purple-300 inline-flex items-center gap-1.5">
                               <Lock className="w-3 h-3 text-purple-600" />
-                              Super Admin (Protégé)
+                              {dir === 'rtl' ? 'مسؤول عام (محمي)' : 'Super Admin (Protégé)'}
                             </span>
                           ) : (
                             <div className="flex items-center gap-2">
@@ -565,12 +565,12 @@ export default function UsersManagementPage() {
                                 className="text-xs font-semibold py-1 px-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 cursor-pointer focus:ring-1 focus:ring-sky-500"
                               >
                                 {currentUserRole === 'SUPER_ADMIN' && (
-                                  <option value="SUPER_ADMIN">Super Admin</option>
+                                  <option value="SUPER_ADMIN">{dir === 'rtl' ? 'المسؤول العام' : 'Super Admin'}</option>
                                 )}
-                                <option value="ADMIN">Directeur</option>
-                                <option value="TEACHER">Enseignant</option>
-                                <option value="SUPERVISOR">Surveillant Général</option>
-                                <option value="STOCK_MANAGER">Gestionnaire Stock</option>
+                                <option value="ADMIN">{dir === 'rtl' ? 'المدير' : 'Directeur'}</option>
+                                <option value="TEACHER">{dir === 'rtl' ? 'أستاذ' : 'Enseignant'}</option>
+                                <option value="SUPERVISOR">{dir === 'rtl' ? 'حارس عام' : 'Surveillant Général'}</option>
+                                <option value="STOCK_MANAGER">{dir === 'rtl' ? 'مسؤول المخزن' : 'Gestionnaire Stock'}</option>
                               </select>
                             </div>
                           )}
@@ -581,12 +581,12 @@ export default function UsersManagementPage() {
                           {isPending ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300">
                               <Clock className="w-3 h-3" />
-                              En attente
+                              {dir === 'rtl' ? 'في الانتظار' : 'En attente'}
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300">
                               <CheckCircle2 className="w-3 h-3" />
-                              Actif
+                              {dir === 'rtl' ? 'نشط' : 'Actif'}
                             </span>
                           )}
                         </td>
@@ -597,7 +597,7 @@ export default function UsersManagementPage() {
                             <div className="flex items-center justify-end">
                               <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/80 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-1">
                                 <Lock className="w-3 h-3 text-purple-500" />
-                                <span>Compte Protégé</span>
+                                <span>{dir === 'rtl' ? 'حساب محمي' : 'Compte Protégé'}</span>
                               </span>
                             </div>
                           ) : (

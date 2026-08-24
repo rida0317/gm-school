@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { useI18n } from '@/lib/i18n';
 import { createClient } from '@/lib/supabase/client';
 import { Subject, EducationCycle, CycleSubjectConfig } from '@/types/database';
 import { useConfirm, useNotify } from '@/lib/modal-service';
@@ -287,6 +288,7 @@ const ROOM_TYPE_OPTIONS = [
 ];
 
 export default function SubjectsPage() {
+  const { t, dir } = useI18n();
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCycle, setSelectedCycle] = useState<EducationCycle | 'ALL'>('ALL');
@@ -764,13 +766,13 @@ export default function SubjectsPage() {
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold text-sky-600 dark:text-sky-400 uppercase tracking-wider">
               <BookOpen className="w-4 h-4" />
-              <span>Ingénierie &amp; Programme Pédagogique par Cycle</span>
+              <span>{dir === 'rtl' ? 'الهندسة والبرامج البيداغوجية حسب السلك' : 'Ingénierie & Programme Pédagogique par Cycle'}</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
-              Programme Pédagogique &amp; Matières par Cycle
+              {dir === 'rtl' ? 'البرامج والمواد الدراسية حسب الأسلاك' : 'Programme Pédagogique & Matières par Cycle'}
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Définissez les quotas d&apos;heures par semaine spécifiques pour chaque cycle (Maternelle, Primaire, Collège &amp; Lycée).
+              {dir === 'rtl' ? 'تحديد وتوزيع الحصص الأسبوعية المخصصة لكل مادة حسب الأسلاك (أولي، ابتدائي، إعدادي، وثانوي).' : "Définissez les quotas d'heures par semaine spécifiques pour chaque cycle (Maternelle, Primaire, Collège & Lycée)."}
             </p>
           </div>
 
@@ -780,7 +782,7 @@ export default function SubjectsPage() {
               className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs shadow-xs hover:bg-slate-50 dark:hover:bg-slate-700 transition-all cursor-pointer whitespace-nowrap"
             >
               <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span>Exporter Excel</span>
+              <span>{dir === 'rtl' ? 'تصدير Excel' : 'Exporter Excel'}</span>
             </button>
 
             <button
@@ -788,7 +790,7 @@ export default function SubjectsPage() {
               className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 text-rose-700 dark:text-rose-300 font-bold text-xs shadow-xs hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-all cursor-pointer whitespace-nowrap"
             >
               <Printer className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
-              <span>Imprimer PDF</span>
+              <span>{dir === 'rtl' ? 'طباعة PDF' : 'Imprimer PDF'}</span>
             </button>
 
             <button
@@ -796,7 +798,7 @@ export default function SubjectsPage() {
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-sky-500/25 transition-all hover:scale-105 cursor-pointer whitespace-nowrap"
             >
               <Plus className="w-4 h-4" />
-              <span>Ajouter une Matière</span>
+              <span>{dir === 'rtl' ? 'إضافة مادة دراسية' : 'Ajouter une Matière'}</span>
             </button>
           </div>
         </div>
@@ -822,7 +824,7 @@ export default function SubjectsPage() {
                 }`}
               >
                 <Icon className={`w-4 h-4 ${isActive ? tab.color : 'text-slate-400'}`} />
-                <span>{tab.label}</span>
+                <span>{dir === 'rtl' ? (tab.id === 'ALL' ? 'جميع الأسلاك' : tab.id === 'MATERNELLE' ? 'التعليم الأولي' : tab.id === 'PRIMAIRE' ? 'الابتدائي' : tab.id === 'COLLEGE' ? 'الإعدادي' : 'الثانوي') : tab.label}</span>
                 <span
                   className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
                     isActive
@@ -849,9 +851,9 @@ export default function SubjectsPage() {
               <BookOpen className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Matières du Cycle</div>
+              <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{dir === 'rtl' ? 'مواد السلك' : 'Matières du Cycle'}</div>
               <div className="text-xl font-black text-slate-900 dark:text-white mt-0.5">
-                {currentStats.totalCount} Matières
+                {currentStats.totalCount} {dir === 'rtl' ? 'مادة' : 'Matières'}
               </div>
             </div>
           </div>
@@ -862,10 +864,10 @@ export default function SubjectsPage() {
             </div>
             <div>
               <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                Volume Hebdo ({selectedCycle === 'ALL' ? 'Moyen' : selectedCycle})
+                {dir === 'rtl' ? 'الحجم الأسبوعي' : 'Volume Hebdo'} ({selectedCycle === 'ALL' ? (dir === 'rtl' ? 'المتوسط' : 'Moyen') : selectedCycle})
               </div>
               <div className="text-xl font-black text-slate-900 dark:text-white mt-0.5">
-                {currentStats.totalHours} Heures / sem.
+                {currentStats.totalHours} {dir === 'rtl' ? 'ساعة / أسبوع' : 'Heures / sem.'}
               </div>
             </div>
           </div>
@@ -875,9 +877,9 @@ export default function SubjectsPage() {
               <DoorClosed className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Types de Locaux Requis</div>
+              <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{dir === 'rtl' ? 'فضاءات التدريس المطلوبة' : 'Types de Locaux Requis'}</div>
               <div className="text-xl font-black text-slate-900 dark:text-white mt-0.5">
-                {currentStats.uniqueRooms} Salles &amp; Labos
+                {currentStats.uniqueRooms} {dir === 'rtl' ? 'قاعة ومختبر' : 'Salles & Labos'}
               </div>
             </div>
           </div>
@@ -889,7 +891,7 @@ export default function SubjectsPage() {
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Rechercher une matière, code, niveau ou cycle..."
+              placeholder={dir === 'rtl' ? 'بحث عن مادة، رمز، مستوى، أو سلك...' : 'Rechercher une matière, code, niveau ou cycle...'}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 text-xs font-semibold rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
@@ -897,7 +899,7 @@ export default function SubjectsPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-400 font-medium">Affichage :</span>
+            <span className="text-xs text-slate-400 font-medium">{dir === 'rtl' ? 'العرض :' : 'Affichage :'}</span>
             <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
               <button
                 onClick={() => setViewMode('grid')}

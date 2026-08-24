@@ -1075,13 +1075,13 @@ export default function GardesPlanningPage() {
               />
               <div>
                 <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-                  <span>Planning des Gardes (Lundi &mdash; Vendredi)</span>
+                  <span>{dir === 'rtl' ? 'جدول وتوزيع الحراسة الأسبوعية (الإثنين — الجمعة)' : 'Planning des Gardes (Lundi — Vendredi)'}</span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-bold border border-purple-200 dark:border-purple-800">
-                    Sous-sol 100% Maternelle &bull; Vendredi 12h20
+                    {dir === 'rtl' ? 'التعليم الأولي 100% • الجمعة 12:20' : 'Sous-sol 100% Maternelle • Vendredi 12h20'}
                   </span>
                 </h1>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Matin (08h00), Déjeuner (12h20 Lun-Jeu, Étages 1 &amp; 2) et Sortie (16h00 Lun-Jeu / 12h20 Vendredi). Sous-sol exclusivement réservé à la Maternelle.
+                  {dir === 'rtl' ? 'حراسة الصباح (08:00)، الاستراحة والغداء (12:20)، والمساء (16:15 الإثنين-الخميس / 12:20 الجمعة).' : 'Matin (08h00), Déjeuner (12h20 Lun-Jeu, Étages 1 & 2) et Sortie (16h00 Lun-Jeu / 12h20 Vendredi).'}
                 </p>
               </div>
             </div>
@@ -1096,7 +1096,7 @@ export default function GardesPlanningPage() {
               className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-bold bg-purple-50 dark:bg-purple-950/50 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition-all cursor-pointer whitespace-nowrap shadow-xs"
             >
               <Building2 className="w-4 h-4" />
-              <span>Gérer les Étages &amp; Quotas ({floors.length})</span>
+              <span>{dir === 'rtl' ? `إدارة الطوابق والحصص (${floors.length})` : `Gérer les Étages & Quotas (${floors.length})`}</span>
             </button>
 
             {/* ⚡ Sync with Timetable */}
@@ -1108,7 +1108,7 @@ export default function GardesPlanningPage() {
               title="Distribue les gardes (Sous-sol strictement réservé aux enseignants Maternelle)"
             >
               <Zap className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-              <span>{isSyncing ? 'Analyse & Remplissage...' : '⚡ Synchroniser & Remplir 100%'}</span>
+              <span>{isSyncing ? (dir === 'rtl' ? 'تحليل وتوزيع الحصص...' : 'Analyse & Remplissage...') : (dir === 'rtl' ? '⚡ توزيع ذكي وتلقائي 100%' : '⚡ Synchroniser & Remplir 100%')}</span>
             </button>
 
             {/* 🧹 Clear Gardes Button */}
@@ -1119,7 +1119,7 @@ export default function GardesPlanningPage() {
               title="Vider et réinitialiser toutes les affectations de garde de la semaine"
             >
               <Trash2 className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-              <span>Vider le Planning</span>
+              <span>{dir === 'rtl' ? 'إفراغ الجدول' : 'Vider le Planning'}</span>
             </button>
 
             {/* 🖨️ Print */}
@@ -1129,7 +1129,7 @@ export default function GardesPlanningPage() {
               className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer whitespace-nowrap shadow-xs"
             >
               <Printer className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-              <span>Imprimer</span>
+              <span>{dir === 'rtl' ? 'طباعة' : 'Imprimer'}</span>
             </button>
 
             {/* 📥 CSV Export */}
@@ -1139,7 +1139,7 @@ export default function GardesPlanningPage() {
               className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer whitespace-nowrap shadow-xs"
             >
               <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span>CSV</span>
+              <span>{dir === 'rtl' ? 'تصدير CSV' : 'CSV'}</span>
             </button>
 
             {/* 💾 Save */}
@@ -1155,12 +1155,12 @@ export default function GardesPlanningPage() {
               {isSavedFeedback ? (
                 <>
                   <CheckCircle2 className="w-4 h-4 text-white" />
-                  <span>Enregistré ✅</span>
+                  <span>{dir === 'rtl' ? 'تم الحفظ ✅' : 'Enregistré ✅'}</span>
                 </>
               ) : (
                 <>
                   <Save className="w-4 h-4 text-white" />
-                  <span>Enregistrer</span>
+                  <span>{dir === 'rtl' ? 'حفظ الجدول' : 'Enregistrer'}</span>
                 </>
               )}
             </button>

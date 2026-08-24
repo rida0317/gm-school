@@ -374,7 +374,15 @@ function ClassesContent() {
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
-                {cycle.name}
+                {dir === 'rtl'
+                  ? cycle.name === 'Maternelle'
+                    ? 'التعليم الأولي'
+                    : cycle.name === 'Primaire'
+                    ? 'الابتدائي'
+                    : cycle.name === 'Collège'
+                    ? 'الإعدادي'
+                    : 'الثانوي والباكالوريا'
+                  : cycle.name}
               </button>
             ))}
           </div>
@@ -395,11 +403,11 @@ function ClassesContent() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           {loading ? (
             <div className="col-span-full py-12 text-center text-slate-400">
-              Chargement des classes...
+              {dir === 'rtl' ? 'جاري تحميل الأقسام...' : 'Chargement des classes...'}
             </div>
           ) : filteredClasses.length === 0 ? (
             <div className="col-span-full py-12 text-center text-slate-400">
-              Aucune classe trouvée pour ce filtre.
+              {dir === 'rtl' ? 'لا توجد أقسام مطابقة لهذا الاختيار.' : 'Aucune classe trouvée pour ce filtre.'}
             </div>
           ) : (
             filteredClasses.map((c) => (
@@ -414,7 +422,7 @@ function ClassesContent() {
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span className="px-2 py-0.5 rounded-lg text-xs font-black bg-orange-500 text-white shadow-xs">
-                        Groupe {c.group_name || 'A'}
+                        {dir === 'rtl' ? `الفوج ${c.group_name || 'أ'}` : `Groupe ${c.group_name || 'A'}`}
                       </span>
                       <span className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-orange-50 dark:bg-orange-950/80 text-orange-700 dark:text-orange-300 border border-orange-300/40">
                         {c.level}
@@ -426,41 +434,43 @@ function ClassesContent() {
 
                   <div className="mt-4 space-y-2 text-xs text-slate-500 dark:text-slate-400">
                     <div className="flex items-center justify-between">
-                      <span>Groupe / Division :</span>
+                      <span>{dir === 'rtl' ? 'الفوج / الشعبة :' : 'Groupe / Division :'}</span>
                       <strong className="text-slate-900 dark:text-white font-bold">
-                        Groupe {c.group_name || 'A'}
+                        {dir === 'rtl' ? `الفوج ${c.group_name || 'أ'}` : `Groupe ${c.group_name || 'A'}`}
                       </strong>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span>Prof. Principal :</span>
+                      <span>{dir === 'rtl' ? 'الأستاذ الرئيسي :' : 'Prof. Principal :'}</span>
                       <span className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[120px]">
                         {c.main_teacher
                           ? `${c.main_teacher.first_name} ${c.main_teacher.last_name}`
-                          : 'Non défini'}
+                          : dir === 'rtl' ? 'غير محدد' : 'Non défini'}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span>Capacité maximale :</span>
+                      <span>{dir === 'rtl' ? 'الطاقة الاستيعابية :' : 'Capacité maximale :'}</span>
                       <span className="font-semibold text-slate-800 dark:text-slate-200">
-                        {c.capacity} Élèves
+                        {c.capacity} {dir === 'rtl' ? 'تلميذ' : 'Élèves'}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="pt-3 mt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <span className="text-[10px] text-slate-400 font-medium">Actions</span>
+                <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    {c.group_name && c.group_name !== 'Unique' ? (dir === 'rtl' ? `شعبة ${c.group_name}` : `Division ${c.group_name}`) : (dir === 'rtl' ? 'فوج عام' : 'Division Générale')}
+                  </span>
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => openEditModal(c)}
-                      title="Modifier la classe"
-                      className="p-2 text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-white rounded-xl hover:bg-orange-50 dark:hover:bg-orange-950/50 transition-colors cursor-pointer"
+                      title={dir === 'rtl' ? 'تعديل القسم' : 'Modifier la classe'}
+                      className="p-2 text-slate-400 hover:text-orange-500 rounded-xl hover:bg-orange-50 dark:hover:bg-orange-950/40 transition-colors cursor-pointer"
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDelete(c.id, c.name)}
-                      title="Supprimer la classe"
+                      title={dir === 'rtl' ? 'حذف القسم' : 'Supprimer la classe'}
                       className="p-2 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -482,7 +492,9 @@ function ClassesContent() {
                     <Building2 className="w-5 h-5" />
                   </div>
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                    {editingId ? 'Modifier la Classe' : 'Créer une Nouvelle Classe'}
+                    {editingId
+                      ? dir === 'rtl' ? 'تعديل بيانات القسم' : 'Modifier la Classe'
+                      : dir === 'rtl' ? 'إضافة قسم جديد' : 'Créer une Nouvelle Classe'}
                   </h3>
                 </div>
                 <button
@@ -496,7 +508,7 @@ function ClassesContent() {
               <form onSubmit={handleSave} className="space-y-4 mt-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Nom de la classe (ex: CE1-A, 3AC-B, 2Bac-PC-A)
+                    {dir === 'rtl' ? 'اسم القسم (مثال: CE1-A, 3AC-B, 2Bac-PC-A)' : 'Nom de la classe (ex: CE1-A, 3AC-B, 2Bac-PC-A)'}
                   </label>
                   <input
                     type="text"
@@ -510,7 +522,7 @@ function ClassesContent() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Niveau Scolaire (TPS &rarr; 2Bac)
+                      {dir === 'rtl' ? 'المستوى الدراسي' : 'Niveau Scolaire (TPS → 2Bac)'}
                     </label>
                     <select
                       value={formData.level}
@@ -531,7 +543,7 @@ function ClassesContent() {
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
-                      <Layers className="w-3.5 h-3.5 text-orange-500" /> Groupe
+                      <Layers className="w-3.5 h-3.5 text-orange-500" /> {dir === 'rtl' ? 'الفوج' : 'Groupe'}
                     </label>
                     <select
                       value={formData.group_name}
@@ -540,7 +552,7 @@ function ClassesContent() {
                     >
                       {GROUP_OPTIONS.map((grp) => (
                         <option key={grp.value} value={grp.value}>
-                          {grp.label}
+                          {dir === 'rtl' ? (grp.value === 'Unique' ? 'فوج وحيد' : `فوج ${grp.value}`) : grp.label}
                         </option>
                       ))}
                     </select>
@@ -550,7 +562,7 @@ function ClassesContent() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Capacité (Élèves max)
+                      {dir === 'rtl' ? 'الطاقة الاستيعابية (الحد الأقصى للتلاميذ)' : 'Capacité (Élèves max)'}
                     </label>
                     <input
                       type="number"
@@ -563,14 +575,14 @@ function ClassesContent() {
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Professeur Principal
+                      {dir === 'rtl' ? 'الأستاذ الرئيسي' : 'Professeur Principal'}
                     </label>
                     <select
                       value={formData.main_teacher_id}
                       onChange={(e) => setFormData({ ...formData, main_teacher_id: e.target.value })}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer"
                     >
-                      <option value="">-- Aucun / Non assigné --</option>
+                      <option value="">{dir === 'rtl' ? '-- غير محدد --' : '-- Aucun / Non assigné --'}</option>
                       {teachers.map((t) => (
                         <option key={t.id} value={t.id}>
                           {t.first_name} {t.last_name} ({t.specialization})
@@ -586,13 +598,15 @@ function ClassesContent() {
                     onClick={() => setShowModal(false)}
                     className="px-4 py-2.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
                   >
-                    Annuler
+                    {t('cancel')}
                   </button>
                   <button
                     type="submit"
                     className="px-6 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 rounded-xl shadow-lg shadow-orange-500/25 transition-all cursor-pointer"
                   >
-                    {editingId ? 'Enregistrer les Modifications' : 'Créer la Classe'}
+                    {editingId
+                      ? dir === 'rtl' ? 'حفظ التعديلات' : 'Enregistrer les Modifications'
+                      : dir === 'rtl' ? 'إنشاء القسم' : 'Créer la Classe'}
                   </button>
                 </div>
               </form>

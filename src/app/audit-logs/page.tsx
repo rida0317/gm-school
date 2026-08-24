@@ -296,14 +296,14 @@ export default function AuditLogsPage() {
           {/* Entity Filter */}
           <div className="flex items-center gap-2 w-full md:w-auto">
             <label className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
-              Entité :
+              {dir === 'rtl' ? 'الكيان :' : 'Entité :'}
             </label>
             <select
               value={selectedEntityType}
               onChange={(e) => setSelectedEntityType(e.target.value)}
               className="w-full md:w-auto px-3 py-2 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 cursor-pointer"
             >
-              <option value="ALL">Toutes les Entités</option>
+              <option value="ALL">{dir === 'rtl' ? 'جميع الكيانات' : 'Toutes les Entités'}</option>
               {entityTypes.map((t) => (
                 <option key={t} value={t}>
                   {t}
@@ -315,14 +315,14 @@ export default function AuditLogsPage() {
           {/* Action Filter */}
           <div className="flex items-center gap-2 w-full md:w-auto">
             <label className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
-              Action :
+              {dir === 'rtl' ? 'العملية :' : 'Action :'}
             </label>
             <select
               value={selectedAction}
               onChange={(e) => setSelectedAction(e.target.value)}
               className="w-full md:w-auto px-3 py-2 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 cursor-pointer"
             >
-              <option value="ALL">Toutes les Actions</option>
+              <option value="ALL">{dir === 'rtl' ? 'جميع العمليات' : 'Toutes les Actions'}</option>
               {actionTypes.map((a) => (
                 <option key={a} value={a}>
                   {a}

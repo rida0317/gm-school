@@ -44,13 +44,13 @@ import {
 
 // Default Visual Categories with Icons & Color Palettes
 const PRESET_CATEGORIES = [
-  { id: 'ALL', name: 'Tous les Articles', icon: Boxes, color: 'from-blue-600 to-indigo-600' },
-  { id: 'FOURNITURES', name: 'Fournitures & Papeterie', icon: BookOpen, color: 'from-sky-500 to-blue-600' },
-  { id: 'INFORMATIQUE', name: 'Informatique & IT', icon: Laptop, color: 'from-violet-500 to-purple-600' },
-  { id: 'PEDAGOGIE', name: 'Arts & Pédagogie', icon: Palette, color: 'from-pink-500 to-rose-600' },
-  { id: 'SCIENCES', name: 'Sciences & Labo', icon: FlaskConical, color: 'from-emerald-500 to-teal-600' },
-  { id: 'HYGIENE', name: 'Hygiène & Entretien', icon: SprayCan, color: 'from-teal-500 to-cyan-600' },
-  { id: 'SPORT', name: 'Sport & EPS', icon: Dumbbell, color: 'from-amber-500 to-orange-600' },
+  { id: 'ALL', name: 'Tous les Articles', ar: 'جميع المواد', icon: Boxes, color: 'from-blue-600 to-indigo-600' },
+  { id: 'FOURNITURES', name: 'Fournitures & Papeterie', ar: 'الأدوات والمكتبة', icon: BookOpen, color: 'from-sky-500 to-blue-600' },
+  { id: 'INFORMATIQUE', name: 'Informatique & IT', ar: 'المعلوميات والتقنية', icon: Laptop, color: 'from-violet-500 to-purple-600' },
+  { id: 'PEDAGOGIE', name: 'Arts & Pédagogie', ar: 'الفنون والأنشطة التربوية', icon: Palette, color: 'from-pink-500 to-rose-600' },
+  { id: 'SCIENCES', name: 'Sciences & Labo', ar: 'العلوم والمختبر', icon: FlaskConical, color: 'from-emerald-500 to-teal-600' },
+  { id: 'HYGIENE', name: 'Hygiène & Entretien', ar: 'النظافة والصيانة', icon: SprayCan, color: 'from-teal-500 to-cyan-600' },
+  { id: 'SPORT', name: 'Sport & EPS', ar: 'الرياضة والأنشطة', icon: Dumbbell, color: 'from-amber-500 to-orange-600' },
 ];
 
 // Realistic Sample School Inventory
@@ -1225,7 +1225,7 @@ export default function StockPage() {
                       }`}
                     >
                       <Icon className="w-3.5 h-3.5" />
-                      <span>{cat.name}</span>
+                      <span>{dir === 'rtl' ? cat.ar : cat.name}</span>
                     </button>
                   );
                 })}
@@ -1237,7 +1237,7 @@ export default function StockPage() {
                   <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
-                    placeholder="Rechercher par libellé, référence SKU..."
+                    placeholder={dir === 'rtl' ? 'بحث عن مادة، اسم، أو رمز SKU...' : 'Rechercher par libellé, référence SKU...'}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs"
@@ -1245,16 +1245,16 @@ export default function StockPage() {
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400">État :</span>
+                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{dir === 'rtl' ? 'الحالة :' : 'État :'}</span>
                   <select
                     value={stockStatusFilter}
                     onChange={(e) => setStockStatusFilter(e.target.value as any)}
                     className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs"
                   >
-                    <option value="ALL">Tous les états</option>
-                    <option value="IN_STOCK">🟢 En stock uniquement</option>
-                    <option value="LOW_STOCK">🟠 Stock faible</option>
-                    <option value="OUT_OF_STOCK">🔴 Rupture de stock</option>
+                    <option value="ALL">{dir === 'rtl' ? 'جميع الحالات' : 'Tous les états'}</option>
+                    <option value="IN_STOCK">{dir === 'rtl' ? 'متوفر بالمخزن 🟢' : 'En stock 🟢'}</option>
+                    <option value="LOW_STOCK">{dir === 'rtl' ? 'مخزون منخفض 🟡' : 'Stock Faible 🟡'}</option>
+                    <option value="OUT_OF_STOCK">{dir === 'rtl' ? 'نفد من المخزن 🔴' : 'Rupture 🔴'}</option>
                   </select>
                 </div>
               </div>

@@ -482,7 +482,7 @@ export default function StudentsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 w-full">
                   <div className="w-full min-w-0">
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 truncate">
-                      t('student_code')
+                      {dir === 'rtl' ? 'رقم التسجيل (Matricule)' : 'Matricule / Code'}
                     </label>
                     <input
                       type="text"
@@ -495,7 +495,7 @@ export default function StudentsPage() {
                   </div>
                   <div className="w-full min-w-0">
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 truncate">
-                      t('first_name')
+                      {dir === 'rtl' ? 'الاسم الشخصي' : 'Prénom'}
                     </label>
                     <input
                       type="text"
@@ -503,12 +503,12 @@ export default function StudentsPage() {
                       value={formData.first_name}
                       onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
                       className="w-full h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white shadow-xs"
-                      placeholder="Amine"
+                      placeholder={dir === 'rtl' ? 'أمين' : 'Amine'}
                     />
                   </div>
                   <div className="w-full min-w-0">
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 truncate">
-                      Nom
+                      {dir === 'rtl' ? 'الاسم العائلي' : 'Nom'}
                     </label>
                     <input
                       type="text"
@@ -516,7 +516,7 @@ export default function StudentsPage() {
                       value={formData.last_name}
                       onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
                       className="w-full h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white shadow-xs"
-                      placeholder="Berrada"
+                      placeholder={dir === 'rtl' ? 'برادة' : 'Berrada'}
                     />
                   </div>
                 </div>
@@ -524,14 +524,14 @@ export default function StudentsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
                   <div className="w-full min-w-0">
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 truncate">
-                      t('class_and_level')
+                      {dir === 'rtl' ? 'القسم والمستوى' : 'Classe & Niveau'}
                     </label>
                     <select
                       value={formData.class_id}
                       onChange={(e) => setFormData({ ...formData, class_id: e.target.value })}
                       className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-xs truncate"
                     >
-                      <option value="">Non assigné</option>
+                      <option value="">{dir === 'rtl' ? '-- غير محدد --' : 'Non assigné'}</option>
                       {classes.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name} ({c.level})
@@ -541,15 +541,15 @@ export default function StudentsPage() {
                   </div>
                   <div className="w-full min-w-0">
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 truncate">
-                      t('gender')
+                      {dir === 'rtl' ? 'الجنس' : 'Genre'}
                     </label>
                     <select
                       value={formData.gender}
                       onChange={(e) => setFormData({ ...formData, gender: e.target.value as 'M' | 'F' })}
                       className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-xs"
                     >
-                      <option value="M">Masculin</option>
-                      <option value="F">Féminin</option>
+                      <option value="M">{dir === 'rtl' ? 'ذكر' : 'Masculin'}</option>
+                      <option value="F">{dir === 'rtl' ? 'أنثى' : 'Féminin'}</option>
                     </select>
                   </div>
                 </div>
@@ -557,7 +557,7 @@ export default function StudentsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
                   <div className="w-full min-w-0">
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 truncate">
-                      t('date_of_birth')
+                      {dir === 'rtl' ? 'تاريخ الازدياد' : 'Date de naissance'}
                     </label>
                     <input
                       type="date"
@@ -568,17 +568,17 @@ export default function StudentsPage() {
                   </div>
                   <div className="w-full min-w-0">
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 truncate">
-                      t('status')
+                      {dir === 'rtl' ? 'الحالة المدرسية' : 'Statut'}
                     </label>
                     <select
                       value={formData.status}
                       onChange={(e) => setFormData({ ...formData, status: e.target.value as 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'GRADUATED' })}
                       className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-xs"
                     >
-                      <option value="ACTIVE">Actif (Inscrit)</option>
-                      <option value="INACTIVE">Inactif</option>
-                      <option value="SUSPENDED">Suspendu</option>
-                      <option value="GRADUATED">Lauréat / Transféré</option>
+                      <option value="ACTIVE">{dir === 'rtl' ? 'مسجل ونشط' : 'Actif (Inscrit)'}</option>
+                      <option value="INACTIVE">{dir === 'rtl' ? 'غير نشط' : 'Inactif'}</option>
+                      <option value="SUSPENDED">{dir === 'rtl' ? 'موقوف' : 'Suspendu'}</option>
+                      <option value="GRADUATED">{dir === 'rtl' ? 'متخرج / منتقل' : 'Lauréat / Transféré'}</option>
                     </select>
                   </div>
                 </div>
@@ -586,19 +586,19 @@ export default function StudentsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
                   <div className="w-full min-w-0">
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 truncate">
-                      t('guardian_name')
+                      {dir === 'rtl' ? 'اسم ولي الأمر' : 'Nom du Tuteur'}
                     </label>
                     <input
                       type="text"
                       value={formData.guardian_name}
                       onChange={(e) => setFormData({ ...formData, guardian_name: e.target.value })}
                       className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white shadow-xs"
-                      placeholder="Driss Berrada"
+                      placeholder={dir === 'rtl' ? 'إدريس برادة' : 'Driss Berrada'}
                     />
                   </div>
                   <div className="w-full min-w-0">
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 truncate">
-                      t('guardian_phone')
+                      {dir === 'rtl' ? 'هاتف ولي الأمر (واتساب)' : 'Téléphone Tuteur (WhatsApp)'}
                     </label>
                     <input
                       type="tel"

@@ -534,10 +534,10 @@ export default function TuitionPage() {
               className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
             >
               <option value="ALL">{dir === 'rtl' ? 'جميع الأسلاك' : 'Tous les Cycles'}</option>
-              <option value="MATERNELLE">Maternelle</option>
-              <option value="PRIMAIRE">Primaire</option>
-              <option value="COLLEGE">Collège</option>
-              <option value="LYCEE">Lycée</option>
+              <option value="MATERNELLE">{dir === 'rtl' ? 'التعليم الأولي (Maternelle)' : 'Maternelle'}</option>
+              <option value="PRIMAIRE">{dir === 'rtl' ? 'التعليم الابتدائي (Primaire)' : 'Primaire'}</option>
+              <option value="COLLEGE">{dir === 'rtl' ? 'التعليم الإعدادي (Collège)' : 'Collège'}</option>
+              <option value="LYCEE">{dir === 'rtl' ? 'التعليم الثانوي (Lycée)' : 'Lycée'}</option>
             </select>
 
             {/* Class */}
@@ -595,12 +595,12 @@ export default function TuitionPage() {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-extrabold uppercase text-[11px] tracking-wider">
-                  <th className="py-3.5 px-4 w-36 whitespace-nowrap">Matricule</th>
-                  <th className="py-3.5 px-4 min-w-[220px]">Élève & Tuteur</th>
-                  <th className="py-3.5 px-4 w-40 whitespace-nowrap">Classe & Niveau</th>
-                  <th className="py-3.5 px-4 min-w-[200px]">Montant & Statut</th>
-                  <th className="py-3.5 px-4 min-w-[200px]">Règlement & Reçu</th>
-                  <th className="py-3.5 px-4 min-w-[190px] text-right whitespace-nowrap">Actions</th>
+                  <th className="py-3.5 px-4 w-36 whitespace-nowrap">{dir === 'rtl' ? 'رقم التسجيل' : 'Matricule'}</th>
+                  <th className="py-3.5 px-4 min-w-[220px]">{dir === 'rtl' ? 'التلميذ وولي الأمر' : 'Élève & Tuteur'}</th>
+                  <th className="py-3.5 px-4 w-40 whitespace-nowrap">{dir === 'rtl' ? 'القسم والمستوى' : 'Classe & Niveau'}</th>
+                  <th className="py-3.5 px-4 min-w-[200px]">{dir === 'rtl' ? 'المبلغ والحالة' : 'Montant & Statut'}</th>
+                  <th className="py-3.5 px-4 min-w-[200px]">{dir === 'rtl' ? 'الأداء والتوصيل' : 'Règlement & Reçu'}</th>
+                  <th className="py-3.5 px-4 min-w-[190px] text-right whitespace-nowrap">{dir === 'rtl' ? 'الإجراءات' : 'Actions'}</th>
                 </tr>
               </thead>
 

@@ -346,13 +346,13 @@ export default function SettingsPage() {
           <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
             <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
               <Building className="w-4 h-4 text-sky-500" />
-              Informations sur l&apos;Établissement
+              {dir === 'rtl' ? 'معلومات وبيانات المؤسسة الرسمية' : "Informations sur l'Établissement"}
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Nom de l&apos;École (Français)
+                  {dir === 'rtl' ? 'اسم المؤسسة (بالفرنسية)' : "Nom de l'École (Français)"}
                 </label>
                 <input
                   type="text"
@@ -365,7 +365,7 @@ export default function SettingsPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Nom de l&apos;École (Arabe)
+                  {dir === 'rtl' ? 'اسم المؤسسة (بالعربية)' : "Nom de l'École (Arabe)"}
                 </label>
                 <input
                   type="text"
@@ -379,7 +379,7 @@ export default function SettingsPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Année Scolaire Active
+                  {dir === 'rtl' ? 'السنة الدراسية الحالية' : 'Année Scolaire Active'}
                 </label>
                 <input
                   type="text"
@@ -392,21 +392,21 @@ export default function SettingsPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Semestre en Cours
+                  {dir === 'rtl' ? 'الدورة / الأسدس الحالي' : 'Semestre en Cours'}
                 </label>
                 <select
                   value={formState.current_term}
                   onChange={(e) => setFormState({ ...formState, current_term: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
                 >
-                  <option value="Semestre 1">Semestre 1</option>
-                  <option value="Semestre 2">Semestre 2</option>
+                  <option value="Semestre 1">{dir === 'rtl' ? 'الدورة الأولى (Semestre 1)' : 'Semestre 1'}</option>
+                  <option value="Semestre 2">{dir === 'rtl' ? 'الدورة الثانية (Semestre 2)' : 'Semestre 2'}</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Email de Direction
+                  {dir === 'rtl' ? 'البريد الإلكتروني للإدارة' : 'Email de Direction'}
                 </label>
                 <input
                   type="email"
@@ -419,7 +419,7 @@ export default function SettingsPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Téléphone Contact
+                  {dir === 'rtl' ? 'رقم هاتف الاتصال' : 'Téléphone Contact'}
                 </label>
                 <input
                   type="tel"
@@ -432,7 +432,7 @@ export default function SettingsPage() {
 
               <div className="md:col-span-2">
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Adresse de l&apos;Établissement
+                  {dir === 'rtl' ? 'عنوان المؤسسة' : "Adresse de l'Établissement"}
                 </label>
                 <input
                   type="text"
@@ -449,13 +449,13 @@ export default function SettingsPage() {
           <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
             <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
               <Globe className="w-4 h-4 text-emerald-500" />
-              Langue & Préférences Régionales
+              {dir === 'rtl' ? 'اللغة والإعدادات الإقليمية' : 'Langue & Préférences Régionales'}
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Langue par Défaut
+                  {dir === 'rtl' ? 'اللغة الافتراضية للنظام' : 'Langue par Défaut'}
                 </label>
                 <select
                   value={locale}
@@ -469,7 +469,7 @@ export default function SettingsPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Devise Monétaire
+                  {dir === 'rtl' ? 'العملة النقدية' : 'Devise Monétaire'}
                 </label>
                 <input
                   type="text"
