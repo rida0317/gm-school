@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { createClient } from '@/lib/supabase/client';
-import { StaffMember, StaffCategory, Teacher } from '@/types/database';
+import { StaffMember, StaffCategory, Teacher, Subject, TeacherContractType, TeacherAvailabilitySlot } from '@/types/database';
 import { useI18n } from '@/lib/i18n';
 import { useNotify, useConfirm } from '@/lib/modal-service';
 import { logAuditEvent } from '@/lib/audit';
@@ -35,9 +35,86 @@ import {
   Layers,
   ChevronRight,
   MoreVertical,
-  SlidersHorizontal
+  SlidersHorizontal,
+  BookOpen
 } from 'lucide-react';
 import Link from 'next/link';
+
+export interface LevelGroup {
+  cycle: string;
+  name: string;
+  levels: Array<{ value: string; label: string; short: string }>;
+}
+
+export const TEACHING_CYCLES: LevelGroup[] = [
+  {
+    cycle: 'Maternelle (Préscolaire)',
+    name: 'Maternelle',
+    levels: [
+      { value: 'TPS', label: 'TPS', short: 'TPS' },
+      { value: 'PS', label: 'PS', short: 'PS' },
+      { value: 'MS', label: 'MS', short: 'MS' },
+      { value: 'GS', label: 'GS', short: 'GS' },
+    ],
+  },
+  {
+    cycle: 'Enseignement Primaire',
+    name: 'Primaire',
+    levels: [
+      { value: 'CP', label: 'CP', short: 'CP' },
+      { value: 'CE1', label: 'CE1', short: 'CE1' },
+      { value: 'CE2', label: 'CE2', short: 'CE2' },
+      { value: 'CM1', label: 'CM1', short: 'CM1' },
+      { value: 'CM2', label: 'CM2', short: 'CM2' },
+      { value: 'CE6', label: 'CE6', short: 'CE6' },
+    ],
+  },
+  {
+    cycle: 'Enseignement Collégial (Collège)',
+    name: 'Collège',
+    levels: [
+      { value: '1AC', label: '1AC', short: '1AC' },
+      { value: '2AC', label: '2AC', short: '2AC' },
+      { value: '3AC', label: '3AC', short: '3AC' },
+    ],
+  },
+  {
+    cycle: 'Enseignement Secondaire (Lycée)',
+    name: 'Lycée',
+    levels: [
+      { value: 'Tronc Commun Sciences', label: 'TC Sciences', short: 'TCS' },
+      { value: 'Tronc Commun Lettres', label: 'TC Lettres', short: 'TCL' },
+      { value: 'Tronc Commun Technologie', label: 'TC Tech', short: 'TCT' },
+      { value: '1ère Bac Sciences Exp', label: '1Bac ScExp', short: '1Bac-ScExp' },
+      { value: '1ère Bac Sciences Math', label: '1Bac SM', short: '1Bac-SM' },
+      { value: '1ère Bac Économie', label: '1Bac Eco', short: '1Bac-Eco' },
+      { value: '1ère Bac Lettres', label: '1Bac L', short: '1Bac-L' },
+      { value: '2ème Bac PC', label: '2Bac PC', short: '2Bac-PC' },
+      { value: '2ème Bac SVT', label: '2Bac SVT', short: '2Bac-SVT' },
+      { value: '2ème Bac SM', label: '2Bac SM', short: '2Bac-SM' },
+      { value: '2ème Bac Économie', label: '2Bac Eco', short: '2Bac-Eco' },
+      { value: '2ème Bac Lettres', label: '2Bac L', short: '2Bac-L' },
+    ],
+  },
+];
+
+const MOROCCAN_DAYS = [
+  { id: 1, name: 'Lundi', short: 'Lun' },
+  { id: 2, name: 'Mardi', short: 'Mar' },
+  { id: 3, name: 'Mercredi', short: 'Mer' },
+  { id: 4, name: 'Jeudi', short: 'Jeu' },
+  { id: 5, name: 'Vendredi', short: 'Ven', isHalfDay: true },
+];
+
+const MOROCCAN_55MIN_PERIODS = [
+  { id: 'P1', start: '08:30', end: '09:25', label: '08h30 — 09h25', tag: 'Matin' },
+  { id: 'P2', start: '09:25', end: '10:20', label: '09h25 — 10h20', tag: 'Matin' },
+  { id: 'P3', start: '10:30', end: '11:25', label: '10h30 — 11h25', tag: 'Matin' },
+  { id: 'P4', start: '11:25', end: '12:20', label: '11h25 — 12h20', tag: 'Matin' },
+  { id: 'P5', start: '13:00', end: '13:55', label: '13h00 — 13h55', tag: 'Après-midi', notOnFriday: true },
+  { id: 'P6', start: '14:00', end: '14:55', label: '14h00 — 14h55', tag: 'Après-midi', notOnFriday: true },
+  { id: 'P7', start: '15:05', end: '16:00', label: '15h05 — 16h00', tag: 'Après-midi', notOnFriday: true },
+];
 
 export type ActiveStaffTab =
   | 'ALL'
@@ -137,22 +214,39 @@ export default function StaffManagementPage() {
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [contractFilter, setContractFilter] = useState<string>('ALL');
 
-  // Staff Data
+  // Staff & Teachers Data
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [teachersList, setTeachersList] = useState<Teacher[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Modal Create/Edit State
+  // Modal Create/Edit State for generic staff
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Form State
+  // Dedicated Teacher Modal State
+  const [isTeacherModalOpen, setIsTeacherModalOpen] = useState(false);
+  const [editingTeacherId, setEditingTeacherId] = useState<string | null>(null);
+  const [teacherFormData, setTeacherFormData] = useState({
+    teacher_code: '',
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    specialization: 'Anglais',
+    contract_type: 'PLEIN_TEMPS' as TeacherContractType,
+    teaching_levels: ['CP', 'CE1', 'CE2', 'CM1', 'CM2', 'CE6'] as string[],
+    weekly_hours_target: 24,
+    availability: [] as TeacherAvailabilitySlot[],
+  });
+
+  // Generic Staff Form State
   const [formData, setFormData] = useState({
     staff_code: '',
     first_name: '',
     last_name: '',
-    category: 'ENSEIGNANT' as StaffCategory,
+    category: 'DIRECTION_ADMIN' as StaffCategory,
     role_title: '',
     phone: '',
     email: '',
@@ -163,29 +257,26 @@ export default function StaffManagementPage() {
     notes: '',
   });
 
-  // Fetch all staff members & teachers from Supabase
+  // Fetch all staff members, teachers & subjects from Supabase
   const loadStaffData = useCallback(async () => {
     setLoading(true);
     try {
       const supabase = createClient();
 
-      // 1. Fetch from staff_members table
-      const { data: staffData, error: staffErr } = await supabase
-        .from('staff_members')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      // 2. Fetch from teachers table
-      const { data: teachersData, error: teachErr } = await supabase
-        .from('teachers')
-        .select('*')
-        .order('last_name', { ascending: true });
+      const [{ data: staffData, error: staffErr }, { data: teachersData, error: teachErr }, { data: sbjsData }] = await Promise.all([
+        supabase.from('staff_members').select('*').order('created_at', { ascending: false }),
+        supabase.from('teachers').select('*').order('last_name', { ascending: true }),
+        supabase.from('subjects').select('*').order('name', { ascending: true }),
+      ]);
 
       if (teachErr) console.warn('Teachers fetch notice:', teachErr.message);
       if (staffErr) console.warn('Staff fetch notice:', staffErr.message);
 
       if (teachersData) {
         setTeachersList(teachersData);
+      }
+      if (sbjsData) {
+        setSubjects(sbjsData);
       }
 
       // Convert teachers to StaffMember objects
@@ -218,18 +309,36 @@ export default function StaffManagementPage() {
     loadStaffData();
   }, [loadStaffData]);
 
-  // Open Modal for New Staff Member
+  // Open Modal for New Staff Member or Teacher
   const handleOpenCreate = (preselectedCategory?: ActiveStaffTab) => {
-    setEditingStaff(null);
     const cat = preselectedCategory && preselectedCategory !== 'ALL'
       ? (preselectedCategory as StaffCategory)
       : activeTab !== 'ALL'
       ? (activeTab as StaffCategory)
       : 'ENSEIGNANT';
 
-    // Auto-generate code prefix
+    // If adding a teacher -> Open dedicated rich Teacher Modal
+    if (cat === 'ENSEIGNANT') {
+      setEditingTeacherId(null);
+      setTeacherFormData({
+        teacher_code: `ENS-${Math.floor(100 + Math.random() * 900)}`,
+        first_name: '',
+        last_name: '',
+        email: '',
+        phone: '',
+        specialization: subjects[0]?.name || 'Anglais',
+        contract_type: 'PLEIN_TEMPS',
+        teaching_levels: ['CP', 'CE1', 'CE2', 'CM1', 'CM2', 'CE6'],
+        weekly_hours_target: 24,
+        availability: [],
+      });
+      setIsTeacherModalOpen(true);
+      return;
+    }
+
+    // Otherwise -> Generic Staff Modal
+    setEditingStaff(null);
     const prefixes: Record<string, string> = {
-      ENSEIGNANT: 'ENS',
       DIRECTION_ADMIN: 'ADM',
       DIRECTION_PEDAGOGIQUE: 'PED',
       STAFF_MENAGE: 'ENT',
@@ -258,12 +367,31 @@ export default function StaffManagementPage() {
 
   // Open Modal for Edit
   const handleOpenEdit = (staff: StaffMember) => {
+    if (staff.category === 'ENSEIGNANT') {
+      const existingTeacher = teachersList.find((t) => t.id === staff.id);
+      setEditingTeacherId(staff.id);
+      setTeacherFormData({
+        teacher_code: existingTeacher?.teacher_code || staff.staff_code || '',
+        first_name: existingTeacher?.first_name || staff.first_name || '',
+        last_name: existingTeacher?.last_name || staff.last_name || '',
+        email: existingTeacher?.email || staff.email || '',
+        phone: existingTeacher?.phone || staff.phone || '',
+        specialization: existingTeacher?.specialization || staff.specialization || subjects[0]?.name || 'Anglais',
+        contract_type: (existingTeacher?.contract_type as TeacherContractType) || 'PLEIN_TEMPS',
+        teaching_levels: Array.isArray(existingTeacher?.teaching_levels) ? existingTeacher.teaching_levels : ['CP', 'CE1', 'CE2', 'CM1', 'CM2', 'CE6'],
+        weekly_hours_target: existingTeacher?.weekly_hours_target || 24,
+        availability: Array.isArray(existingTeacher?.availability) ? (existingTeacher.availability as TeacherAvailabilitySlot[]) : [],
+      });
+      setIsTeacherModalOpen(true);
+      return;
+    }
+
     setEditingStaff(staff);
     setFormData({
       staff_code: staff.staff_code || '',
       first_name: staff.first_name || '',
       last_name: staff.last_name || '',
-      category: staff.category || 'ENSEIGNANT',
+      category: staff.category || 'DIRECTION_ADMIN',
       role_title: staff.role_title || '',
       phone: staff.phone || '',
       email: staff.email || '',
@@ -276,7 +404,203 @@ export default function StaffManagementPage() {
     setIsModalOpen(true);
   };
 
-  // Save or Update Staff Member in Supabase
+  // Toggle individual level for teacher
+  const toggleTeacherLevel = (lvlValue: string) => {
+    setTeacherFormData((prev) => {
+      const exists = prev.teaching_levels.includes(lvlValue);
+      if (exists) {
+        return { ...prev, teaching_levels: prev.teaching_levels.filter((l) => l !== lvlValue) };
+      } else {
+        return { ...prev, teaching_levels: [...prev.teaching_levels, lvlValue] };
+      }
+    });
+  };
+
+  // Toggle all levels in a specific cycle
+  const toggleEntireTeacherCycle = (cycleObj: LevelGroup) => {
+    const cycleLevelValues = cycleObj.levels.map((l) => l.value);
+    const allSelected = cycleLevelValues.every((val) => teacherFormData.teaching_levels.includes(val));
+
+    if (allSelected) {
+      setTeacherFormData((prev) => ({
+        ...prev,
+        teaching_levels: prev.teaching_levels.filter((l) => !cycleLevelValues.includes(l)),
+      }));
+    } else {
+      const set = new Set([...teacherFormData.teaching_levels, ...cycleLevelValues]);
+      setTeacherFormData((prev) => ({
+        ...prev,
+        teaching_levels: Array.from(set),
+      }));
+    }
+  };
+
+  const toggleSlotAvailability = (dayId: number, period: typeof MOROCCAN_55MIN_PERIODS[0]) => {
+    const isAlreadySelected = teacherFormData.availability.some(
+      (s) => s.day_of_week === dayId && (s.period_id === period.id || s.start_time === period.start)
+    );
+
+    if (isAlreadySelected) {
+      setTeacherFormData((prev) => ({
+        ...prev,
+        availability: prev.availability.filter(
+          (s) => !(s.day_of_week === dayId && (s.period_id === period.id || s.start_time === period.start))
+        ),
+      }));
+    } else {
+      const newSlot: TeacherAvailabilitySlot = {
+        day_of_week: dayId,
+        period_id: period.id,
+        start_time: period.start,
+        end_time: period.end,
+      };
+      setTeacherFormData((prev) => ({
+        ...prev,
+        availability: [...prev.availability, newSlot],
+      }));
+    }
+  };
+
+  const isSlotSelected = (dayId: number, periodId: string, startTime: string) => {
+    return teacherFormData.availability.some(
+      (s) => s.day_of_week === dayId && (s.period_id === periodId || s.start_time === startTime)
+    );
+  };
+
+  const selectAllMornings = () => {
+    const morningSlots: TeacherAvailabilitySlot[] = [];
+    MOROCCAN_DAYS.forEach((day) => {
+      MOROCCAN_55MIN_PERIODS.slice(0, 4).forEach((period) => {
+        morningSlots.push({
+          day_of_week: day.id,
+          period_id: period.id,
+          start_time: period.start,
+          end_time: period.end,
+        });
+      });
+    });
+    setTeacherFormData((prev) => ({ ...prev, availability: morningSlots }));
+  };
+
+  const selectAllAfternoons = () => {
+    const afternoonSlots: TeacherAvailabilitySlot[] = [];
+    MOROCCAN_DAYS.slice(0, 4).forEach((day) => {
+      MOROCCAN_55MIN_PERIODS.slice(4).forEach((period) => {
+        afternoonSlots.push({
+          day_of_week: day.id,
+          period_id: period.id,
+          start_time: period.start,
+          end_time: period.end,
+        });
+      });
+    });
+    setTeacherFormData((prev) => ({ ...prev, availability: afternoonSlots }));
+  };
+
+  const clearAvailability = () => {
+    setTeacherFormData((prev) => ({ ...prev, availability: [] }));
+  };
+
+  // Save Teacher directly in 'teachers' table
+  const handleSaveTeacher = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!teacherFormData.first_name.trim() || !teacherFormData.last_name.trim()) {
+      notify({
+        title: 'Champs Obligatoires',
+        message: 'Veuillez saisir le prénom et le nom de famille de l\'enseignant.',
+        type: 'danger',
+      });
+      return;
+    }
+
+    if (teacherFormData.contract_type === 'VACATAIRE' && teacherFormData.availability.length === 0) {
+      notify({
+        title: 'Disponibilités Requises',
+        message: 'Veuillez sélectionner au moins un créneau horaire disponible pour l\'enseignant vacataire.',
+        type: 'warning',
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const supabase = createClient();
+      const code = teacherFormData.teacher_code || `ENS-${Date.now().toString().slice(-3)}`;
+
+      if (editingTeacherId) {
+        const { error } = await supabase
+          .from('teachers')
+          .update({
+            teacher_code: code,
+            first_name: teacherFormData.first_name.trim(),
+            last_name: teacherFormData.last_name.trim(),
+            email: teacherFormData.email.trim() || null,
+            phone: teacherFormData.phone.trim() || null,
+            specialization: teacherFormData.specialization,
+            contract_type: teacherFormData.contract_type,
+            teaching_levels: teacherFormData.teaching_levels,
+            weekly_hours_target: Number(teacherFormData.weekly_hours_target),
+            availability: teacherFormData.contract_type === 'VACATAIRE' ? teacherFormData.availability : [],
+          })
+          .eq('id', editingTeacherId);
+
+        if (error) throw error;
+
+        logAuditEvent({
+          action: 'TEACHER_UPDATED',
+          entity_type: 'teachers',
+          entity_id: editingTeacherId,
+          details: {
+            name: `${teacherFormData.first_name} ${teacherFormData.last_name}`,
+            specialization: teacherFormData.specialization,
+            contract_type: teacherFormData.contract_type,
+          },
+        });
+
+        notify({ title: 'Succès', message: 'Fiche enseignant modifiée avec succès !', type: 'success' });
+      } else {
+        const { error } = await supabase.from('teachers').insert([
+          {
+            teacher_code: code,
+            first_name: teacherFormData.first_name.trim(),
+            last_name: teacherFormData.last_name.trim(),
+            email: teacherFormData.email.trim() || null,
+            phone: teacherFormData.phone.trim() || null,
+            specialization: teacherFormData.specialization,
+            contract_type: teacherFormData.contract_type,
+            teaching_levels: teacherFormData.teaching_levels,
+            weekly_hours_target: Number(teacherFormData.weekly_hours_target),
+            availability: teacherFormData.contract_type === 'VACATAIRE' ? teacherFormData.availability : [],
+            status: 'ACTIVE',
+          },
+        ]);
+
+        if (error) throw error;
+
+        logAuditEvent({
+          action: 'TEACHER_CREATED',
+          entity_type: 'teachers',
+          details: {
+            name: `${teacherFormData.first_name} ${teacherFormData.last_name}`,
+            specialization: teacherFormData.specialization,
+            contract_type: teacherFormData.contract_type,
+          },
+        });
+
+        notify({ title: 'Succès', message: 'Enseignant ajouté avec succès !', type: 'success' });
+      }
+
+      setIsTeacherModalOpen(false);
+      loadStaffData();
+    } catch (err: any) {
+      console.error('Save teacher error:', err);
+      notify({ title: 'Erreur', message: err.message || 'Impossible d\'enregistrer l\'enseignant.', type: 'danger' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Save or Update generic Staff Member in Supabase
   const handleSaveStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.first_name.trim() || !formData.last_name.trim() || !formData.role_title.trim()) {
@@ -292,73 +616,40 @@ export default function StaffManagementPage() {
     try {
       const supabase = createClient();
 
-      if (formData.category === 'ENSEIGNANT') {
-        // Handle teacher in 'teachers' table
-        if (editingStaff) {
-          await supabase
-            .from('teachers')
-            .update({
-              first_name: formData.first_name,
-              last_name: formData.last_name,
-              teacher_code: formData.staff_code,
-              specialization: formData.specialization || formData.role_title,
-              phone: formData.phone || null,
-              email: formData.email || null,
-              contract_type: formData.contract_type,
-              status: formData.is_active ? 'ACTIVE' : 'INACTIVE',
-            })
-            .eq('id', editingStaff.id);
-        } else {
-          await supabase.from('teachers').insert([
-            {
-              teacher_code: formData.staff_code,
-              first_name: formData.first_name,
-              last_name: formData.last_name,
-              specialization: formData.specialization || formData.role_title,
-              phone: formData.phone || null,
-              email: formData.email || null,
-              contract_type: formData.contract_type,
-              status: formData.is_active ? 'ACTIVE' : 'INACTIVE',
-            },
-          ]);
-        }
+      if (editingStaff) {
+        await supabase
+          .from('staff_members')
+          .update({
+            staff_code: formData.staff_code,
+            first_name: formData.first_name,
+            last_name: formData.last_name,
+            category: formData.category,
+            role_title: formData.role_title,
+            phone: formData.phone || null,
+            email: formData.email || null,
+            contract_type: formData.contract_type,
+            hire_date: formData.hire_date || null,
+            is_active: formData.is_active,
+            notes: formData.notes || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', editingStaff.id);
       } else {
-        // Handle other categories in 'staff_members' table
-        if (editingStaff) {
-          await supabase
-            .from('staff_members')
-            .update({
-              staff_code: formData.staff_code,
-              first_name: formData.first_name,
-              last_name: formData.last_name,
-              category: formData.category,
-              role_title: formData.role_title,
-              phone: formData.phone || null,
-              email: formData.email || null,
-              contract_type: formData.contract_type,
-              hire_date: formData.hire_date || null,
-              is_active: formData.is_active,
-              notes: formData.notes || null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', editingStaff.id);
-        } else {
-          await supabase.from('staff_members').insert([
-            {
-              staff_code: formData.staff_code,
-              first_name: formData.first_name,
-              last_name: formData.last_name,
-              category: formData.category,
-              role_title: formData.role_title,
-              phone: formData.phone || null,
-              email: formData.email || null,
-              contract_type: formData.contract_type,
-              hire_date: formData.hire_date || null,
-              is_active: formData.is_active,
-              notes: formData.notes || null,
-            },
-          ]);
-        }
+        await supabase.from('staff_members').insert([
+          {
+            staff_code: formData.staff_code,
+            first_name: formData.first_name,
+            last_name: formData.last_name,
+            category: formData.category,
+            role_title: formData.role_title,
+            phone: formData.phone || null,
+            email: formData.email || null,
+            contract_type: formData.contract_type,
+            hire_date: formData.hire_date || null,
+            is_active: formData.is_active,
+            notes: formData.notes || null,
+          },
+        ]);
       }
 
       notify({
@@ -800,7 +1091,325 @@ export default function StaffManagementPage() {
           </div>
         </div>
 
-        {/* Create / Edit Staff Modal */}
+        {/* ============================================================ */}
+        {/* DEDICATED MODAL: AJOUTER / MODIFIER UN ENSEIGNANT            */}
+        {/* ============================================================ */}
+        {isTeacherModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in">
+            <div className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-emerald-500/20 animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-emerald-500/15 text-emerald-500">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                    {editingTeacherId ? 'Modifier la Fiche Enseignant' : 'Ajouter un Enseignant'}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setIsTeacherModalOpen(false)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveTeacher} className="space-y-5 mt-4">
+                {/* Contract Type Selection Tabs */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Type de Contrat &bullet; Régime de Travail
+                  </label>
+                  <div className="grid grid-cols-2 gap-3 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+                    <button
+                      type="button"
+                      onClick={() => setTeacherFormData({ ...teacherFormData, contract_type: 'PLEIN_TEMPS' })}
+                      className={`p-3 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-1 cursor-pointer ${
+                        teacherFormData.contract_type === 'PLEIN_TEMPS'
+                          ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25 scale-[1.02]'
+                          : 'text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <Briefcase className="w-4 h-4" />
+                        <span>Plein Temps (Permanent)</span>
+                      </div>
+                      <span className="text-[10px] font-normal opacity-80">Présent toute la semaine</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setTeacherFormData({ ...teacherFormData, contract_type: 'VACATAIRE' })}
+                      className={`p-3 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-1 cursor-pointer ${
+                        teacherFormData.contract_type === 'VACATAIRE'
+                          ? 'bg-amber-500 text-white shadow-md shadow-amber-500/25 scale-[1.02]'
+                          : 'text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-4 h-4" />
+                        <span>Vacataire (Temps Partiel)</span>
+                      </div>
+                      <span className="text-[10px] font-normal opacity-80">Heures spécifiques choisies</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Prénom
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={teacherFormData.first_name}
+                      onChange={(e) => setTeacherFormData({ ...teacherFormData, first_name: e.target.value })}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Nom de Famille
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={teacherFormData.last_name}
+                      onChange={(e) => setTeacherFormData({ ...teacherFormData, last_name: e.target.value })}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                      <span>Matière Enseignée</span>
+                      <Link href="/subjects" className="text-[10px] text-emerald-600 dark:text-emerald-400 hover:underline">
+                        + Matières
+                      </Link>
+                    </label>
+                    <select
+                      required
+                      value={teacherFormData.specialization}
+                      onChange={(e) => setTeacherFormData({ ...teacherFormData, specialization: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                    >
+                      <option value="">-- Sélectionner une matière --</option>
+                      {subjects.map((s) => (
+                        <option key={s.id} value={s.name}>
+                          {s.name} ({s.code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Email Professionnel
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="prof@gm-school.ma"
+                      value={teacherFormData.email}
+                      onChange={(e) => setTeacherFormData({ ...teacherFormData, email: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Téléphone
+                    </label>
+                    <input
+                      type="tel"
+                      placeholder="06 00 11 22 33"
+                      value={teacherFormData.phone}
+                      onChange={(e) => setTeacherFormData({ ...teacherFormData, phone: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                {/* NIVEAUX D'ENSEIGNEMENT SECTION */}
+                <div className="p-4 rounded-2xl bg-orange-50/40 dark:bg-orange-950/20 border border-orange-200/60 dark:border-orange-900/40 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-orange-900 dark:text-orange-200">
+                      <GraduationCap className="w-4 h-4 text-orange-500" />
+                      <span>Niveaux Scolaires Enseignés (Affectation)</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400">
+                      {teacherFormData.teaching_levels.length} niveau(x) sélectionné(s)
+                    </span>
+                  </div>
+
+                  {TEACHING_CYCLES.map((cycle) => {
+                    const cycleLevelValues = cycle.levels.map((l) => l.value);
+                    const allCycleSelected = cycleLevelValues.every((val) => teacherFormData.teaching_levels.includes(val));
+
+                    return (
+                      <div key={cycle.name} className="space-y-1.5 pt-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                            {cycle.name}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => toggleEntireTeacherCycle(cycle)}
+                            className="text-[10px] font-bold text-orange-600 dark:text-orange-400 hover:underline cursor-pointer"
+                          >
+                            {allCycleSelected ? 'Tout désélectionner' : `+ Tout ${cycle.name}`}
+                          </button>
+                        </div>
+
+                        <div className="flex flex-wrap gap-1.5">
+                          {cycle.levels.map((lvl) => {
+                            const isSelected = teacherFormData.teaching_levels.includes(lvl.value);
+                            return (
+                              <button
+                                key={lvl.value}
+                                type="button"
+                                onClick={() => toggleTeacherLevel(lvl.value)}
+                                className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-xs scale-105'
+                                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                                }`}
+                              >
+                                {isSelected ? '✓ ' : ''}
+                                {lvl.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* VACATAIRE AVAILABILITY SCHEDULE PICKER */}
+                {teacherFormData.contract_type === 'VACATAIRE' && (
+                  <div className="p-4 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 space-y-3 animate-in fade-in">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <div className="text-xs font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                          <Calendar className="w-4 h-4 text-amber-500" />
+                          <span>Emploi du Temps des Disponibilités (Vacataire)</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          Cliquez sur les créneaux où ce professeur sera présent à l&apos;école.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={selectAllMornings}
+                          className="px-2.5 py-1 text-[10px] font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer"
+                        >
+                          Matinées
+                        </button>
+                        <button
+                          type="button"
+                          onClick={selectAllAfternoons}
+                          className="px-2.5 py-1 text-[10px] font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer"
+                        >
+                          Après-midis
+                        </button>
+                        <button
+                          type="button"
+                          onClick={clearAvailability}
+                          className="px-2.5 py-1 text-[10px] font-bold text-rose-600 rounded-lg hover:bg-rose-50 cursor-pointer"
+                        >
+                          Effacer
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Weekly Availability Interactive Matrix */}
+                    <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                      <table className="w-full text-center border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-700 dark:text-slate-200">
+                            <th className="p-2 text-left w-28">Créneau (55 min)</th>
+                            {MOROCCAN_DAYS.map((day) => (
+                              <th key={day.id} className="p-2">
+                                {day.name} {day.isHalfDay ? '(Matin)' : ''}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {MOROCCAN_55MIN_PERIODS.map((period) => (
+                            <tr key={period.id}>
+                              <td className="p-2 text-left text-[10px] font-mono font-bold text-slate-600 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-900/50">
+                                {period.label}
+                              </td>
+
+                              {MOROCCAN_DAYS.map((day) => {
+                                if (day.id === 5 && period.notOnFriday) {
+                                  return (
+                                    <td key={day.id} className="p-1 bg-slate-50/40 text-[9px] text-slate-400">
+                                      Libre (Joumouaa)
+                                    </td>
+                                  );
+                                }
+
+                                const selected = isSlotSelected(day.id, period.id, period.start);
+
+                                return (
+                                  <td key={day.id} className="p-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleSlotAvailability(day.id, period)}
+                                      className={`w-full py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                                        selected
+                                          ? 'bg-amber-500 text-white shadow-xs font-black scale-[0.98]'
+                                          : 'bg-slate-50 dark:bg-slate-800/60 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700'
+                                      }`}
+                                    >
+                                      {selected ? 'Disponible' : '—'}
+                                    </button>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Modal Footer */}
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setIsTeacherModalOpen(false)}
+                    className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  >
+                    Annuler
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-xs shadow-md shadow-emerald-500/20 transition-all cursor-pointer flex items-center gap-2"
+                  >
+                    {saving ? 'Enregistrement...' : editingTeacherId ? 'Enregistrer les Modifications' : 'Créer l\'Enseignant'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ============================================================ */}
+        {/* GENERIC MODAL: CREATE / EDIT STAFF MEMBER                    */}
+        {/* ============================================================ */}
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in">
             <div className="relative w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
@@ -838,7 +1447,6 @@ export default function StaffManagementPage() {
                     onChange={(e) => setFormData({ ...formData, category: e.target.value as StaffCategory })}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
                   >
-                    <option value="ENSEIGNANT">👨‍🏫 Enseignants (Corps Professoral)</option>
                     <option value="DIRECTION_ADMIN">🏢 Direction Administrative (RH, Comptabilité, Secrétariat)</option>
                     <option value="DIRECTION_PEDAGOGIQUE">🎓 Direction Pédagogique (Coordination, Suivi)</option>
                     <option value="STAFF_MENAGE">🧹 Staff Ménage &amp; Entretien (Hygiène, Maintenance)</option>
@@ -891,36 +1499,19 @@ export default function StaffManagementPage() {
                   </div>
                 </div>
 
-                {/* 3. Role Title & Specialization */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                      Poste / Fonction Exacte *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ex: Secrétaire Général, Chauffeur Bus 02..."
-                      value={formData.role_title}
-                      onChange={(e) => setFormData({ ...formData, role_title: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    />
-                  </div>
-
-                  {formData.category === 'ENSEIGNANT' && (
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Matière / Spécialisation
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Ex: Mathématiques, Français, Arabe..."
-                        value={formData.specialization}
-                        onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                      />
-                    </div>
-                  )}
+                {/* 3. Role Title */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Poste / Fonction Exacte *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: Secrétaire Général, Chauffeur Bus 02..."
+                    value={formData.role_title}
+                    onChange={(e) => setFormData({ ...formData, role_title: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
                 </div>
 
                 {/* 4. Contact Phone & Email */}
