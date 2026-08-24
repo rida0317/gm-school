@@ -117,10 +117,8 @@ export function ZKTecoImportModal({
   // Planning View mode: 'list' (individual view) or 'matrix' (weekly timetable matrix)
   const [planningViewMode, setPlanningViewMode] = useState<'list' | 'matrix'>('list');
 
-  // Timetable slots fetched from database
+  // Timetable slots fetched from database for matrix view
   const [timetableSlots, setTimetableSlots] = useState<any[]>([]);
-  const [isSyncingTimetable, setIsSyncingTimetable] = useState(false);
-  const [syncFeedbackMessage, setSyncFeedbackMessage] = useState<string | null>(null);
 
   // Fetch timetable slots on modal open
   useEffect(() => {
@@ -234,148 +232,6 @@ export function ZKTecoImportModal({
       window.removeEventListener('storage', handleLiveUpdate);
     };
   }, [isOpen, loadShiftsFromMasterAndDb]);
-
-  // ⚡ Synchronize Gardes with Timetable Slots
-  const handleSyncWithTimetable = async () => {
-    setIsSyncingTimetable(true);
-    setSyncFeedbackMessage(null);
-
-    try {
-      let slots = timetableSlots;
-      if (slots.length === 0) {
-        const supabase = createClient();
-        const { data } = await supabase.from('timetable_slots').select('*');
-        if (data) {
-          slots = data;
-          setTimetableSlots(data);
-        }
-      }
-
-      const selectedDayOfWeek = new Date(selectedDate).getDay();
-      let totalMorningGardesDetected = 0;
-      let totalEveningGardesDetected = 0;
-
-      const updatedShifts: Record<string, ShiftConfig> = {};
-
-      staffList.forEach((staff) => {
-        const current = staffShifts[staff.id] || {
-          staffId: staff.id,
-          expectedEntry: '08:00',
-          expectedExit: defaultExit,
-          hasGarde: false,
-          hasGardeEntry: false,
-        };
-
-        // Check if teacher is Vacataire -> strictly exclude from Gardes
-        const isVacataire =
-          (staff.contract_type || '').toUpperCase() === 'VACATAIRE' ||
-          (staff.role_title || '').toLowerCase().includes('vacataire');
-
-        if (isVacataire) {
-          updatedShifts[staff.id] = {
-            ...current,
-            gardeEntryDays: [],
-            hasGardeEntry: false,
-            expectedEntry: '08:00',
-            gardeDays: [],
-            hasGarde: false,
-            expectedExit: defaultExit,
-          };
-          return;
-        }
-
-        // Find all timetable slots for this teacher
-        const teacherSlots = slots.filter(
-          (slot) =>
-            slot.teacher_id === staff.id ||
-            slot.teacher_id === staff.staff_code ||
-            (staff.staff_code && slot.teacher_code === staff.staff_code)
-        );
-
-        if (teacherSlots.length === 0) {
-          // No slots found -> keep current
-          updatedShifts[staff.id] = current;
-          return;
-        }
-
-        const morningDays: number[] = [];
-        const eveningDays: number[] = [];
-
-        // Check each day 1 to 6 (Lundi à Samedi)
-        for (let d = 1; d <= 6; d++) {
-          const daySlots = teacherSlots.filter((s) => s.day_of_week === d);
-          
-          // Only evaluate days where teacher is scheduled or active in school
-          // (or if teacher has at least 1 slot on this day, we check their free half-day)
-          if (daySlots.length === 0) continue;
-
-          // Morning Sessions check: P1, P2, P3 or start before 12:00
-          const hasMorningSession = daySlots.some(
-            (s) =>
-              s.period_id === 'P1' ||
-              s.period_id === 'P2' ||
-              s.period_id === 'P3' ||
-              (s.start_time && s.start_time < '12:00')
-          );
-
-          // Afternoon Sessions check: P4, P5, P6, P7 or start/end after 12:30
-          const hasAfternoonSession = daySlots.some(
-            (s) =>
-              s.period_id === 'P4' ||
-              s.period_id === 'P5' ||
-              s.period_id === 'P6' ||
-              s.period_id === 'P7' ||
-              (s.end_time && s.end_time > '12:30')
-          );
-
-          // 1. Garde Matin (08:00): Assignée aux enseignants qui N'ONT PAS de cours le matin (disponibles pour la surveillance)
-          if (!hasMorningSession) {
-            morningDays.push(d);
-            totalMorningGardesDetected++;
-          }
-
-          // 2. Garde Soir (16:30): Assignée aux enseignants qui N'ONT PAS de cours l'après-midi (disponibles pour la surveillance de sortie)
-          if (!hasAfternoonSession) {
-            eveningDays.push(d);
-            totalEveningGardesDetected++;
-          }
-        }
-
-        const isMorningGardeToday = morningDays.includes(selectedDayOfWeek);
-        const isEveningGardeToday = eveningDays.includes(selectedDayOfWeek);
-
-        updatedShifts[staff.id] = {
-          ...current,
-          gardeEntryDays: morningDays,
-          hasGardeEntry: isMorningGardeToday,
-          expectedEntry: isMorningGardeToday ? '08:00' : '08:15',
-          gardeDays: eveningDays,
-          hasGarde: isEveningGardeToday,
-          expectedExit: isEveningGardeToday ? defaultGardeExit : defaultExit,
-        };
-      });
-
-      setStaffShifts(updatedShifts);
-
-      // Auto persist
-      try {
-        localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(updatedShifts));
-        localStorage.setItem(`gm_staff_shifts_${selectedDate}`, JSON.stringify(updatedShifts));
-      } catch {
-        // ignore
-      }
-
-      setSyncFeedbackMessage(
-        `✨ Synchronisation réussie : ${totalMorningGardesDetected} Gardes Matin (08:00) assignées aux enseignants libres le matin, et ${totalEveningGardesDetected} Gardes Soir (16:30) à ceux libres l'après-midi !`
-      );
-      setIsSavedFeedback(true);
-      setTimeout(() => setIsSavedFeedback(false), 4000);
-    } catch (err: any) {
-      setSyncFeedbackMessage(`Erreur lors de la synchronisation : ${err.message}`);
-    } finally {
-      setIsSyncingTimetable(false);
-    }
-  };
 
   // Save permanent master shift configs and global settings to Supabase and localStorage
   const persistShiftsToSupabaseAndLocal = async (nextShifts: Record<string, ShiftConfig>) => {
@@ -1005,18 +861,6 @@ export function ZKTecoImportModal({
                       <span>Recharger Planning</span>
                     </button>
 
-                    {/* ⚡ Sync with Timetable Button */}
-                    <button
-                      type="button"
-                      onClick={handleSyncWithTimetable}
-                      disabled={isSyncingTimetable}
-                      className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-md shadow-amber-500/25 transition-all cursor-pointer whitespace-nowrap"
-                      title="Analyse l'emploi du temps pour attribuer la Garde Matin (08:00) aux enseignants libres le matin, et la Garde Soir à ceux libres l'après-midi"
-                    >
-                      <Zap className={`w-4 h-4 ${isSyncingTimetable ? 'animate-spin' : ''}`} />
-                      <span>{isSyncingTimetable ? 'Analyse en cours...' : '⚡ Sync Emploi du Temps'}</span>
-                    </button>
-
                     <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs">
                       <span className="text-xs text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
                         Tolérance :
@@ -1059,22 +903,6 @@ export function ZKTecoImportModal({
                     </button>
                   </div>
                 </div>
-
-                {/* Sync Feedback Message */}
-                {syncFeedbackMessage && (
-                  <div className="p-3.5 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-between text-xs text-amber-900 dark:text-amber-200 animate-in fade-in">
-                    <div className="flex items-center gap-2 font-bold">
-                      <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span>{syncFeedbackMessage}</span>
-                    </div>
-                    <button
-                      onClick={() => setSyncFeedbackMessage(null)}
-                      className="p-1 hover:bg-amber-500/20 rounded-lg text-slate-500 cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
 
                 {/* Bottom Quick Preset Bar & View Switcher */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-sky-100 dark:border-slate-700/80">
