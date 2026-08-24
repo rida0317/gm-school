@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useI18n, TranslationKey } from '@/lib/i18n';
 import { useSettings } from '@/lib/settings';
 import { createClient } from '@/lib/supabase/client';
@@ -65,8 +65,14 @@ interface SidebarProps {
 export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const cycleQuery = searchParams ? searchParams.get('cycle') : null;
+  const [cycleQuery, setCycleQuery] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      setCycleQuery(params.get('cycle'));
+    }
+  }, [pathname]);
 
   const { t, dir } = useI18n();
   const { settings } = useSettings();

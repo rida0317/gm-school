@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useI18n } from '@/lib/i18n';
@@ -88,7 +88,7 @@ export const GROUP_OPTIONS = [
   { value: 'Unique', label: 'Groupe Unique' },
 ];
 
-export default function ClassesPage() {
+function ClassesContent() {
   const { t, dir } = useI18n();
   const searchParams = useSearchParams();
   const cycleParam = searchParams ? searchParams.get('cycle') : null;
@@ -589,5 +589,13 @@ export default function ClassesPage() {
         )}
       </div>
     </DashboardLayout>
+  );
+}
+
+export default function ClassesPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-900 flex items-center justify-center text-slate-400">Chargement...</div>}>
+      <ClassesContent />
+    </Suspense>
   );
 }
