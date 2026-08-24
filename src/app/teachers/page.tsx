@@ -259,7 +259,7 @@ export default function TeachersPage() {
   };
 
   const relevantClasses = useMemo(() => {
-    if (formData.teaching_levels.length === 0) return classes;
+    if (formData.teaching_levels.length === 0) return [];
     return classes.filter((cls) => formData.teaching_levels.includes(cls.level));
   }, [classes, formData.teaching_levels]);
 
@@ -942,16 +942,16 @@ export default function TeachersPage() {
                   })}
                 </div>
 
-                {/* GROUPES & CLASSES D'ENSEIGNEMENT SECTION */}
+                {/* GROUPES & CLASSES D'ENSEIGNEMENT SECTION (EXCLUSIVEMENT LES CLASSES DES NIVEAUX CHOISIS) */}
                 <div className="p-4 rounded-2xl bg-purple-50/40 dark:bg-purple-950/20 border border-purple-200/60 dark:border-purple-900/40 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-purple-900 dark:text-purple-200">
                       <Users className="w-4 h-4 text-purple-500" />
-                      <span>{dir === 'rtl' ? 'الأقسام والمجموعات المسندة (Groupes & Classes)' : 'Groupes & Classes Enseignés (Affectation)'}</span>
+                      <span>{dir === 'rtl' ? 'الأقسام والمجموعات المسندة للأستاذ' : 'Groupes & Classes Enseignés (Affectation)'}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] text-slate-400">
-                        {formData.teaching_groups.length} {dir === 'rtl' ? 'مجموعة محددة' : 'groupe(s) sélectionné(s)'}
+                        {formData.teaching_groups.length} {dir === 'rtl' ? 'قسم/مجموعة محددة' : 'classe(s) sélectionnée(s)'}
                       </span>
                       {relevantClasses.length > 0 && (
                         <button
@@ -967,18 +967,18 @@ export default function TeachersPage() {
                     </div>
                   </div>
 
-                  {/* Specific Classes from database matching levels */}
+                  {/* Display ONLY the matching classes of selected levels */}
                   {relevantClasses.length > 0 ? (
-                    <div className="space-y-1.5 pt-1">
+                    <div className="space-y-2 pt-1">
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                          {dir === 'rtl' ? 'الأقسام الفعلية للمؤسسة :' : 'Classes réelles de l\'école :'}
+                          {dir === 'rtl' ? 'أقسام المستويات المحددة أعلاه فقط :' : 'Classes des niveaux sélectionnés ci-dessus uniquement :'}
                         </span>
                         <span className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold">
                           {relevantClasses.length} {dir === 'rtl' ? 'قسم متوفر' : 'classe(s) disponible(s)'}
                         </span>
                       </div>
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap gap-2">
                         {relevantClasses.map((cls) => {
                           const isSelected = formData.teaching_groups.includes(cls.name);
                           return (
@@ -986,9 +986,9 @@ export default function TeachersPage() {
                               key={cls.id}
                               type="button"
                               onClick={() => toggleGroup(cls.name)}
-                              className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                                 isSelected
-                                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs scale-105'
+                                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs scale-105 ring-2 ring-purple-400/30'
                                   : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
                               }`}
                             >
@@ -999,34 +999,13 @@ export default function TeachersPage() {
                         })}
                       </div>
                     </div>
-                  ) : null}
-
-                  {/* Quick Generic Group Presets */}
-                  <div className="space-y-1.5 pt-2 border-t border-purple-100 dark:border-purple-900/40">
-                    <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                      {dir === 'rtl' ? 'تسميات المجموعات العامة (G1, G2, Groupe A...) :' : 'Groupes standards / sous-groupes TP :' }
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {['Groupe 1 (G1)', 'Groupe 2 (G2)', 'Groupe 3 (G3)', 'Groupe A', 'Groupe B', 'Groupe C', 'Tous les groupes (الجميع)'].map((preset) => {
-                        const isSelected = formData.teaching_groups.includes(preset);
-                        return (
-                          <button
-                            key={preset}
-                            type="button"
-                            onClick={() => toggleGroup(preset)}
-                            className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                              isSelected
-                                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs scale-105'
-                                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
-                            }`}
-                          >
-                            {isSelected ? '✓ ' : ''}
-                            {preset}
-                          </button>
-                        );
-                      })}
+                  ) : (
+                    <div className="py-3 text-center text-xs text-slate-400 dark:text-slate-500 italic bg-white/60 dark:bg-slate-900/60 rounded-xl border border-dashed border-purple-200 dark:border-purple-900/50">
+                      {dir === 'rtl'
+                        ? 'يرجى تحديد مستوى دراسي واحد على الأقل أعلاه لعرض أقسامه ومجموعاته.'
+                        : 'Veuillez sélectionner au moins un niveau ci-dessus pour afficher ses classes.'}
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* VACATAIRE AVAILABILITY SCHEDULE PICKER */}
