@@ -25,11 +25,12 @@ export const ROLE_CONFIGS: Record<UserRole, RoleConfig> = {
   },
   TEACHER: {
     label: 'Enseignant',
-    description: 'Accès dédié : Élèves et présence de ses classes, consultation de son emploi du temps',
+    description: 'Accès dédié : Élèves et présence de ses classes, consultation de son emploi du temps, annonces et communications',
     color: 'text-emerald-600 dark:text-emerald-400',
     badgeBg: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300',
     allowedPaths: [
       '/dashboard',
+      '/announcements',
       '/students',
       '/attendance/students',
       '/timetable',
@@ -39,11 +40,12 @@ export const ROLE_CONFIGS: Record<UserRole, RoleConfig> = {
   },
   SUPERVISOR: {
     label: 'Surveillant Général',
-    description: 'Accès au suivi des élèves, présences, retards, absences et remplacements',
+    description: 'Accès au suivi des élèves, présences, retards, absences, annonces et remplacements',
     color: 'text-amber-600 dark:text-amber-400',
     badgeBg: 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300',
     allowedPaths: [
       '/dashboard',
+      '/announcements',
       '/students',
       '/staff',
       '/teachers',
@@ -58,11 +60,12 @@ export const ROLE_CONFIGS: Record<UserRole, RoleConfig> = {
   },
   STOCK_MANAGER: {
     label: 'Gestionnaire de Stock',
-    description: 'Accès dédié aux stocks, inventaire, réapprovisionnement et fournisseurs',
+    description: 'Accès dédié aux stocks, inventaire, réapprovisionnement, annonces et fournisseurs',
     color: 'text-indigo-600 dark:text-indigo-400',
     badgeBg: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-300',
     allowedPaths: [
       '/dashboard',
+      '/announcements',
       '/stock',
       '/suppliers',
     ],

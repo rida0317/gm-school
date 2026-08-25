@@ -396,3 +396,19 @@ export interface GardesPlanning {
   updated_at: string;
 }
 
+export type AnnouncementAudience = 'ALL' | 'TEACHERS' | 'ADMIN' | 'SUPERVISORS' | 'TRANSPORT' | 'MAINTENANCE';
+export type AnnouncementPriority = 'INFO' | 'IMPORTANT' | 'URGENT' | 'EVENT';
+
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  target_audience: AnnouncementAudience;
+  priority: AnnouncementPriority;
+  author_name?: string;
+  author_id?: string;
+  is_pinned?: boolean;
+  expires_at?: string;
+  created_at: string;
+  updated_at?: string;
+}

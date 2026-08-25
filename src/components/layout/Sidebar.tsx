@@ -32,6 +32,7 @@ import {
   Palette,
   Layers,
   Award,
+  Megaphone,
   type LucideIcon
 } from 'lucide-react';
 
@@ -191,6 +192,22 @@ export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) 
       items: [
         { href: '/students', label: t('students'), icon: GraduationCap, iconColor: 'text-sky-400' },
         { href: '/teachers', label: t('teachers'), icon: Users, iconColor: 'text-indigo-400' },
+      ],
+    },
+    {
+      id: 'communication',
+      title: dir === 'rtl' ? 'الإعلانات والتواصل' : 'Annonces & Communication',
+      icon: Megaphone,
+      items: [
+        {
+          href: '/announcements',
+          label: dir === 'rtl' ? 'الإعلانات و WhatsApp' : 'Annonces & WhatsApp Hub',
+          icon: Megaphone,
+          highlight: true,
+          badge: 'Staff 📲',
+          badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+          iconColor: 'text-amber-400',
+        },
       ],
     },
     {

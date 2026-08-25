@@ -30,7 +30,8 @@ import {
   DoorClosed,
   Layers,
   ArrowUpRight,
-  ShoppingBag
+  ShoppingBag,
+  Megaphone
 } from 'lucide-react';
 import {
   BarChart,
@@ -304,10 +305,18 @@ export default function DashboardPage() {
 
             <div className="flex flex-wrap items-center gap-2.5 shrink-0">
               <Link
-                href="/stock"
+                href="/announcements"
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/30 text-amber-300 font-bold text-xs shadow-sm transition-all"
               >
-                <Boxes className="w-4 h-4 text-amber-400" />
+                <Megaphone className="w-4 h-4 text-amber-400" />
+                <span>{dir === 'rtl' ? 'الإعلانات و WhatsApp' : 'Annonces & WhatsApp 📲'}</span>
+              </Link>
+
+              <Link
+                href="/stock"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs shadow-sm transition-all"
+              >
+                <Boxes className="w-4 h-4 text-slate-300" />
                 <span>{t('stock')}</span>
               </Link>
 
