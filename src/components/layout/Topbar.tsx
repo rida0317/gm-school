@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth';
 import { hasRouteAccess } from '@/lib/permissions';
 import { UserRole } from '@/types/database';
 import { LanguageSwitcher } from './LanguageSwitcher';
+import { createClient } from '@/lib/supabase/client';
 import {
   Menu,
   Bell,
@@ -20,7 +21,11 @@ import {
   UserCheck,
   ChevronDown,
   PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftOpen,
+  Megaphone,
+  Pin,
+  AlertTriangle,
+  ArrowRight
 } from 'lucide-react';
 
 interface TopbarProps {
@@ -35,13 +40,40 @@ export function Topbar({ onOpenSidebar, isSidebarCollapsed = false, onToggleSide
   const { user, profile, signOut, switchRole } = useAuth();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [latestAnnouncements, setLatestAnnouncements] = useState<any[]>([]);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  // Load latest announcements for staff notifications
+  useEffect(() => {
+    async function loadAnnouncements() {
+      try {
+        const supabase = createClient();
+        const { data } = await supabase
+          .from('announcements')
+          .select('*')
+          .order('is_pinned', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        if (data && data.length > 0) {
+          setLatestAnnouncements(data);
+        }
+      } catch (err) {
+        console.warn('Could not load announcements in topbar:', err);
+      }
+    }
+    loadAnnouncements();
+  }, []);
 
   // Close menus on outside click
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setShowUserMenu(false);
+      }
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+        setShowNotifications(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -133,36 +165,93 @@ export function Topbar({ onOpenSidebar, isSidebarCollapsed = false, onToggleSide
       <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
         <LanguageSwitcher />
 
-        {/* Notification Bell */}
-        <div className="relative">
+        {/* Notification Bell with Announcement Center */}
+        <div className="relative" ref={notifRef}>
           <button
             type="button"
             onClick={() => setShowNotifications(!showNotifications)}
             className="relative p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+            title={dir === 'rtl' ? 'الإشعارات والإعلانات' : 'Notifications & Annonces'}
           >
             <Bell className="w-5 h-5" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900 animate-pulse" />
+            {latestAnnouncements.length > 0 && (
+              <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900 animate-pulse" />
+            )}
           </button>
 
           {showNotifications && (
-            <div className={`absolute ${dir === 'rtl' ? 'left-0' : 'right-0'} mt-2 w-[calc(100vw-2rem)] max-w-sm bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-4 z-50 animate-in fade-in zoom-in-95`}>
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                  Notifications Récentes
-                </span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300 font-semibold">
-                  Opérationnel
+            <div className={`absolute ${dir === 'rtl' ? 'left-0' : 'right-0'} mt-2 w-[calc(100vw-2rem)] sm:w-96 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 p-4 z-50 animate-in fade-in zoom-in-95 space-y-3`}>
+              <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <Megaphone className="w-4 h-4 text-amber-500" />
+                  <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                    {dir === 'rtl' ? 'الإعلانات والمذكرات الإدارية' : 'Annonces & Notes de Service'}
+                  </span>
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 font-extrabold">
+                  {latestAnnouncements.length} {dir === 'rtl' ? 'إعلان' : 'récent(s)'}
                 </span>
               </div>
-              <div className="mt-3 space-y-2.5 text-xs">
-                <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50">
-                  <div className="font-semibold text-blue-800 dark:text-blue-300">
-                    Système Opérationnel
+
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {latestAnnouncements.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-slate-400">
+                    {dir === 'rtl' ? 'لا توجد إعلانات جديدة حالياً' : 'Aucune nouvelle annonce'}
                   </div>
-                  <p className="text-blue-700 dark:text-blue-400 text-[11px] mt-0.5">
-                    Groupe Scolaire Des Générations Montantes — Prêt.
-                  </p>
-                </div>
+                ) : (
+                  latestAnnouncements.map((ann) => {
+                    const isUrgent = ann.priority === 'URGENT';
+                    const isImportant = ann.priority === 'IMPORTANT';
+                    return (
+                      <Link
+                        key={ann.id}
+                        href="/announcements"
+                        onClick={() => setShowNotifications(false)}
+                        className={`block p-2.5 rounded-2xl border transition-all hover:scale-[1.01] ${
+                          isUrgent
+                            ? 'bg-rose-50/80 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/60'
+                            : isImportant
+                            ? 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/60'
+                            : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700/60 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1.5 mb-1">
+                          <span
+                            className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase ${
+                              isUrgent
+                                ? 'bg-rose-600 text-white'
+                                : isImportant
+                                ? 'bg-amber-600 text-white'
+                                : 'bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200'
+                            }`}
+                          >
+                            {isUrgent ? 'URGENT' : isImportant ? 'IMPORTANT' : 'INFO'}
+                          </span>
+                          <span className="text-[10px] text-slate-400">
+                            {new Date(ann.created_at).toLocaleDateString(dir === 'rtl' ? 'ar-MA' : 'fr-FR')}
+                          </span>
+                        </div>
+                        <h4 className="font-bold text-xs text-slate-900 dark:text-white line-clamp-1">
+                          {ann.title}
+                        </h4>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 mt-0.5">
+                          {ann.content}
+                        </p>
+                      </Link>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-center">
+                <Link
+                  href="/announcements"
+                  onClick={() => setShowNotifications(false)}
+                  className="inline-flex items-center justify-center gap-1.5 text-xs font-black text-sky-600 dark:text-sky-400 hover:underline w-full py-1"
+                >
+                  <span>{dir === 'rtl' ? 'عرض جميع الإعلانات والتواصل عبر WhatsApp' : 'Centre d\'annonces & WhatsApp'}</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
               </div>
             </div>
           )}

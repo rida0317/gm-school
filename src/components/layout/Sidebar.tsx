@@ -91,6 +91,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) 
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     cycles: true,
     students_teachers: true,
+    communication: true,
     finance: true,
     structure: false,
     attendance: false,

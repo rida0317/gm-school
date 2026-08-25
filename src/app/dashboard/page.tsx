@@ -10,6 +10,7 @@ import { useSettings } from '@/lib/settings';
 import { useAuth } from '@/lib/auth';
 import { hasRouteAccess } from '@/lib/permissions';
 import { createClient } from '@/lib/supabase/client';
+import { useNotify } from '@/lib/modal-service';
 import {
   GraduationCap,
   Users,
@@ -32,7 +33,16 @@ import {
   Layers,
   ArrowUpRight,
   ShoppingBag,
-  Megaphone
+  Megaphone,
+  Pin,
+  Plus,
+  X,
+  MessageSquare,
+  Share2,
+  FileText,
+  Check,
+  Copy,
+  Info
 } from 'lucide-react';
 import {
   BarChart,
@@ -51,6 +61,21 @@ export default function DashboardPage() {
   const { t, dir } = useI18n();
   const { settings } = useSettings();
   const { profile, user } = useAuth();
+  const notify = useNotify();
+
+  const isStaffManager = profile?.role === 'SUPER_ADMIN' || profile?.role === 'ADMIN' || profile?.role === 'SUPERVISOR';
+
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [selectedAnn, setSelectedAnn] = useState<any | null>(null);
+  const [showQuickPublishModal, setShowQuickPublishModal] = useState(false);
+  const [publishingAnn, setPublishingAnn] = useState(false);
+  const [quickAnnForm, setQuickAnnForm] = useState({
+    title: '',
+    content: '',
+    target_audience: 'ALL',
+    priority: 'IMPORTANT',
+    is_pinned: false,
+  });
 
   const [stats, setStats] = useState({
     studentsCount: 0,
@@ -239,6 +264,18 @@ export default function DashboardPage() {
           }
         });
 
+        // Load live announcements from Supabase
+        const { data: annData } = await supabase
+          .from('announcements')
+          .select('*')
+          .order('is_pinned', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(6);
+
+        if (annData && annData.length > 0) {
+          setAnnouncements(annData);
+        }
+
         setAttendanceData(computedAttendanceData);
         const avgAttendanceRate = measuredDaysCount > 0 ? Math.round((totalWeeklyPresentsPercent / measuredDaysCount) * 10) / 10 : 100;
 
@@ -266,6 +303,56 @@ export default function DashboardPage() {
 
     loadAllLiveStats();
   }, [t, dir]);
+
+  const handleQuickPublishAnnouncement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickAnnForm.title.trim() || !quickAnnForm.content.trim()) return;
+
+    setPublishingAnn(true);
+    try {
+      const supabase = createClient();
+      const author = `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || (dir === 'rtl' ? 'إدارة المؤسسة' : 'Direction GM');
+      const payload = {
+        title: quickAnnForm.title.trim(),
+        content: quickAnnForm.content.trim(),
+        target_audience: quickAnnForm.target_audience,
+        priority: quickAnnForm.priority,
+        is_pinned: quickAnnForm.is_pinned,
+        author_name: author,
+      };
+
+      const { data, error } = await supabase.from('announcements').insert([payload]).select().single();
+      if (error) throw error;
+
+      if (data) {
+        setAnnouncements((prev) => [data, ...prev]);
+      }
+
+      setShowQuickPublishModal(false);
+      setQuickAnnForm({
+        title: '',
+        content: '',
+        target_audience: 'ALL',
+        priority: 'IMPORTANT',
+        is_pinned: false,
+      });
+
+      notify({
+        title: dir === 'rtl' ? 'تم نشر الإعلان بنجاح' : 'Annonce Publiée avec Succès',
+        message: dir === 'rtl' ? 'تم تعميم الإخبار على كافة الأطر في المنصة.' : 'L\'avis a été diffusé à tous les collaborateurs de l\'établissement.',
+        type: 'success',
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erreur';
+      notify({
+        title: 'Erreur',
+        message: msg,
+        type: 'danger',
+      });
+    } finally {
+      setPublishingAnn(false);
+    }
+  };
 
   const greetingName = profile
     ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim()
@@ -349,6 +436,69 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* 1. TOP URGENT / PINNED ANNOUNCEMENT ALERT BANNER */}
+        {announcements.find((a) => a.is_pinned || a.priority === 'URGENT') && (
+          (() => {
+            const pinAnn = announcements.find((a) => a.is_pinned || a.priority === 'URGENT');
+            const isUrgent = pinAnn?.priority === 'URGENT';
+            return (
+              <div
+                className={`relative overflow-hidden rounded-3xl p-4 sm:p-5 border transition-all shadow-md animate-in fade-in ${
+                  isUrgent
+                    ? 'bg-gradient-to-r from-rose-950/80 via-rose-900/60 to-slate-900 text-white border-rose-500/40 shadow-rose-950/30'
+                    : 'bg-gradient-to-r from-amber-950/80 via-amber-900/50 to-slate-900 text-white border-amber-500/40 shadow-amber-950/30'
+                }`}
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
+                  <div className="flex items-start sm:items-center gap-3 min-w-0">
+                    <div
+                      className={`p-2.5 rounded-2xl shrink-0 ${
+                        isUrgent
+                          ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/40 animate-pulse'
+                          : 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/30'
+                      }`}
+                    >
+                      {isUrgent ? <AlertTriangle className="w-5 h-5" /> : <Pin className="w-5 h-5" />}
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                            isUrgent ? 'bg-rose-500/30 text-rose-300 border border-rose-500/50' : 'bg-amber-500/30 text-amber-300 border border-amber-500/50'
+                          }`}
+                        >
+                          {isUrgent ? (dir === 'rtl' ? 'إعلان عاجل' : 'Avis Urgent') : (dir === 'rtl' ? 'مذكرة مثبتة' : 'Note Épinglée')}
+                        </span>
+                        <span className="text-[11px] text-slate-400">
+                          {new Date(pinAnn?.created_at).toLocaleDateString(dir === 'rtl' ? 'ar-MA' : 'fr-FR')} &bull; {pinAnn?.author_name || (dir === 'rtl' ? 'الإدارة العامة' : 'Direction')}
+                        </span>
+                      </div>
+                      <h3 className="font-extrabold text-sm sm:text-base text-white mt-1 truncate">
+                        {pinAnn?.title}
+                      </h3>
+                      <p className="text-xs text-slate-300 line-clamp-1 mt-0.5">
+                        {pinAnn?.content}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAnn(pinAnn)}
+                      className="px-4 py-2 rounded-xl text-xs font-bold bg-white text-slate-950 hover:bg-slate-100 shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>{dir === 'rtl' ? 'قراءة الإعلان كاملاً' : 'Lire le Communiqué'}</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 items-stretch">
           <Link href="/students" className="block group h-full">
@@ -719,6 +869,135 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* 5. LIVE ANNOUNCEMENTS & OFFICIAL NOTICES BOARD */}
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="p-2.5 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0">
+                <Megaphone className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white leading-tight">
+                  {dir === 'rtl' ? 'لوحة الإعلانات والمذكرات الإدارية الرسمية' : 'Avis Officiels, Mémos & Notes de Service'}
+                </h3>
+                <p className="text-xs text-slate-400 leading-tight mt-0.5">
+                  {dir === 'rtl' ? 'إعلانات وتوجيهات الإدارة لجميع الأطر والأساتذة' : 'Communications et directives de la Direction à l\'ensemble des équipes'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {isStaffManager && (
+                <button
+                  type="button"
+                  onClick={() => setShowQuickPublishModal(true)}
+                  className="px-3.5 py-2 text-xs font-bold text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 rounded-xl shadow-md shadow-amber-500/20 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>{dir === 'rtl' ? 'نشر إعلان جديد' : 'Publier un Avis'}</span>
+                </button>
+              )}
+
+              <Link
+                href="/announcements"
+                className="px-3.5 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl transition-all flex items-center gap-1.5"
+              >
+                <span>{dir === 'rtl' ? 'الكل و WhatsApp 📲' : 'Toutes les Annonces'}</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </div>
+
+          {/* Announcements Card Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
+            {announcements.length === 0 ? (
+              <div className="col-span-full py-8 text-center text-xs text-slate-400">
+                {dir === 'rtl' ? 'لا توجد إعلانات منشورة حالياً.' : 'Aucune annonce publiée pour le moment.'}
+              </div>
+            ) : (
+              announcements.slice(0, 3).map((ann) => {
+                const isUrgent = ann.priority === 'URGENT';
+                const isImportant = ann.priority === 'IMPORTANT';
+                const isEvent = ann.priority === 'EVENT';
+
+                const targetLabel =
+                  ann.target_audience === 'TEACHERS'
+                    ? (dir === 'rtl' ? 'الأساتذة' : 'Enseignants')
+                    : ann.target_audience === 'ADMIN'
+                    ? (dir === 'rtl' ? 'الإدارة' : 'Administration')
+                    : ann.target_audience === 'SUPERVISORS'
+                    ? (dir === 'rtl' ? 'الحراسة العامة' : 'Surveillants')
+                    : (dir === 'rtl' ? 'كافة الأطر' : 'Tous les collaborateurs');
+
+                return (
+                  <div
+                    key={ann.id}
+                    onClick={() => setSelectedAnn(ann)}
+                    className={`p-4 rounded-2xl border transition-all duration-200 hover:scale-[1.01] hover:shadow-md cursor-pointer flex flex-col justify-between space-y-3 ${
+                      isUrgent
+                        ? 'bg-rose-50/70 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/60'
+                        : isImportant
+                        ? 'bg-amber-50/70 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/60'
+                        : 'bg-slate-50/80 dark:bg-slate-800/40 border-slate-200/80 dark:border-slate-700/60'
+                    }`}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[9.5px] font-black uppercase ${
+                              isUrgent
+                                ? 'bg-rose-600 text-white'
+                                : isImportant
+                                ? 'bg-amber-500 text-slate-950'
+                                : isEvent
+                                ? 'bg-purple-600 text-white'
+                                : 'bg-blue-600 text-white'
+                            }`}
+                          >
+                            {ann.priority || 'INFO'}
+                          </span>
+
+                          <span className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                            {targetLabel}
+                          </span>
+
+                          {ann.is_pinned && (
+                            <span className="p-0.5 text-amber-500" title="Épinglé">
+                              <Pin className="w-3 h-3" />
+                            </span>
+                          )}
+                        </div>
+
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          {new Date(ann.created_at).toLocaleDateString(dir === 'rtl' ? 'ar-MA' : 'fr-FR')}
+                        </span>
+                      </div>
+
+                      <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white line-clamp-2 leading-snug">
+                        {ann.title}
+                      </h4>
+
+                      <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                        {ann.content}
+                      </p>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/50 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                      <span className="truncate font-semibold text-slate-700 dark:text-slate-300">
+                        {ann.author_name || (dir === 'rtl' ? 'الإدارة' : 'Direction')}
+                      </span>
+                      <span className="font-bold text-sky-600 dark:text-sky-400 hover:underline">
+                        {dir === 'rtl' ? 'عرض الإعلان ←' : 'Lire la suite →'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
         {/* 6. QUICK ACTIONS SHORTCUTS GRID */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 items-stretch">
           <Link
@@ -794,6 +1073,211 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* MODAL 1: VIEW FULL ANNOUNCEMENT DETAILS */}
+      {selectedAnn && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
+          <div className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 space-y-4 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-start justify-between pb-3 border-b border-slate-100 dark:border-slate-800 gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                      selectedAnn.priority === 'URGENT'
+                        ? 'bg-rose-600 text-white'
+                        : selectedAnn.priority === 'IMPORTANT'
+                        ? 'bg-amber-500 text-slate-950'
+                        : 'bg-blue-600 text-white'
+                    }`}
+                  >
+                    {selectedAnn.priority}
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    {new Date(selectedAnn.created_at).toLocaleDateString(dir === 'rtl' ? 'ar-MA' : 'fr-FR', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                    })}
+                  </span>
+                </div>
+                <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                  {selectedAnn.title}
+                </h3>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedAnn(null)}
+                className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60">
+              <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 whitespace-pre-line leading-relaxed">
+                {selectedAnn.content}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500">
+              <div>
+                <span>{dir === 'rtl' ? 'جهة الإصدار : ' : 'Émis par : '}</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{selectedAnn.author_name || 'Direction GM'}</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`📢 ${selectedAnn.title}\n\n${selectedAnn.content}\n\n— ${selectedAnn.author_name || 'Direction GM'}`);
+                    notify({ title: 'Copié', message: 'Texte copié dans le presse-papier !', type: 'info' });
+                  }}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs cursor-pointer flex items-center gap-1"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>{dir === 'rtl' ? 'نسخ' : 'Copier'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedAnn(null)}
+                  className="px-4 py-1.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-xs hover:opacity-90 cursor-pointer"
+                >
+                  {dir === 'rtl' ? 'إغلاق' : 'Fermer'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: QUICK PUBLISH ANNOUNCEMENT (FOR ADMIN & SUPERVISOR) */}
+      {showQuickPublishModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
+          <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                  <Megaphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    {dir === 'rtl' ? 'نشر إعلان رسمي لكافة الأطر' : 'Publier une Annonce / Note Officielle'}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    {dir === 'rtl' ? 'سيظهر الإشعار لجميع الموظفين فوراً' : 'L\'avis sera visible par tous les collaborateurs'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowQuickPublishModal(false)}
+                className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleQuickPublishAnnouncement} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  {dir === 'rtl' ? 'عنوان الإعلان أو المذكرة *' : 'Titre de l\'annonce / Objet *'}
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={quickAnnForm.title}
+                  onChange={(e) => setQuickAnnForm({ ...quickAnnForm, title: e.target.value })}
+                  placeholder={dir === 'rtl' ? 'مثال: اجتماع طارئ، مذكرة تنظيمية، عطلة...' : 'Ex: Réunion pédagogique, Note de service...'}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    {dir === 'rtl' ? 'الفئة المستهدفة' : 'Destinataires'}
+                  </label>
+                  <select
+                    value={quickAnnForm.target_audience}
+                    onChange={(e) => setQuickAnnForm({ ...quickAnnForm, target_audience: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white cursor-pointer"
+                  >
+                    <option value="ALL">{dir === 'rtl' ? 'كافة الأطر (الجميع)' : 'Tous les collaborateurs'}</option>
+                    <option value="TEACHERS">{dir === 'rtl' ? 'هيئة التدريس (الأساتذة)' : 'Corps enseignant'}</option>
+                    <option value="ADMIN">{dir === 'rtl' ? 'الأطر الإدارية' : 'Administration'}</option>
+                    <option value="SUPERVISORS">{dir === 'rtl' ? 'الحراسة العامة' : 'Surveillants'}</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    {dir === 'rtl' ? 'درجة الأهمية' : 'Priorité'}
+                  </label>
+                  <select
+                    value={quickAnnForm.priority}
+                    onChange={(e) => setQuickAnnForm({ ...quickAnnForm, priority: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white cursor-pointer"
+                  >
+                    <option value="IMPORTANT">🟡 IMPORTANT (مهم)</option>
+                    <option value="URGENT">🔴 URGENT (عاجل)</option>
+                    <option value="INFO">🔵 INFO (إخباري)</option>
+                    <option value="EVENT">🟣 EVENT (نشاط / مناسبة)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  {dir === 'rtl' ? 'نص وتفاصيل الإعلان *' : 'Contenu du message *'}
+                </label>
+                <textarea
+                  required
+                  rows={4}
+                  value={quickAnnForm.content}
+                  onChange={(e) => setQuickAnnForm({ ...quickAnnForm, content: e.target.value })}
+                  placeholder={dir === 'rtl' ? 'اكتب نص المذكرة أو التوجيهات بالتفصيل...' : 'Rédigez le texte du communiqué...'}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="pin-ann"
+                  checked={quickAnnForm.is_pinned}
+                  onChange={(e) => setQuickAnnForm({ ...quickAnnForm, is_pinned: e.target.checked })}
+                  className="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500 cursor-pointer"
+                />
+                <label htmlFor="pin-ann" className="text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                  {dir === 'rtl' ? 'تثبيت الإعلان في أعلى الصفحة الرئيسية كشريط تنبيه عاجل' : 'Épingler en bannière d\'alerte sur le tableau de bord'}
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowQuickPublishModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl cursor-pointer"
+                >
+                  {dir === 'rtl' ? 'إلغاء' : 'Annuler'}
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={publishingAnn}
+                  className="px-5 py-2.5 text-xs font-black text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 rounded-xl shadow-md shadow-amber-500/25 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Megaphone className="w-4 h-4" />
+                  <span>{publishingAnn ? (dir === 'rtl' ? 'جاري النشر...' : 'Publication...') : (dir === 'rtl' ? 'نشر وتعميم الآن' : 'Diffuser l\'Avis')}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }
