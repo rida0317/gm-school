@@ -173,6 +173,8 @@ export default function TimetablePage() {
   const { t, dir } = useI18n();
   const { settings } = useSettings();
   const { profile } = useAuth();
+  const canManageTimetable = profile?.role === 'SUPER_ADMIN' || profile?.role === 'ADMIN';
+  const isReadOnly = !canManageTimetable;
   const isTeacher = profile?.role === 'TEACHER';
 
   const [classes, setClasses] = useState<ClassEntity[]>([]);
@@ -3000,7 +3002,7 @@ export default function TimetablePage() {
                                         {getSubjectAbbreviation(tSlot.subject)}
                                       </span>
                                     </div>
-                                  ) : (
+                                  ) : canManageTimetable ? (
                                     <div
                                       onClick={() => {
                                         setSelectedTeacherId(tch.id);
@@ -3009,6 +3011,10 @@ export default function TimetablePage() {
                                       className="py-2 text-slate-300 dark:text-slate-700 hover:text-sky-500 font-bold text-center text-xs hover:bg-sky-50/50 dark:hover:bg-sky-950/30 rounded-lg cursor-pointer transition-colors"
                                       title={dir === 'rtl' ? 'انقر لإسناد حصة لهذا الأستاذ' : 'Cliquer pour assigner une séance à ce professeur'}
                                     >
+                                      —
+                                    </div>
+                                  ) : (
+                                    <div className="py-2 text-slate-300 dark:text-slate-700 font-bold text-center text-xs select-none">
                                       —
                                     </div>
                                   )}
@@ -3096,9 +3102,9 @@ export default function TimetablePage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    {isTeacher ? (
+                    {isReadOnly ? (
                       <span className="text-[11px] text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-xl font-bold flex items-center gap-1.5 border border-emerald-200 dark:border-emerald-800">
-                        🔒 {dir === 'rtl' ? 'وضع القراءة فقط للأستاذ' : 'Consultation Enseignant (Lecture seule)'}
+                        🔒 {dir === 'rtl' ? 'وضع القراءة فقط (Consultation)' : 'Consultation (Lecture seule)'}
                       </span>
                     ) : (
                       <span className="text-[11px] text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40 px-2.5 py-1 rounded-xl font-bold flex items-center gap-1.5 border border-sky-200 dark:border-sky-800">
@@ -3176,16 +3182,16 @@ export default function TimetablePage() {
                                 );
 
                                 const isDragOver =
-                                  !isTeacher &&
+                                  canManageTimetable &&
                                   dragOverCell?.day === day.id &&
                                   dragOverCell?.start === period.start;
 
                                 return (
                                   <td
                                     key={day.id}
-                                    onDragOver={!isTeacher ? (e) => handleDragOver(e, day.id, period.start) : undefined}
-                                    onDragLeave={!isTeacher ? handleDragLeave : undefined}
-                                    onDrop={!isTeacher ? (e) => handleDropOnCell(e, day.id, period, slot) : undefined}
+                                    onDragOver={canManageTimetable ? (e) => handleDragOver(e, day.id, period.start) : undefined}
+                                    onDragLeave={canManageTimetable ? handleDragLeave : undefined}
+                                    onDrop={canManageTimetable ? (e) => handleDropOnCell(e, day.id, period, slot) : undefined}
                                     className={`p-1 sm:p-1.5 print:p-0.5 border-r border-slate-200 dark:border-slate-800 print:border-slate-300 last:border-r-0 align-middle transition-all ${
                                       isDragOver
                                         ? 'bg-sky-100/70 dark:bg-sky-900/40 ring-2 ring-sky-500 ring-inset scale-[1.01]'
@@ -3194,15 +3200,15 @@ export default function TimetablePage() {
                                   >
                                     {slot ? (
                                       <div
-                                        draggable={!isTeacher}
-                                        onClick={() => !isTeacher && openSlotEditor(day.id, period, slot)}
-                                        onDragStart={!isTeacher ? (e) => handleDragStart(e, slot) : undefined}
+                                        draggable={canManageTimetable}
+                                        onClick={() => canManageTimetable && openSlotEditor(day.id, period, slot)}
+                                        onDragStart={canManageTimetable ? (e) => handleDragStart(e, slot) : undefined}
                                         onDragEnd={() => {
                                           setDraggedSlot(null);
                                           setDragOverCell(null);
                                         }}
                                         className={`w-full p-1 sm:p-1.5 lg:p-2 rounded-xl sm:rounded-2xl print:rounded text-white shadow-xs relative group transition-all flex flex-col items-center justify-center text-center min-h-[58px] sm:min-h-[66px] lg:min-h-[74px] print:min-h-[48px] print:max-h-[52px] print-card-slot ${
-                                          isTeacher ? 'cursor-default' : 'cursor-pointer active:cursor-grabbing hover:shadow-md hover:ring-2 hover:ring-white/80 hover:scale-[1.01]'
+                                          isReadOnly ? 'cursor-default' : 'cursor-pointer active:cursor-grabbing hover:shadow-md hover:ring-2 hover:ring-white/80 hover:scale-[1.01]'
                                         } overflow-hidden ${
                                           draggedSlot?.id === slot.id
                                             ? 'opacity-40 ring-2 ring-white scale-95'
@@ -3212,20 +3218,20 @@ export default function TimetablePage() {
                                           backgroundColor: slot.subject?.color_code || '#0284c7',
                                         }}
                                         title={
-                                          isTeacher
+                                          isReadOnly
                                             ? `${slot.subject?.name || ''} - ${slot.class?.name || ''} - Salle: ${slot.room?.name || slot.room?.room_number || 'N/A'}`
                                             : dir === 'rtl' ? 'انقر لتعديل الحصة والمادة أو الأستاذ' : 'Cliquer pour modifier la matière ou la séance'
                                         }
                                       >
                                         {/* Drag grip icon on top left hover */}
-                                        {!isTeacher && (
+                                        {canManageTimetable && (
                                           <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-75 transition-opacity print:hidden pointer-events-none">
                                             <GripVertical className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
                                           </div>
                                         )}
 
                                         {/* Delete button on top right hover */}
-                                        {!isTeacher && (
+                                        {canManageTimetable && (
                                           <button
                                             onClick={(e) => {
                                               e.stopPropagation();
@@ -3257,7 +3263,7 @@ export default function TimetablePage() {
                                           </div>
                                         </div>
                                       </div>
-                                    ) : isTeacher ? (
+                                    ) : isReadOnly ? (
                                       <div className="w-full h-full min-h-[58px] sm:min-h-[66px] lg:min-h-[74px] print:min-h-[48px] print:max-h-[52px] print-empty-slot rounded-xl sm:rounded-2xl print:rounded border border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-300 dark:text-slate-700 text-xs font-bold select-none">
                                         —
                                       </div>
