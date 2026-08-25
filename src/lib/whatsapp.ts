@@ -36,7 +36,8 @@ export const DEFAULT_WHATSAPP_TEMPLATES = {
 نحيطكم علماً بأنه قد تم تسجيل *غياب* ابنكم/ابنتكم عن المدرسة بتاريخ *{date}*.
 المرجو التواصل مع إدارة المؤسسة لتبرير هذا الغياب.
 
-— *إدارة المؤسسة*`,
+— *إدارة المؤسسة*
+🌐 https://generationsmontantes.com`,
 
   ar_late: `*مجموعة مدارس الأجيال الصاعدة*
 ----------------------------------------
@@ -46,7 +47,8 @@ export const DEFAULT_WHATSAPP_TEMPLATES = {
 نخبركم بتسجيل *تأخر* ابنكم/ابنتكم عن موعد الدخول المدرسي بتاريخ *{date}* (مدة التأخر: *{late_minutes} دقيقة*).
 المرجو الحرص على احترام التوقيت المدرسي.
 
-— *إدارة المؤسسة*`,
+— *إدارة المؤسسة*
+🌐 https://generationsmontantes.com`,
 
   ar_payment: `*مجموعة مدارس الأجيال الصاعدة*
 ----------------------------------------
@@ -56,7 +58,8 @@ export const DEFAULT_WHATSAPP_TEMPLATES = {
 نذكركم بلطف بحلول موعد أداء الواجب الشهري لشهر *{month}* (المبلغ المستحق: *{amount} درهم*).
 نرجو منكم التفضل بزيارة مصلحة الحسابات بالمؤسسة لتسوية الواجب في أقرب الآجال.
 
-— *مصلحة الحسابات والمالية*`,
+— *مصلحة الحسابات والمالية*
+🌐 https://generationsmontantes.com`,
 
   fr_absence: `*GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES*
 ----------------------------------------
@@ -66,7 +69,8 @@ Cher parent de l'élève *{student_name}* (Classe : *{class_name}*),
 Nous vous informons que votre enfant a été enregistré(e) *ABSENT(E)* le *{date}*.
 Merci de bien vouloir prendre contact avec l'administration pour justifier cette absence.
 
-— *Direction Pédagogique*`,
+— *Direction Pédagogique*
+🌐 https://generationsmontantes.com`,
 
   fr_late: `*GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES*
 ----------------------------------------
@@ -76,7 +80,8 @@ Cher parent de l'élève *{student_name}* (Classe : *{class_name}*),
 Nous vous signalons un *RETARD* de votre enfant à l'école le *{date}* (Durée : *{late_minutes} min*).
 Merci de veiller au respect des horaires d'entrée.
 
-— *Direction Pédagogique*`,
+— *Direction Pédagogique*
+🌐 https://generationsmontantes.com`,
 
   fr_payment: `*GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES*
 ----------------------------------------
@@ -86,7 +91,8 @@ Cher parent de l'élève *{student_name}* (Classe : *{class_name}*),
 Nous vous rappelons aimablement que les frais de scolarité pour le mois de *{month}* sont arrivés à échéance (Montant dû : *{amount} MAD*).
 Merci de bien vouloir vous rapprocher du service comptabilité de l'établissement pour régulariser votre situation.
 
-— *Service Comptabilité & Financier*`,
+— *Service Comptabilité & Financier*
+🌐 https://generationsmontantes.com`,
 };
 
 /**
@@ -199,6 +205,11 @@ export function buildAbsenceMessage(params: AbsenceMessageParams): string {
     compiled = compiled.split(key).join(value);
   }
 
+  // Ensure official website link is ALWAYS present
+  if (!compiled.includes('generationsmontantes.com')) {
+    compiled = compiled.trim() + '\n🌐 https://generationsmontantes.com';
+  }
+
   return compiled;
 }
 
@@ -243,6 +254,11 @@ export function buildPaymentReminderMessage(params: PaymentReminderParams): stri
   let compiled = template;
   for (const [key, value] of Object.entries(replacements)) {
     compiled = compiled.split(key).join(value);
+  }
+
+  // Ensure official website link is ALWAYS present
+  if (!compiled.includes('generationsmontantes.com')) {
+    compiled = compiled.trim() + '\n🌐 https://generationsmontantes.com';
   }
 
   return compiled;
