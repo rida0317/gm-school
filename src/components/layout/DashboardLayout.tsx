@@ -74,6 +74,82 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const roleConfig = ROLE_CONFIGS[currentRole as keyof typeof ROLE_CONFIGS] || ROLE_CONFIGS.TEACHER;
   const isAllowed = hasRouteAccess(currentRole, pathname);
 
+  // Full-screen focused view for accounts pending approval (No Sidebar or Topbar)
+  if (isPendingApproval) {
+    return (
+      <div className="min-h-screen flex flex-col justify-center items-center px-4 py-8 bg-gradient-to-br from-slate-900 via-sky-950 to-slate-900 relative overflow-hidden selection:bg-sky-500 selection:text-white">
+        {/* School building background image */}
+        <div
+          className="absolute inset-0 pointer-events-none z-0 opacity-15 bg-cover bg-center bg-no-repeat filter blur-[3px] scale-105"
+          style={{ backgroundImage: "url('/school-bg.png')" }}
+          aria-hidden="true"
+        />
+
+        {/* Decorative background glow circles */}
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-sky-500/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Main card */}
+        <div className="w-full max-w-lg relative z-10 my-4 animate-in fade-in zoom-in-95 duration-300">
+          {/* Header with School Logo & Title */}
+          <div className="text-center mb-6">
+            <div className="relative inline-flex items-center justify-center p-2.5 mb-3 bg-white/95 rounded-3xl shadow-2xl shadow-sky-500/20 ring-4 ring-sky-500/20 hover:scale-105 transition-all duration-300">
+              <Image
+                src="/logo.png"
+                alt="Logo Groupe Scolaire Des Générations Montantes"
+                width={85}
+                height={85}
+                priority
+                className="object-contain drop-shadow"
+              />
+            </div>
+
+            <h1 className="text-base sm:text-lg font-extrabold text-white tracking-tight uppercase leading-snug">
+              GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES
+            </h1>
+            <p className="text-xs sm:text-sm font-semibold text-sky-300 mt-1 font-arabic" dir="rtl">
+              مجموعة مدارس الأجيال الصاعدة
+            </p>
+          </div>
+
+          <div className="p-6 sm:p-8 rounded-3xl bg-slate-900/95 backdrop-blur-xl border border-amber-500/30 shadow-2xl text-center space-y-5">
+            <div className="w-16 h-16 rounded-3xl bg-amber-500/15 text-amber-400 flex items-center justify-center mx-auto shadow-inner ring-2 ring-amber-500/30">
+              <ShieldAlert className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-2">
+              <h2 className="text-xl font-black text-white">
+                Compte en Attente d&apos;Approbation
+              </h2>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Votre compte (<span className="font-bold text-white">{profile.first_name} {profile.last_name}</span> &bull; <span className="font-bold text-amber-400">{roleConfig.label}</span>) a été soumis avec succès. Il est actuellement en attente d&apos;activation par la Direction ou le Super Administrateur.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-left text-xs space-y-1.5">
+              <div className="font-bold text-amber-300 flex items-center gap-1.5">
+                <span>💡 Que faire ?</span>
+              </div>
+              <div className="text-[11px] text-amber-200/90 leading-relaxed">
+                L&apos;administrateur a reçu votre demande. Dès que votre compte sera approuvé dans la section « Utilisateurs &amp; Accès », vous pourrez vous connecter et accéder à votre espace de travail.
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => signOut()}
+                className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 hover:from-sky-400 hover:via-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-sky-500/25 transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-98"
+              >
+                <span>Retour à la Page de Connexion</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen text-slate-900 dark:text-slate-100 flex flex-col antialiased print:bg-white print:text-black print:min-h-0 relative">
       {/* 1. School building background image with slight blur (Hidden in Print) */}
@@ -110,41 +186,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           onToggleSidebarCollapse={toggleSidebarCollapse}
         />
         <main className="flex-1 px-3.5 sm:px-5 md:px-6 lg:px-8 pt-3 sm:pt-5 pb-[max(2rem,calc(1.5rem+env(safe-area-inset-bottom,0px)))] max-w-[1600px] w-full mx-auto print:p-0 print:m-0 print:max-w-none print:w-full animate-in fade-in duration-300 min-w-0 overflow-x-hidden">
-          {isPendingApproval ? (
-            <div className="min-h-[60vh] flex items-center justify-center p-4">
-              <div className="max-w-md w-full p-8 rounded-3xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-amber-300 dark:border-amber-900/50 shadow-2xl text-center space-y-4">
-                <div className="w-16 h-16 rounded-3xl bg-amber-500/15 text-amber-500 flex items-center justify-center mx-auto shadow-inner">
-                  <ShieldAlert className="w-8 h-8" />
-                </div>
-                <div className="space-y-1.5">
-                  <h2 className="text-xl font-black text-slate-900 dark:text-white">
-                    Compte en Attente d&apos;Approbation
-                  </h2>
-                  <p className="text-xs text-slate-600 dark:text-slate-400">
-                    Votre adresse email est confirmée, mais votre compte (<span className="font-bold text-slate-900 dark:text-white">{profile.first_name} {profile.last_name}</span> &bull; <span className="font-bold text-amber-600">{roleConfig.label}</span>) est actuellement en attente d&apos;activation par la Direction ou le Super Administrateur.
-                  </p>
-                </div>
-
-                <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 text-left text-xs space-y-1">
-                  <div className="font-bold text-amber-900 dark:text-amber-300">
-                    💡 Que faire ?
-                  </div>
-                  <div className="text-[11px] text-amber-800/80 dark:text-amber-300/80">
-                    L&apos;administrateur a reçu votre demande. Dès que votre compte sera approuvé dans la section « Utilisateurs &amp; Accès », vous pourrez vous connecter normalement.
-                  </div>
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    onClick={() => signOut()}
-                    className="inline-flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 text-white dark:text-slate-900 font-bold text-xs shadow-md transition-all cursor-pointer"
-                  >
-                    <span>Retour à la Page de Connexion</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : isAllowed ? (
+          {isAllowed ? (
             children
           ) : (
             <div className="min-h-[60vh] flex items-center justify-center p-4">
