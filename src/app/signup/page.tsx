@@ -59,9 +59,8 @@ export default function SignUpPage() {
     try {
       const supabase = createClient();
 
-      const redirectUrl = typeof window !== 'undefined' && window.location.origin
-        ? `${window.location.origin}/auth/callback`
-        : 'https://generationsmontantes.com/auth/callback';
+      // Always use the live production domain so email links work on all devices
+      const redirectUrl = 'https://generationsmontantes.com/auth/callback';
 
       // 1. Sign up user via Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
