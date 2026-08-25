@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   MessageSquare,
@@ -16,11 +16,13 @@ import {
   ExternalLink,
   GraduationCap,
   Sparkles,
-  Info
+  Info,
+  RotateCcw
 } from 'lucide-react';
 import { Student, AttendanceStatus, StudentAttendance } from '@/types/database';
 import { useI18n } from '@/lib/i18n';
 import { useSettings } from '@/lib/settings';
+import { logAuditEvent } from '@/lib/audit';
 import {
   buildAbsenceMessage,
   normalizeMoroccanPhone,
@@ -59,8 +61,64 @@ export function WhatsAppAbsenceModal({
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ABSENT' | 'LATE' | 'NOT_SENT'>('ALL');
   
-  // Track sent status during current session
+  // Track sent status during current session with localStorage persistence
+  const storageKey = `gm_sent_absence_whatsapp_${selectedDate}`;
   const [sentStudentIds, setSentStudentIds] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(`gm_sent_absence_whatsapp_${selectedDate}`);
+        if (saved) {
+          setSentStudentIds(JSON.parse(saved));
+        }
+      } catch (e) {
+        console.error('Error loading sent absence WhatsApp status:', e);
+      }
+    }
+  }, [selectedDate]);
+
+  const markAsSent = (studentId: string, isSent: boolean = true) => {
+    setSentStudentIds((prev) => {
+      const updated = { ...prev, [studentId]: isSent };
+      if (!isSent) {
+        delete updated[studentId];
+      }
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`gm_sent_absence_whatsapp_${selectedDate}`, JSON.stringify(updated));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      return updated;
+    });
+
+    if (isSent) {
+      logAuditEvent({
+        action: 'ABSENCE_WHATSAPP_NOTIFICATION_SENT',
+        entity_type: 'students',
+        entity_id: studentId,
+        details: { date: selectedDate },
+      });
+    }
+  };
+
+  const handleResetSentSession = () => {
+    setSentStudentIds({});
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem(`gm_sent_absence_whatsapp_${selectedDate}`);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    notify({
+      title: dir === 'rtl' ? 'تمت إعادة ضبط الجلسة' : 'Session Réinitialisée',
+      message: dir === 'rtl' ? 'تمت إعادة تصفير عداد الرسائل المرسلة لهذه الجلسة.' : 'Le compteur des messages envoyés a été réinitialisé.',
+      type: 'info',
+    });
+  };
 
   // Quick edit phone modal state
   const [editingPhoneStudent, setEditingPhoneStudent] = useState<{
@@ -169,18 +227,16 @@ export function WhatsAppAbsenceModal({
     }
 
     const message = generateMessageForStudent(student, record);
-    const success = openWhatsAppChat(normalized, message);
+    openWhatsAppChat(normalized, message);
+    markAsSent(student.id, true);
 
-    if (success) {
-      setSentStudentIds((prev) => ({ ...prev, [student.id]: true }));
-      notify({
-        title: dir === 'rtl' ? 'تم فتح محادثة واتساب' : 'WhatsApp Ouvert',
-        message: dir === 'rtl'
-          ? `تم تجهيز رسالة غياب التلميذ ${student.first_name} ${student.last_name} بنجاح.`
-          : `Message WhatsApp préparé pour ${student.first_name} ${student.last_name}.`,
-        type: 'success',
-      });
-    }
+    notify({
+      title: dir === 'rtl' ? 'تم فتح محادثة واتساب وتحديث العداد' : 'WhatsApp Ouvert',
+      message: dir === 'rtl'
+        ? `تم تجهيز رسالة غياب التلميذ ${student.first_name} ${student.last_name} وتحديث العداد بنجاح.`
+        : `Message WhatsApp préparé pour ${student.first_name} ${student.last_name}. Compteur mis à jour.`,
+      type: 'success',
+    });
   };
 
   // Handler: Open Preview Modal
@@ -308,18 +364,30 @@ export function WhatsAppAbsenceModal({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 shadow-2xs">
-            <div className="p-2 rounded-lg bg-blue-500/15 text-blue-600 dark:text-blue-400">
-              <CheckCheck className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-[10px] uppercase font-bold text-slate-400 truncate">
-                {dir === 'rtl' ? 'تم الإرسال (هذه الجلسة)' : 'Envoyés en session'}
+          <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 shadow-2xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="p-2 rounded-lg bg-blue-500/15 text-blue-600 dark:text-blue-400">
+                <CheckCheck className="w-4 h-4" />
               </div>
-              <div className="text-sm font-black text-blue-600 dark:text-blue-400">
-                {countSent} / {totalTargeted}
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase font-bold text-slate-400 truncate">
+                  {dir === 'rtl' ? 'تم الإرسال (هذه الجلسة)' : 'Envoyés en session'}
+                </div>
+                <div className="text-sm font-black text-blue-600 dark:text-blue-400">
+                  {countSent} / {totalTargeted}
+                </div>
               </div>
             </div>
+            {countSent > 0 && (
+              <button
+                type="button"
+                onClick={handleResetSentSession}
+                className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                title={dir === 'rtl' ? 'إعادة ضبط عداد الإرسال' : 'Réinitialiser le compteur'}
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -449,20 +517,27 @@ export function WhatsAppAbsenceModal({
                   </div>
 
                   {/* Actions & WhatsApp Button */}
-                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                    {/* Status indicator */}
-                    {isSent ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>{dir === 'rtl' ? 'تم الإرسال' : 'Envoyé'}</span>
-                      </span>
-                    ) : null}
+                  <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                    {/* Manual toggle button */}
+                    <button
+                      type="button"
+                      onClick={() => markAsSent(student.id, !isSent)}
+                      className={`px-2 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1 ${
+                        isSent
+                          ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800'
+                          : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+                      }`}
+                      title={isSent ? (dir === 'rtl' ? 'تم الإرسال (انقر للإلغاء)' : 'Déjà envoyé (Cliquer pour annuler)') : (dir === 'rtl' ? 'تحديد كمرسل يدوياً' : 'Marquer comme envoyé manuellement')}
+                    >
+                      <CheckCircle2 className={`w-3.5 h-3.5 ${isSent ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`} />
+                      <span className="hidden sm:inline">{isSent ? (dir === 'rtl' ? 'تم' : 'Envoyé') : (dir === 'rtl' ? 'تحديد' : 'Marquer')}</span>
+                    </button>
 
                     {/* Preview / Edit Custom Message Button */}
                     <button
                       type="button"
                       onClick={() => handleOpenPreview(student, record || dailyRecordMap[student.id])}
-                      className="p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                      className="p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
                       title={dir === 'rtl' ? 'معاينة وتعديل نص الرسالة' : 'Aperçu et personnalisation'}
                     >
                       <Edit3 className="w-4 h-4" />
@@ -472,7 +547,7 @@ export function WhatsAppAbsenceModal({
                     <button
                       type="button"
                       onClick={() => handleQuickSend(student, record)}
-                      className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-white shadow-md transition-all cursor-pointer transform active:scale-95 ${
+                      className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white shadow-md transition-all cursor-pointer transform active:scale-95 ${
                         normalized
                           ? 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-emerald-600/20'
                           : 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-amber-600/20'
@@ -714,8 +789,13 @@ export function WhatsAppAbsenceModal({
                     return;
                   }
                   openWhatsAppChat(normalized, previewModal.message);
-                  setSentStudentIds((prev) => ({ ...prev, [previewModal.student.id]: true }));
+                  markAsSent(previewModal.student.id, true);
                   setPreviewModal(null);
+                  notify({
+                    title: dir === 'rtl' ? 'تم فتح محادثة واتساب وتحديث العداد' : 'WhatsApp Ouvert',
+                    message: dir === 'rtl' ? 'تم تجهيز الرسالة وتسجيل الإرسال.' : 'Message WhatsApp prêt et statut enregistré.',
+                    type: 'success',
+                  });
                 }}
                 className="flex-1 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs font-bold flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-emerald-600/20"
               >
