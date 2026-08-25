@@ -6,6 +6,7 @@ import { useI18n } from '@/lib/i18n';
 import { useSettings } from '@/lib/settings';
 import { createClient } from '@/lib/supabase/client';
 import { useNotify } from '@/lib/modal-service';
+import { logAuditEvent } from '@/lib/audit';
 import { Student, ClassEntity } from '@/types/database';
 import { PaymentModal, TuitionPaymentRecord } from '@/components/tuition/PaymentModal';
 import { PaymentReceiptModal } from '@/components/tuition/PaymentReceiptModal';
@@ -297,6 +298,28 @@ export default function TuitionPage() {
           (p) => !(p.student_id === record.student_id && p.academic_year === record.academic_year && p.month === record.month)
         );
         return [...filtered, data as any];
+      });
+
+      // Audit Log
+      logAuditEvent({
+        action: 'TUITION_PAYMENT_RECORDED',
+        entity_type: 'student_tuition_payments',
+        entity_id: data?.id || record.receipt_number || record.student_id,
+        details: {
+          receipt_number: record.receipt_number,
+          student_id: record.student_id,
+          student_name: paymentModalStudent ? `${paymentModalStudent.first_name} ${paymentModalStudent.last_name}` : undefined,
+          student_code: paymentModalStudent?.student_code,
+          class_name: paymentModalStudent?.class?.name,
+          month: record.month,
+          academic_year: record.academic_year,
+          paid_amount: record.paid_amount,
+          total_amount: record.amount,
+          payment_method: record.payment_method || 'CASH',
+          reference: record.reference || null,
+          has_transport: record.has_transport,
+          transport_amount: record.transport_amount,
+        },
       });
 
       notify({

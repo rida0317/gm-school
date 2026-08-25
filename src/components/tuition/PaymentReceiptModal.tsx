@@ -5,6 +5,7 @@ import { useI18n } from '@/lib/i18n';
 import { useSettings } from '@/lib/settings';
 import { Student } from '@/types/database';
 import { TuitionPaymentRecord } from './PaymentModal';
+import { logAuditEvent } from '@/lib/audit';
 import {
   X,
   Printer,
@@ -39,14 +40,57 @@ export function PaymentReceiptModal({
     const originalTitle = document.title;
     document.title = formattedTitle;
 
+    // Log viewing of receipt
+    logAuditEvent({
+      action: 'TUITION_RECEIPT_GENERATED',
+      entity_type: 'student_tuition_payments',
+      entity_id: record.receipt_number || student.id,
+      details: {
+        receipt_number: record.receipt_number,
+        student_id: student.id,
+        student_name: `${student.first_name} ${student.last_name}`,
+        student_code: student.student_code,
+        class_name: student.class?.name,
+        month: record.month,
+        month_name: monthName,
+        paid_amount: record.paid_amount,
+        total_amount: record.amount,
+        payment_method: record.payment_method || 'CASH',
+        reference: record.reference,
+        format: 'DUPLICATA_A4',
+      },
+    });
+
     return () => {
       document.title = originalTitle;
     };
-  }, [formattedTitle]);
+  }, [formattedTitle, record, student, monthName]);
 
   const handlePrint = () => {
     const originalTitle = document.title;
     document.title = formattedTitle;
+
+    // Log printing of receipt
+    logAuditEvent({
+      action: 'TUITION_RECEIPT_PRINTED',
+      entity_type: 'student_tuition_payments',
+      entity_id: record.receipt_number || student.id,
+      details: {
+        receipt_number: record.receipt_number,
+        student_id: student.id,
+        student_name: `${student.first_name} ${student.last_name}`,
+        student_code: student.student_code,
+        class_name: student.class?.name,
+        month: record.month,
+        month_name: monthName,
+        paid_amount: record.paid_amount,
+        total_amount: record.amount,
+        payment_method: record.payment_method || 'CASH',
+        reference: record.reference,
+        copies: '2_REÇUS_SUR_A4 (Parent + Établissement)',
+      },
+    });
+
     window.print();
     setTimeout(() => {
       document.title = formattedTitle;

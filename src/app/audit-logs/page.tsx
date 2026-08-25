@@ -220,6 +220,12 @@ export default function AuditLogsPage() {
 
   const getActionBadgeColor = (action: string) => {
     const act = action.toUpperCase();
+    if (act.includes('PAYMENT') || act.includes('RECEIPT') || act.includes('TUITION')) {
+      return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30';
+    }
+    if (act.includes('PRINT')) {
+      return 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30';
+    }
     if (act.includes('CREATE') || act.includes('INSERT') || act.includes('ADD') || act.includes('APPROVED')) {
       return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20';
     }
