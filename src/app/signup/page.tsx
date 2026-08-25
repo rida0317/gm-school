@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -38,6 +38,22 @@ export default function SignUpPage() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [cooldown, setCooldown] = useState<number>(0);
+
+  // Live 60s countdown timer for rate-limit protection
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) {
+          setErrorMsg(null);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
 
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault();
@@ -183,7 +199,17 @@ export default function SignUpPage() {
       }, 1800);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erreur lors de la création du compte';
-      setErrorMsg(message);
+      if (
+        message.toLowerCase().includes('rate limit') ||
+        message.toLowerCase().includes('rate_limit') ||
+        message.toLowerCase().includes('exceeded') ||
+        message.toLowerCase().includes('too many requests')
+      ) {
+        setCooldown(60);
+        setErrorMsg('⏳ Limite d\'envoi atteinte par sécurité. Veuillez patienter 60 secondes avant de réessayer.');
+      } else {
+        setErrorMsg(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -252,7 +278,13 @@ export default function SignUpPage() {
           {errorMsg && (
             <div className="mb-5 p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs sm:text-sm flex items-start gap-2.5 animate-in fade-in">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
-              <span>{errorMsg}</span>
+              <div className="flex-1">
+                <span>
+                  {cooldown > 0
+                    ? `⏳ Limite d'envoi atteinte par sécurité. Veuillez patienter encore ${cooldown}s avant de réessayer.`
+                    : errorMsg}
+                </span>
+              </div>
             </div>
           )}
 
@@ -405,11 +437,13 @@ export default function SignUpPage() {
             {/* Submit button */}
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || cooldown > 0}
               className="w-full mt-3 py-3 px-4 rounded-xl bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 hover:from-sky-400 hover:via-blue-500 hover:to-indigo-500 text-white font-bold text-sm shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2 transition-all transform active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : cooldown > 0 ? (
+                <span>⏳ Patienter ({cooldown}s)</span>
               ) : (
                 <>
                   <span>Créer mon Compte</span>
