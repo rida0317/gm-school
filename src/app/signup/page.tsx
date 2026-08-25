@@ -82,6 +82,13 @@ export default function SignUpPage() {
         throw authError;
       }
 
+      // If user already exists in auth, identities array is empty
+      if (authData.user && authData.user.identities && authData.user.identities.length === 0) {
+        setErrorMsg('Cette adresse email est déjà enregistrée. Veuillez vous connecter ou utiliser la récupération de mot de passe.');
+        setLoading(false);
+        return;
+      }
+
       const userId = authData.user?.id;
 
       // 2. Insert or update profile row in public.profiles table if user ID exists

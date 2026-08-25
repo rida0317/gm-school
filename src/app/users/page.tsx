@@ -206,8 +206,15 @@ export default function UsersManagementPage() {
     setActionLoadingId(user.id);
     try {
       const supabase = createClient();
-      const { error } = await supabase.from('profiles').delete().eq('id', user.id);
-      if (error) throw error;
+      
+      // Attempt clean delete through security definer RPC
+      const { error: rpcError } = await supabase.rpc('delete_user_account', { target_user_id: user.id });
+      
+      if (rpcError) {
+        // Fallback to direct table deletion
+        const { error } = await supabase.from('profiles').delete().eq('id', user.id);
+        if (error) throw error;
+      }
 
       setUsers((prev) => prev.filter((u) => u.id !== user.id));
       setFeedback({
