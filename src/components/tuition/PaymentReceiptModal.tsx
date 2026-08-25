@@ -130,9 +130,6 @@ export function PaymentReceiptModal({
                 <h2 className="text-[11px] font-bold text-slate-700 leading-tight">
                   {settings.school_name_ar || 'مجموعة مدارس الأجيال الصاعدة'}
                 </h2>
-                <div className="text-[9.5px] text-slate-500 font-medium mt-0.5">
-                  {settings.address || 'Casablanca, Maroc'} &bull; Tél: {settings.phone || '+212 522-001122'}
-                </div>
               </div>
             </div>
 
