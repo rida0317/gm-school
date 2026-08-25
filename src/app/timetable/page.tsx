@@ -1191,6 +1191,65 @@ export default function TimetablePage() {
         }
 
         // =========================================================================
+        // PASS 1.5: RESOLVE EXCESS DAILY SUBJECT HOURS (>2h/day for a single subject)
+        // =========================================================================
+        const excessDailyConflicts = activeConflicts.filter((c) => c.type === 'EXCESS_DAILY_SUBJECT_HOURS');
+        for (const conflict of excessDailyConflicts) {
+          const slotToMoveId = conflict.conflictingSlotIds[conflict.conflictingSlotIds.length - 1];
+          const targetSlot = currentSlotsState.find((s) => s.id === slotToMoveId && !pinnedSlotIds.has(s.id));
+          if (!targetSlot) continue;
+
+          const teacher = teachers.find((t) => t.id === targetSlot.teacher_id) || targetSlot.teacher;
+          const classId = targetSlot.class_id;
+
+          // Find candidate slots on other days where subject count < 2
+          let candidateTarget: { dayId: number; period: PeriodSlot } | null = null;
+          for (let d = 1; d <= 5; d++) {
+            if (d === targetSlot.day_of_week) continue;
+
+            const existingCountOnDay = currentSlotsState.filter(
+              (s) => s.class_id === classId && s.day_of_week === d && s.subject_id === targetSlot.subject_id
+            ).length;
+            if (existingCountOnDay >= 2) continue;
+
+            const periodsToCheck = d === 5 ? MOROCCAN_55MIN_PERIODS.slice(0, 4) : MOROCCAN_55MIN_PERIODS;
+            for (const period of periodsToCheck) {
+              const classFree = !currentSlotsState.some(
+                (s) => s.class_id === classId && s.day_of_week === d && normalizeTime(s.start_time) === normalizeTime(period.start)
+              );
+              if (!classFree) continue;
+
+              const teacherFree = !currentSlotsState.some(
+                (s) => s.teacher_id === targetSlot.teacher_id && s.day_of_week === d && normalizeTime(s.start_time) === normalizeTime(period.start)
+              );
+              if (!teacherFree) continue;
+
+              const vacOk = teacher ? isVacataireAvailable(teacher, d, period.id, period.start) : true;
+              if (!vacOk) continue;
+
+              candidateTarget = { dayId: d, period };
+              break;
+            }
+            if (candidateTarget) break;
+          }
+
+          if (candidateTarget) {
+            updatedMap.set(targetSlot.id, {
+              id: targetSlot.id,
+              day_of_week: candidateTarget.dayId,
+              start_time: candidateTarget.period.start,
+              end_time: candidateTarget.period.end,
+            });
+            currentSlotsState = currentSlotsState.map((s) =>
+              s.id === targetSlot.id
+                ? { ...s, day_of_week: candidateTarget!.dayId, start_time: candidateTarget!.period.start, end_time: candidateTarget!.period.end }
+                : s
+            );
+            changesInThisPass++;
+          }
+        }
+
+        // =========================================================================
         // PASS 2: COMPACT & ELIMINATE ALL CLASS SCHEDULE GAPS (Trous / Sawaye3 Khawyin)
         // =========================================================================
         classes.forEach((cls) => {
