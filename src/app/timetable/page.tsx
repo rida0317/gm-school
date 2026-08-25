@@ -2911,9 +2911,10 @@ export default function TimetablePage() {
                                 <td key={tch.id} className="p-1.5 border-r-2 border-slate-200 dark:border-slate-700 last:border-r-0 align-middle">
                                   {tSlot ? (
                                     <div
-                                      className="p-1.5 rounded-xl text-white shadow-2xs flex flex-col items-center justify-center text-center transition-transform hover:scale-105"
+                                      onClick={() => openSlotEditor(day.id, period, tSlot)}
+                                      className="p-1.5 rounded-xl text-white shadow-2xs flex flex-col items-center justify-center text-center transition-transform hover:scale-105 cursor-pointer hover:ring-2 hover:ring-white/80"
                                       style={{ backgroundColor: tSlot.subject?.color_code || '#0284c7' }}
-                                      title={`${tSlot.class?.name || ''} - ${tSlot.subject?.name || ''} (Salle: ${tSlot.room?.name || tSlot.room?.room_number || 'N/A'})`}
+                                      title={`${tSlot.class?.name || ''} - ${tSlot.subject?.name || ''} (Salle: ${tSlot.room?.name || tSlot.room?.room_number || 'N/A'}) - Cliquer pour modifier`}
                                     >
                                       <span className="text-[11px] font-black leading-tight">{tSlot.class?.name}</span>
                                       <span className="text-[9.5px] font-black opacity-95 uppercase tracking-wide">
@@ -2921,7 +2922,14 @@ export default function TimetablePage() {
                                       </span>
                                     </div>
                                   ) : (
-                                    <div className="py-2 text-slate-300 dark:text-slate-700 font-bold text-center text-xs">
+                                    <div
+                                      onClick={() => {
+                                        setSelectedTeacherId(tch.id);
+                                        openSlotEditor(day.id, period);
+                                      }}
+                                      className="py-2 text-slate-300 dark:text-slate-700 hover:text-sky-500 font-bold text-center text-xs hover:bg-sky-50/50 dark:hover:bg-sky-950/30 rounded-lg cursor-pointer transition-colors"
+                                      title={dir === 'rtl' ? 'انقر لإسناد حصة لهذا الأستاذ' : 'Cliquer pour assigner une séance à ce professeur'}
+                                    >
                                       —
                                     </div>
                                   )}
