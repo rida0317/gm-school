@@ -94,7 +94,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) 
     finance: true,
     structure: false,
     attendance: false,
-    logistics: false,
+    logistics: true,
     admin: false,
   });
 
@@ -319,7 +319,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) 
         setOpenGroups((prev) => ({ ...prev, [group.id]: true }));
       }
     });
-  }, [pathname]);
+  }, [pathname, navigationGroups]);
 
   const isDashboardActive = pathname === '/dashboard';
 

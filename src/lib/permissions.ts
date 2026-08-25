@@ -38,7 +38,7 @@ export const ROLE_CONFIGS: Record<UserRole, RoleConfig> = {
   },
   SUPERVISOR: {
     label: 'Surveillant Général',
-    description: 'Accès au suivi des élèves, présences, retards, absences, annonces et remplacements',
+    description: 'Accès au suivi des élèves, présences, retards, absences, annonces, remplacements et gestion du stock',
     color: 'text-amber-600 dark:text-amber-400',
     badgeBg: 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300',
     allowedPaths: [
@@ -54,6 +54,8 @@ export const ROLE_CONFIGS: Record<UserRole, RoleConfig> = {
       '/attendance/staff',
       '/gardes',
       '/substitutions',
+      '/stock',
+      '/suppliers',
     ],
   },
   STOCK_MANAGER: {
