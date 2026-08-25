@@ -8,6 +8,7 @@ import { StatCard } from '@/components/ui/StatCard';
 import { useI18n } from '@/lib/i18n';
 import { useSettings } from '@/lib/settings';
 import { useAuth } from '@/lib/auth';
+import { hasRouteAccess } from '@/lib/permissions';
 import { createClient } from '@/lib/supabase/client';
 import {
   GraduationCap,
@@ -304,31 +305,47 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Bottom row: Action Buttons */}
+            {/* Bottom row: Action Buttons (Filtered by role access) */}
             <div className="flex flex-wrap items-center gap-2.5 pt-1">
-              <Link
-                href="/announcements"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/30 text-amber-300 font-bold text-xs shadow-sm transition-all hover:scale-[1.02]"
-              >
-                <Megaphone className="w-4 h-4 text-amber-400" />
-                <span>{dir === 'rtl' ? 'الإعلانات و WhatsApp' : 'Annonces & WhatsApp 📲'}</span>
-              </Link>
+              {hasRouteAccess(profile?.role, '/announcements') && (
+                <Link
+                  href="/announcements"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/30 text-amber-300 font-bold text-xs shadow-sm transition-all hover:scale-[1.02]"
+                >
+                  <Megaphone className="w-4 h-4 text-amber-400" />
+                  <span>{dir === 'rtl' ? 'الإعلانات و WhatsApp' : 'Annonces & WhatsApp 📲'}</span>
+                </Link>
+              )}
 
-              <Link
-                href="/stock"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs shadow-sm transition-all hover:scale-[1.02]"
-              >
-                <Boxes className="w-4 h-4 text-slate-300" />
-                <span>{t('stock')}</span>
-              </Link>
+              {hasRouteAccess(profile?.role, '/attendance/students') && !hasRouteAccess(profile?.role, '/attendance/staff') && (
+                <Link
+                  href="/attendance/students"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/30 text-sky-300 font-bold text-xs shadow-sm transition-all hover:scale-[1.02]"
+                >
+                  <ClipboardList className="w-4 h-4 text-sky-400" />
+                  <span>{t('student_attendance')}</span>
+                </Link>
+              )}
 
-              <Link
-                href="/attendance/staff"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/30 text-sky-300 font-bold text-xs shadow-sm transition-all hover:scale-[1.02]"
-              >
-                <UserCheck className="w-4 h-4 text-sky-400" />
-                <span>{t('teacher_attendance')}</span>
-              </Link>
+              {hasRouteAccess(profile?.role, '/stock') && (
+                <Link
+                  href="/stock"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs shadow-sm transition-all hover:scale-[1.02]"
+                >
+                  <Boxes className="w-4 h-4 text-slate-300" />
+                  <span>{t('stock')}</span>
+                </Link>
+              )}
+
+              {hasRouteAccess(profile?.role, '/attendance/staff') && (
+                <Link
+                  href="/attendance/staff"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/30 text-sky-300 font-bold text-xs shadow-sm transition-all hover:scale-[1.02]"
+                >
+                  <UserCheck className="w-4 h-4 text-sky-400" />
+                  <span>{t('teacher_attendance')}</span>
+                </Link>
+              )}
             </div>
           </div>
         </div>

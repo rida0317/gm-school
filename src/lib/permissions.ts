@@ -34,8 +34,6 @@ export const ROLE_CONFIGS: Record<UserRole, RoleConfig> = {
       '/students',
       '/attendance/students',
       '/timetable',
-      '/attendance/staff',
-      '/gardes',
     ],
   },
   SUPERVISOR: {
