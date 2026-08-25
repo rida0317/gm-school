@@ -109,8 +109,8 @@ const WHATSAPP_TEMPLATES: WhatsAppTemplate[] = [
     nameAr: 'استدعاء لاجتماع تربوي',
     icon: Calendar,
     category: 'TEACHER',
-    defaultText: `Bonjour Professeur {teacher_name},\n\nLa Direction de l'établissement {school_name} a l'honneur de vous convier à la Réunion Pédagogique ({specialization}) qui se tiendra :\n📅 Date : {date}\n⏰ Heure : {time}\n📍 Lieu : Salle des Réunions\n\n📌 Ordre du jour : {subject}\n\nVotre présence est vivement souhaitée. Cordialement,\nDirection {school_name}`,
-    defaultTextAr: `السلام عليكم ورحمة الله تعالى وبركاته،\nالأستاذ(ة) الفاضل(ة) {teacher_name} ({specialization})،\n\nتتشرف إدارة {school_name} بدعوتكم لحضور الاجتماع التربوي المزمع عقده:\n📅 التاريخ : {date}\n⏰ التوقيت : {time}\n📍 المكان : قاعة الاجتماعات الرئيسية\n\n📌 موضوع الاجتماع : {subject}\n\nحضوركم مهم لإغناء النقاش التربوي والتنسيق.\nمع أزكى التحيات والتقدير،\nإدارة {school_name}`,
+    defaultText: `Bonjour Professeur {teacher_name},\n\nLa Direction de l'établissement {school_name} a l'honneur de vous convier à la Réunion Pédagogique ({specialization}) qui se tiendra :\n📅 Date : {date}\n⏰ Heure : {time}\n📍 Lieu : Salle des Réunions\n\n📌 Ordre du jour : {subject}{note_block}\n\nVotre présence est vivement souhaitée. Cordialement,\nDirection {school_name}`,
+    defaultTextAr: `السلام عليكم ورحمة الله تعالى وبركاته،\nالأستاذ(ة) الفاضل(ة) {teacher_name} ({specialization})،\n\nتتشرف إدارة {school_name} بدعوتكم لحضور الاجتماع التربوي المزمع عقده:\n📅 التاريخ : {date}\n⏰ التوقيت : {time}\n📍 المكان : قاعة الاجتماعات الرئيسية\n\n📌 موضوع الاجتماع : {subject}{note_block}\n\nحضوركم مهم لإغناء النقاش التربوي والتنسيق.\nمع أزكى التحيات والتقدير،\nإدارة {school_name}`,
   },
   {
     id: 'admin_note',
@@ -118,8 +118,8 @@ const WHATSAPP_TEMPLATES: WhatsAppTemplate[] = [
     nameAr: 'مذكرة إدارية وإشعار رسمي',
     icon: FileText,
     category: 'GENERAL',
-    defaultText: `Bonjour {recipient_name},\n\nNous vous prions de prendre connaissance de la note de service suivante émise par la Direction de {school_name} :\n\n📌 Objet : {subject}\n📝 Message : {note}\n\nRestant à votre disposition pour toute information complémentaire.\nCordialement, Direction {school_name}`,
-    defaultTextAr: `تحية طيبة واحتراماً،\nالأستاذ(ة) / الزميل(ة) {recipient_name}،\n\nتنهي إدارة {school_name} إلى علمكم ما يلي بخصوص :\n📌 الموضوع : {subject}\n📝 التفاصيل : {note}\n\nشاكرين لكم حسن تعاونكم وتفانيكم الدائم.\nإدارة {school_name}`,
+    defaultText: `Bonjour {recipient_name},\n\nNous vous prions de prendre connaissance de la note de service suivante émise par la Direction de {school_name} :\n\n📌 Objet : {subject}\n📝 Message & Remarque : {note}\n\nRestant à votre disposition pour toute information complémentaire.\nCordialement, Direction {school_name}`,
+    defaultTextAr: `تحية طيبة واحتراماً،\nالأستاذ(ة) / الزميل(ة) {recipient_name}،\n\nتنهي إدارة {school_name} إلى علمكم ما يلي بخصوص :\n📌 الموضوع : {subject}\n📝 التفاصيل والملاحظة : {note}\n\nشاكرين لكم حسن تعاونكم وتفانيكم الدائم.\nإدارة {school_name}`,
   },
   {
     id: 'schedule_change',
@@ -127,8 +127,8 @@ const WHATSAPP_TEMPLATES: WhatsAppTemplate[] = [
     nameAr: 'إشعار بتعديل في استعمال الزمن',
     icon: Clock,
     category: 'TEACHER',
-    defaultText: `Bonjour Professeur {teacher_name},\n\nNous vous informons qu'un ajustement a été apporté à votre emploi du temps pour la séance du {date} à {time}.\n\n📌 Détails : {note}\n\nVous pouvez consulter votre planning à jour directement sur la plateforme GM School.\nMerci de votre compréhension, Direction {school_name}`,
-    defaultTextAr: `السلام عليكم الأستاذ(ة) {teacher_name}،\n\nنحيطكم علماً بأنه تم إجراء تعديل في جدول الحصص الخاص بكم ليوم {date} على الساعة {time}.\n\n📌 تفاصيل التعديل : {note}\n\nيمكنكم الاطلاع على الجدول المحدث مباشرة من خلال المنصة الرقمية.\nتقبلوا فائق الاحترام والتقدير،\nإدارة {school_name}`,
+    defaultText: `Bonjour Professeur {teacher_name},\n\nNous vous informons qu'un ajustement a été apporté à votre emploi du temps pour la séance du {date} à {time}.\n\n📌 Détails : {subject}{note_block}\n\nVous pouvez consulter votre planning à jour directement sur la plateforme GM School.\nMerci de votre compréhension, Direction {school_name}`,
+    defaultTextAr: `السلام عليكم الأستاذ(ة) {teacher_name}،\n\nنحيطكم علماً بأنه تم إجراء تعديل في جدول الحصص الخاص بكم ليوم {date} على الساعة {time}.\n\n📌 تفاصيل التعديل : {subject}{note_block}\n\nيمكنكم الاطلاع على الجدول المحدث مباشرة من خلال المنصة الرقمية.\nتقبلوا فائق الاحترام والتقدير،\nإدارة {school_name}`,
   },
   {
     id: 'notes_reminder',
@@ -136,8 +136,8 @@ const WHATSAPP_TEMPLATES: WhatsAppTemplate[] = [
     nameAr: 'تذكير بمسك وتسليم النقط',
     icon: Bookmark,
     category: 'TEACHER',
-    defaultText: `Bonjour Professeur {teacher_name},\n\nRappel amical concernant la date limite de remise et de saisie des notes du contrôle continu pour la matière ({specialization}).\n\n📅 Dernier délai : {date}\n\nMerci de veiller au respect des délais pour la préparation des bulletins scolaires.\nCordialement, Direction {school_name}`,
-    defaultTextAr: `تحية تقدير واحترام،\nالأستاذ(ة) الفاضل(ة) {teacher_name} ({specialization})،\n\nنود تذكيركم بموعد حصر ومسك نقط المراقبة المستمرة وتسليم أوراق الفروض الخاصة بـ {subject}.\n\n📅 آخر أجل محدد : {date}\n\nشاكرين لكم حرصكم الدائم على الالتزام بالجدولة المحددة.\nإدارة {school_name}`,
+    defaultText: `Bonjour Professeur {teacher_name},\n\nRappel amical concernant la date limite de remise et de saisie des notes du contrôle continu pour la matière ({specialization}).\n\n📌 Objet : {subject}\n📅 Dernier délai : {date}{note_block}\n\nMerci de veiller au respect des délais pour la préparation des bulletins scolaires.\nCordialement, Direction {school_name}`,
+    defaultTextAr: `تحية تقدير واحترام،\nالأستاذ(ة) الفاضل(ة) {teacher_name} ({specialization})،\n\nنود تذكيركم بموعد حصر ومسك نقط المراقبة المستمرة وتسليم أوراق الفروض الخاصة بـ {subject}.\n\n📅 آخر أجل محدد : {date}{note_block}\n\nشاكرين لكم حرصكم الدائم على الالتزام بالجدولة المحددة.\nإدارة {school_name}`,
   },
   {
     id: 'custom',
@@ -290,6 +290,14 @@ export default function AnnouncementsPage() {
       teacherSpec = currentSelectedTeacher.specialization || 'التدريس';
     }
 
+    const rawNote = (waParams.note || '').trim();
+    let noteBlock = '';
+    if (rawNote) {
+      noteBlock = templateLanguage === 'ar'
+        ? `\n📝 ملاحظة وتفاصيل : ${rawNote}`
+        : `\n📝 Remarque & Détails : ${rawNote}`;
+    }
+
     let text = rawTemplate
       .replace(/{school_name}/g, schoolName)
       .replace(/{teacher_name}/g, teacherName)
@@ -298,7 +306,8 @@ export default function AnnouncementsPage() {
       .replace(/{date}/g, waParams.date || '')
       .replace(/{time}/g, waParams.time || '')
       .replace(/{subject}/g, waParams.subject || '')
-      .replace(/{note}/g, waParams.note || '');
+      .replace(/{note_block}/g, noteBlock)
+      .replace(/{note}/g, rawNote);
 
     return text;
   }, [selectedTemplateId, templateLanguage, currentSelectedTeacher, settings.school_name, waParams]);
