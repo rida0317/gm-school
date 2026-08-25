@@ -1401,14 +1401,6 @@ export default function StockPage() {
             </button>
 
             <button
-              onClick={handlePrintReport}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 text-rose-700 dark:text-rose-300 font-bold text-xs shadow-xs hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-all cursor-pointer whitespace-nowrap"
-            >
-              <Printer className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
-              <span>{dir === 'rtl' ? 'تصدير PDF' : 'Exporter PDF'}</span>
-            </button>
-
-            <button
               onClick={() => setShowReportModal(true)}
               className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition-all cursor-pointer whitespace-nowrap"
             >
