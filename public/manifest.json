@@ -1,0 +1,70 @@
+{
+  "name": "Groupe Scolaire Des Générations Montantes | GM School",
+  "short_name": "GM School",
+  "description": "Portail numérique de gestion et d'administration scolaire - Groupe Scolaire GM",
+  "start_url": "/",
+  "id": "/",
+  "display": "standalone",
+  "background_color": "#0a1832",
+  "theme_color": "#0284c7",
+  "orientation": "any",
+  "dir": "auto",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Tableau de bord",
+      "short_name": "Dashboard",
+      "description": "Accéder au tableau de bord principal",
+      "url": "/dashboard",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Annonces & WhatsApp",
+      "short_name": "Annonces",
+      "description": "Centre d'annonces et messagerie WhatsApp",
+      "url": "/announcements",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Emploi du Temps",
+      "short_name": "Planning",
+      "description": "Consulter les emplois du temps",
+      "url": "/timetable",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Absences Élèves",
+      "short_name": "Présence",
+      "description": "Gestion des présences et absences",
+      "url": "/attendance/students",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    }
+  ],
+  "categories": ["education", "productivity", "utilities"]
+}

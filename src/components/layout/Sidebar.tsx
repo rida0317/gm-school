@@ -27,17 +27,20 @@ import {
   Briefcase,
   Shield,
   X,
+  Award,
+  Megaphone,
   LogOut,
   ChevronDown,
   Palette,
   Layers,
-  Award,
-  Megaphone,
+  Download,
+  Smartphone,
   type LucideIcon
 } from 'lucide-react';
 
 import { useAuth } from '@/lib/auth';
 import { hasRouteAccess, ROLE_CONFIGS } from '@/lib/permissions';
+import { usePWA } from '@/components/pwa/PWAProvider';
 
 interface NavItem {
   href: string;
@@ -78,6 +81,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) 
   const { t, dir } = useI18n();
   const { settings } = useSettings();
   const { profile } = useAuth();
+  const { installPWA, isInstalled } = usePWA();
   const [pendingCount, setPendingCount] = useState<number>(0);
 
   const currentRole = profile?.role || 'SUPER_ADMIN';
@@ -516,6 +520,17 @@ export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) 
               </div>
             </div>
           </div>
+
+          {!isInstalled && (
+            <button
+              type="button"
+              onClick={installPWA}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-black text-sky-300 hover:text-white bg-sky-500/15 hover:bg-sky-500/25 border border-sky-400/30 transition-all cursor-pointer shadow-xs"
+            >
+              <Download className="w-3.5 h-3.5 text-sky-400" />
+              <span>{dir === 'rtl' ? '📲 تثبيت تطبيق GM School' : 'Installer l\'App GM School 📲'}</span>
+            </button>
+          )}
 
           <button
             type="button"
