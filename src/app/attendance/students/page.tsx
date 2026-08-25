@@ -1628,8 +1628,8 @@ export default function StudentAttendancePage() {
                             {/* Actions & WhatsApp Buttons */}
                             <td className="py-3.5 px-4 text-right whitespace-nowrap">
                               <div className="flex items-center justify-end gap-2">
-                                {/* WhatsApp Send Button for Absent / Late */}
-                                {(status === 'ABSENT' || status === 'EXCUSED' || status === 'LATE') && (
+                                {/* WhatsApp Send Button for Absent / Late (Admin/Supervisor Only) */}
+                                {!isTeacher && (status === 'ABSENT' || status === 'EXCUSED' || status === 'LATE') && (
                                   <button
                                     type="button"
                                     onClick={() => {
