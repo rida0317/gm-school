@@ -380,7 +380,7 @@ export default function TimetablePage() {
   // Real-Time Schedule Conflict Inspector & Integrity Engine
   interface ConflictReport {
     id: string;
-    type: 'TEACHER_DOUBLE_BOOKING' | 'CLASS_DOUBLE_BOOKING' | 'ROOM_DOUBLE_BOOKING' | 'CLASS_SCHEDULE_HOLE' | 'VACATAIRE_UNAVAILABLE_SLOT';
+    type: 'TEACHER_DOUBLE_BOOKING' | 'CLASS_DOUBLE_BOOKING' | 'ROOM_DOUBLE_BOOKING' | 'CLASS_SCHEDULE_HOLE' | 'VACATAIRE_UNAVAILABLE_SLOT' | 'EXCESS_DAILY_SUBJECT_HOURS';
     title: string;
     description: string;
     day_of_week: number;
@@ -434,7 +434,7 @@ export default function TimetablePage() {
       });
     });
 
-    // 1. TEACHER DOUBLE BOOKING
+    // 1. TEACHER DOUBLE BOOKING (Teacher assigned in 2 different classes at the same time)
     slotsList.forEach((s1) => {
       if (!s1.teacher_id) return;
       slotsList.forEach((s2) => {
@@ -470,37 +470,100 @@ export default function TimetablePage() {
       });
     });
 
-    // 2. CLASS SCHEDULE HOLES / GAPS (Heures Creuses Isolées / Sawaye3 Khawyin f West Nhar)
+    // 2. ROOM DOUBLE BOOKING (Room occupied by multiple classes simultaneously)
+    slotsList.forEach((s1) => {
+      if (!s1.room_id) return;
+      slotsList.forEach((s2) => {
+        if (s1.id !== s2.id && s1.room_id === s2.room_id) {
+          if (isSameSlotTime(s1.day_of_week, s1.start_time, s2.day_of_week, s2.start_time)) {
+            const pairKey = [s1.id, s2.id].sort().join('___');
+            if (!seenPairs.has(pairKey)) {
+              seenPairs.add(pairKey);
+              const roomName = s1.room?.name || s1.room?.room_number || 'Salle';
+              const dayName = MOROCCAN_SCHOOL_DAYS.find((d) => d.id === s1.day_of_week)?.name || 'Jour';
+              const period = MOROCCAN_55MIN_PERIODS.find((p) => normalizeTime(p.start) === normalizeTime(s1.start_time));
+              const timeLabel = period ? period.label : normalizeTime(s1.start_time);
+              const c1 = s1.class?.name || 'Classe 1';
+              const c2 = s2.class?.name || 'Classe 2';
+
+              reports.push({
+                id: `room_double_${pairKey}`,
+                type: 'ROOM_DOUBLE_BOOKING',
+                title: `Double-Occupation Salle : ${roomName}`,
+                description: `La salle ${roomName} est occupée simultanément par ${c1} et ${c2} le ${dayName} (${timeLabel}).`,
+                day_of_week: s1.day_of_week,
+                dayName,
+                start_time: s1.start_time,
+                timeLabel,
+                classes: [c1, c2],
+                conflictingSlotIds: [s1.id, s2.id],
+              });
+            }
+          }
+        }
+      });
+    });
+
+    // 3. EXCEEDING DAILY SUBJECT HOURS (Strict Hard Cap: Max 2 hours per subject per day for any class)
+    classesList.forEach((cls) => {
+      MOROCCAN_SCHOOL_DAYS.forEach((day) => {
+        const classDaySlots = slotsList.filter((s) => s.class_id === cls.id && s.day_of_week === day.id);
+        const subjectCountMap = new Map<string, TimetableSlot[]>();
+
+        classDaySlots.forEach((s) => {
+          const list = subjectCountMap.get(s.subject_id) || [];
+          list.push(s);
+          subjectCountMap.set(s.subject_id, list);
+        });
+
+        subjectCountMap.forEach((slotsForSubject, subjId) => {
+          if (slotsForSubject.length > 2) {
+            const subj = slotsForSubject[0].subject || subjects.find((s) => s.id === subjId);
+            const subjName = subj?.name || 'Matière';
+            reports.push({
+              id: `excess_daily_${cls.id}_${day.id}_${subjId}`,
+              type: 'EXCESS_DAILY_SUBJECT_HOURS',
+              title: `Dépassement Quota Journalier : ${subjName}`,
+              description: `La classe ${cls.name} a ${slotsForSubject.length} heures de ${subjName} le ${day.name}. Le maximum pédagogique autorisé est de 2 heures par jour.`,
+              day_of_week: day.id,
+              dayName: day.name,
+              start_time: slotsForSubject[slotsForSubject.length - 1].start_time,
+              timeLabel: `${slotsForSubject.length}h / jour (Max: 2h)`,
+              classes: [cls.name],
+              conflictingSlotIds: slotsForSubject.map((s) => s.id),
+            });
+          }
+        });
+      });
+    });
+
+    // 4. CLASS SCHEDULE HOLES / GAPS ACROSS FULL DAY (Heures Creuses Isolées dans la journée)
     classesList.forEach((cls) => {
       MOROCCAN_SCHOOL_DAYS.forEach((day) => {
         const classDaySlots = slotsList.filter((s) => s.class_id === cls.id && s.day_of_week === day.id);
         if (classDaySlots.length === 0) return;
 
-        // Morning check: P1, P2, P3, P4
-        const morningPeriods = MOROCCAN_55MIN_PERIODS.slice(0, 4);
-        const morningSlotsByPeriod = morningPeriods.map((p) =>
+        const dayPeriods = day.id === 5 ? MOROCCAN_55MIN_PERIODS.slice(0, 4) : MOROCCAN_55MIN_PERIODS;
+        const periodOccupied = dayPeriods.map((p) =>
           classDaySlots.find((s) => normalizeTime(s.start_time) === normalizeTime(p.start))
         );
-        const occupiedMorningIndexes = morningSlotsByPeriod
+
+        const occupiedIndices = periodOccupied
           .map((s, idx) => (s ? idx : -1))
           .filter((idx) => idx !== -1);
 
-        if (occupiedMorningIndexes.length > 0) {
-          const maxOccupied = Math.max(...occupiedMorningIndexes);
-          for (let pIdx = 0; pIdx < maxOccupied; pIdx++) {
-            if (!morningSlotsByPeriod[pIdx]) {
-              const emptyPeriod = morningPeriods[pIdx];
-              const laterOccupiedSlot = morningSlotsByPeriod[maxOccupied];
-              const laterSubj = laterOccupiedSlot?.subject?.name || 'Cours';
-              const laterTeacher = laterOccupiedSlot?.teacher
-                ? `${laterOccupiedSlot.teacher.first_name} ${laterOccupiedSlot.teacher.last_name}`
-                : '';
+        if (occupiedIndices.length > 0) {
+          const minIdx = Math.min(...occupiedIndices);
+          const maxIdx = Math.max(...occupiedIndices);
 
+          for (let idx = minIdx; idx <= maxIdx; idx++) {
+            if (!periodOccupied[idx]) {
+              const emptyPeriod = dayPeriods[idx];
               reports.push({
-                id: `gap_morning_${cls.id}_${day.id}_${emptyPeriod.id}`,
+                id: `gap_fullday_${cls.id}_${day.id}_${emptyPeriod.id}`,
                 type: 'CLASS_SCHEDULE_HOLE',
                 title: `Heure Creuse Isolée : ${cls.name}`,
-                description: `La classe ${cls.name} a un trou vide (${emptyPeriod.label}) le ${day.name} alors qu'une séance (${laterSubj}${laterTeacher ? ` - ${laterTeacher}` : ''}) est programmée après.`,
+                description: `La classe ${cls.name} a un créneau vide (${emptyPeriod.label}) le ${day.name} alors que des cours sont dispensés avant et après.`,
                 day_of_week: day.id,
                 dayName: day.name,
                 start_time: emptyPeriod.start,
@@ -511,42 +574,33 @@ export default function TimetablePage() {
             }
           }
         }
-
-        // Afternoon check (for Mon-Thu): P5, P6, P7
-        if (day.id !== 5) {
-          const afternoonPeriods = MOROCCAN_55MIN_PERIODS.slice(4);
-          const afternoonSlotsByPeriod = afternoonPeriods.map((p) =>
-            classDaySlots.find((s) => normalizeTime(s.start_time) === normalizeTime(p.start))
-          );
-          const occupiedAfternoonIndexes = afternoonSlotsByPeriod
-            .map((s, idx) => (s ? idx : -1))
-            .filter((idx) => idx !== -1);
-
-          if (occupiedAfternoonIndexes.length > 0) {
-            const maxOccupied = Math.max(...occupiedAfternoonIndexes);
-            for (let pIdx = 0; pIdx < maxOccupied; pIdx++) {
-              if (!afternoonSlotsByPeriod[pIdx]) {
-                const emptyPeriod = afternoonPeriods[pIdx];
-                const laterOccupiedSlot = afternoonSlotsByPeriod[maxOccupied];
-                const laterSubj = laterOccupiedSlot?.subject?.name || 'Cours';
-
-                reports.push({
-                  id: `gap_afternoon_${cls.id}_${day.id}_${emptyPeriod.id}`,
-                  type: 'CLASS_SCHEDULE_HOLE',
-                  title: `Heure Creuse Isolée : ${cls.name}`,
-                  description: `La classe ${cls.name} a un trou vide (${emptyPeriod.label}) le ${day.name} en après-midi suivi de cours (${laterSubj}).`,
-                  day_of_week: day.id,
-                  dayName: day.name,
-                  start_time: emptyPeriod.start,
-                  timeLabel: emptyPeriod.label,
-                  classes: [cls.name],
-                  conflictingSlotIds: classDaySlots.map((s) => s.id),
-                });
-              }
-            }
-          }
-        }
       });
+    });
+
+    // 5. VACATAIRE PRESENCE CHECK
+    slotsList.forEach((s) => {
+      const teacher = teachersList.find((t) => t.id === s.teacher_id) || s.teacher;
+      if (teacher && teacher.contract_type === 'VACATAIRE') {
+        const period = MOROCCAN_55MIN_PERIODS.find((p) => normalizeTime(p.start) === normalizeTime(s.start_time));
+        const isOk = isVacataireAvailable(teacher, s.day_of_week, period?.id || '', s.start_time);
+        if (!isOk) {
+          const dayName = MOROCCAN_SCHOOL_DAYS.find((d) => d.id === s.day_of_week)?.name || 'Jour';
+          const timeLabel = period ? period.label : normalizeTime(s.start_time);
+          reports.push({
+            id: `vacataire_unavail_${s.id}`,
+            type: 'VACATAIRE_UNAVAILABLE_SLOT',
+            title: `Créneau Vacataire Non Déclaré : ${teacher.first_name} ${teacher.last_name}`,
+            description: `L'enseignant vacataire ${teacher.first_name} ${teacher.last_name} est programmé le ${dayName} (${timeLabel}) hors de ses disponibilités déclarées.`,
+            day_of_week: s.day_of_week,
+            dayName,
+            start_time: s.start_time,
+            timeLabel,
+            classes: [s.class?.name || 'Classe'],
+            teacherName: `${teacher.first_name} ${teacher.last_name}`,
+            conflictingSlotIds: [s.id],
+          });
+        }
+      }
     });
 
     return reports;

@@ -907,12 +907,18 @@ export default function TimetableGeneratorPage() {
             return !classOccupied.has(classKey) && countOnDay < 2;
           });
 
-          // If all days are at capacity (which is rare), fallback to any open slot for the class
+          // If no slot with count < 2 found, try to find any slot on a day with least sessions of this subject
           if (!openSlot) {
-            openSlot = allWeeklyPeriods.find((slot) => {
+            const candidateSlots = allWeeklyPeriods.filter((slot) => {
               const classKey = `${slot.dayId}_${slot.start}_${cls.id}`;
               return !classOccupied.has(classKey);
             });
+            candidateSlots.sort((a, b) => {
+              const countA = classDaySubjectCount.get(`${a.dayId}_${cls.id}_${subj.id}`) || 0;
+              const countB = classDaySubjectCount.get(`${b.dayId}_${cls.id}_${subj.id}`) || 0;
+              return countA - countB;
+            });
+            openSlot = candidateSlots[0];
           }
 
           if (openSlot) {
