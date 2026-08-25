@@ -273,13 +273,14 @@ export default function DashboardPage() {
   return (
     <DashboardLayout>
       <div className="space-y-7">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-950 via-[#0a1832] to-slate-950 border border-sky-500/25 p-6 md:p-8 text-white shadow-2xl shadow-sky-950/40">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-950 via-[#0a1832] to-slate-950 border border-sky-500/25 p-5 sm:p-7 md:p-8 text-white shadow-2xl shadow-sky-950/40">
           <div className="absolute -top-24 -right-24 w-72 h-72 bg-sky-500/20 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-orange-500/15 rounded-full blur-3xl pointer-events-none" />
 
-          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+          <div className="relative z-10 space-y-4 sm:space-y-5">
+            {/* Top row: Logo + Header info */}
             <div className="flex items-center gap-4 sm:gap-5">
-              <div className="shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-white p-2 shadow-2xl shadow-sky-500/30 ring-2 ring-sky-400/60 flex items-center justify-center">
+              <div className="shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-white p-2 shadow-2xl shadow-sky-500/30 ring-2 ring-sky-400/60 flex items-center justify-center">
                 <img
                   src="/logo.png"
                   alt="GM School Logo"
@@ -287,26 +288,27 @@ export default function DashboardPage() {
                 />
               </div>
 
-              <div>
-                <div className="flex items-center gap-1.5 text-sky-300 text-xs font-semibold mb-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 text-sky-300 text-xs sm:text-sm font-semibold mb-1">
+                  <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
+                  <span className="leading-tight">
                     {t('academic_year')} {settings.academic_year || '2025-2026'} &bull; {settings.current_term ? `${t('term')} ${settings.current_term.replace(/[^0-9]/g, '') || '1'}` : `${t('term')} 1`} &bull; {t('synchronized_system')}
                   </span>
                 </div>
-                <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-white leading-tight">
                   {t('hello')}, {greetingName}
                 </h1>
-                <p className="text-slate-300 text-xs sm:text-sm mt-1 max-w-xl font-medium tracking-wide">
+                <p className="text-slate-300 text-xs sm:text-sm mt-1 font-medium tracking-wide">
                   {dir === 'rtl' ? (settings.school_name_ar || t('school_name')) : (settings.school_name || 'GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES')}
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            {/* Bottom row: Action Buttons */}
+            <div className="flex flex-wrap items-center gap-2.5 pt-1">
               <Link
                 href="/announcements"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/30 text-amber-300 font-bold text-xs shadow-sm transition-all"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/30 text-amber-300 font-bold text-xs shadow-sm transition-all hover:scale-[1.02]"
               >
                 <Megaphone className="w-4 h-4 text-amber-400" />
                 <span>{dir === 'rtl' ? 'الإعلانات و WhatsApp' : 'Annonces & WhatsApp 📲'}</span>
@@ -314,7 +316,7 @@ export default function DashboardPage() {
 
               <Link
                 href="/stock"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs shadow-sm transition-all"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs shadow-sm transition-all hover:scale-[1.02]"
               >
                 <Boxes className="w-4 h-4 text-slate-300" />
                 <span>{t('stock')}</span>
@@ -322,7 +324,7 @@ export default function DashboardPage() {
 
               <Link
                 href="/attendance/staff"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/30 text-sky-300 font-bold text-xs shadow-sm transition-all"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/30 text-sky-300 font-bold text-xs shadow-sm transition-all hover:scale-[1.02]"
               >
                 <UserCheck className="w-4 h-4 text-sky-400" />
                 <span>{t('teacher_attendance')}</span>
