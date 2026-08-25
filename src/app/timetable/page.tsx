@@ -38,6 +38,8 @@ import {
   Wand2,
   Table,
   LayoutGrid,
+  BookOpen,
+  Check,
 } from 'lucide-react';
 
 interface SchoolDay {
@@ -211,9 +213,11 @@ export default function TimetablePage() {
   const [printMode, setPrintMode] = useState<'CURRENT' | 'ALL_CLASSES' | 'ALL_TEACHERS' | 'MASTER_GRID'>('CURRENT');
   const [showExportDropdown, setShowExportDropdown] = useState(false);
 
-  // Add Slot Modal
+  // Add / Edit Slot Modal
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
   const [newSlot, setNewSlot] = useState({
+    class_id: '',
     day_of_week: 1,
     start_time: '08:30',
     end_time: '09:25',
@@ -1869,6 +1873,66 @@ export default function TimetablePage() {
     );
   };
 
+  const openSlotEditor = (dayId: number, period: PeriodSlot, slot?: TimetableSlot) => {
+    if (slot) {
+      setEditingSlotId(slot.id);
+      setNewSlot({
+        class_id: slot.class_id || selectedClassId || (classes[0]?.id || ''),
+        day_of_week: slot.day_of_week,
+        start_time: slot.start_time.slice(0, 5),
+        end_time: slot.end_time.slice(0, 5),
+        subject_id: slot.subject_id || '',
+        teacher_id: slot.teacher_id || '',
+        room_id: slot.room_id || '',
+      });
+    } else {
+      setEditingSlotId(null);
+      const initialSubjectId = subjects[0]?.id || '';
+      const initialSubject = subjects[0];
+      let initialTeacherId = teachers[0]?.id || '';
+
+      if (initialSubject) {
+        const sName = (initialSubject.name || '').toLowerCase();
+        const matchingTeacher = teachers.find((t) => {
+          const spec = (t.specialization || '').toLowerCase();
+          return spec && (sName.includes(spec) || spec.includes(sName));
+        });
+        if (matchingTeacher) initialTeacherId = matchingTeacher.id;
+      }
+
+      setNewSlot({
+        class_id: selectedClassId || (classes[0]?.id || ''),
+        day_of_week: dayId,
+        start_time: period.start,
+        end_time: period.end,
+        subject_id: initialSubjectId,
+        teacher_id: viewMode === 'TEACHER' ? selectedTeacherId : initialTeacherId,
+        room_id: rooms[0]?.id || '',
+      });
+    }
+    setShowAddModal(true);
+  };
+
+  const handleSubjectChange = (subjectId: string) => {
+    const selectedSubj = subjects.find((s) => s.id === subjectId);
+    let autoTeacherId = newSlot.teacher_id;
+    if (selectedSubj) {
+      const sName = selectedSubj.name.toLowerCase();
+      const matchingTeacher = teachers.find((t) => {
+        const spec = (t.specialization || '').toLowerCase();
+        return spec && (sName.includes(spec) || spec.includes(sName));
+      });
+      if (matchingTeacher) {
+        autoTeacherId = matchingTeacher.id;
+      }
+    }
+    setNewSlot((prev) => ({
+      ...prev,
+      subject_id: subjectId,
+      teacher_id: autoTeacherId,
+    }));
+  };
+
   const handleAddSlot = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -1883,14 +1947,16 @@ export default function TimetablePage() {
 
     try {
       const supabase = createClient();
-      const targetClass = viewMode === 'CLASS' ? selectedClassId : (classes[0]?.id || '');
-      const targetTeacher = viewMode === 'TEACHER' ? selectedTeacherId : (newSlot.teacher_id || teachers[0]?.id);
+      const targetClass = newSlot.class_id || (viewMode === 'CLASS' ? selectedClassId : (classes[0]?.id || ''));
+      const targetTeacher = newSlot.teacher_id || (viewMode === 'TEACHER' ? selectedTeacherId : (teachers[0]?.id || ''));
 
+      // Check conflict with other slots (excluding current editing slot)
       const conflictSlot = slots.find(
         (s) =>
+          s.id !== editingSlotId &&
           s.day_of_week === Number(newSlot.day_of_week) &&
           s.start_time.slice(0, 5) === newSlot.start_time.slice(0, 5) &&
-          (s.teacher_id === targetTeacher || s.room_id === newSlot.room_id)
+          (s.teacher_id === targetTeacher || (newSlot.room_id && s.room_id === newSlot.room_id))
       );
 
       if (conflictSlot) {
@@ -1902,49 +1968,87 @@ export default function TimetablePage() {
         return;
       }
 
-      let timetableId: string;
-      const { data: tt } = await supabase.from('timetables').select('id').limit(1);
-      if (tt && tt.length > 0) {
-        timetableId = tt[0].id;
+      if (editingSlotId) {
+        // UPDATE EXISTING SLOT
+        const { error } = await supabase
+          .from('timetable_slots')
+          .update({
+            class_id: targetClass,
+            teacher_id: targetTeacher,
+            subject_id: newSlot.subject_id || subjects[0]?.id,
+            room_id: newSlot.room_id || rooms[0]?.id,
+            day_of_week: Number(newSlot.day_of_week),
+            start_time: newSlot.start_time,
+            end_time: newSlot.end_time,
+          })
+          .eq('id', editingSlotId);
+
+        if (error) {
+          notify({ title: 'Erreur', message: error.message, type: 'danger' });
+          return;
+        }
+
+        logAuditEvent({
+          action: 'TIMETABLE_SLOT_UPDATED',
+          entity_type: 'timetable_slots',
+          entity_id: editingSlotId,
+          details: {
+            class_id: targetClass,
+            teacher_id: targetTeacher,
+            subject_id: newSlot.subject_id,
+            day: newSlot.day_of_week,
+            start: newSlot.start_time,
+          },
+        });
+        notify({ title: 'Succès', message: 'Séance et matière modifiées avec succès !', type: 'success' });
       } else {
-        const { data: newTT } = await supabase
-          .from('timetables')
-          .insert([{ name: 'Emploi du Temps Principal 2025-2026', status: 'PUBLISHED' }])
-          .select('id')
-          .single();
-        timetableId = newTT?.id;
-      }
+        // INSERT NEW SLOT
+        let timetableId: string;
+        const { data: tt } = await supabase.from('timetables').select('id').limit(1);
+        if (tt && tt.length > 0) {
+          timetableId = tt[0].id;
+        } else {
+          const { data: newTT } = await supabase
+            .from('timetables')
+            .insert([{ name: 'Emploi du Temps Principal 2025-2026', status: 'PUBLISHED' }])
+            .select('id')
+            .single();
+          timetableId = newTT?.id;
+        }
 
-      const { error } = await supabase.from('timetable_slots').insert([
-        {
-          timetable_id: timetableId,
-          class_id: targetClass,
-          teacher_id: targetTeacher,
-          subject_id: newSlot.subject_id || subjects[0]?.id,
-          room_id: newSlot.room_id || rooms[0]?.id,
-          day_of_week: Number(newSlot.day_of_week),
-          start_time: newSlot.start_time,
-          end_time: newSlot.end_time,
-        },
-      ]);
+        const { error } = await supabase.from('timetable_slots').insert([
+          {
+            timetable_id: timetableId,
+            class_id: targetClass,
+            teacher_id: targetTeacher,
+            subject_id: newSlot.subject_id || subjects[0]?.id,
+            room_id: newSlot.room_id || rooms[0]?.id,
+            day_of_week: Number(newSlot.day_of_week),
+            start_time: newSlot.start_time,
+            end_time: newSlot.end_time,
+          },
+        ]);
 
-      if (error) {
-        notify({ title: 'Erreur', message: error.message, type: 'danger' });
-        return;
+        if (error) {
+          notify({ title: 'Erreur', message: error.message, type: 'danger' });
+          return;
+        }
+
+        logAuditEvent({
+          action: 'TIMETABLE_SLOT_ADDED',
+          entity_type: 'timetable_slots',
+          details: {
+            class_id: targetClass,
+            teacher_id: targetTeacher,
+            day: newSlot.day_of_week,
+            start: newSlot.start_time,
+          },
+        });
+        notify({ title: 'Succès', message: 'Séance ajoutée avec succès !', type: 'success' });
       }
 
       setShowAddModal(false);
-      logAuditEvent({
-        action: 'TIMETABLE_SLOT_ADDED',
-        entity_type: 'timetable_slots',
-        details: {
-          class_id: targetClass,
-          teacher_id: targetTeacher,
-          day: newSlot.day_of_week,
-          start: newSlot.start_time,
-        },
-      });
-      notify({ title: 'Succès', message: 'Séance ajoutée avec succès !', type: 'success' });
+      setEditingSlotId(null);
       loadData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erreur';
@@ -2884,12 +2988,13 @@ export default function TimetablePage() {
                                     {slot ? (
                                       <div
                                         draggable={true}
+                                        onClick={() => openSlotEditor(day.id, period, slot)}
                                         onDragStart={(e) => handleDragStart(e, slot)}
                                         onDragEnd={() => {
                                           setDraggedSlot(null);
                                           setDragOverCell(null);
                                         }}
-                                        className={`w-full p-1 sm:p-1.5 lg:p-2 rounded-xl sm:rounded-2xl print:rounded text-white shadow-xs relative group transition-all flex flex-col items-center justify-center text-center min-h-[58px] sm:min-h-[66px] lg:min-h-[74px] print:min-h-[48px] print:max-h-[52px] print-card-slot cursor-grab active:cursor-grabbing hover:shadow-md overflow-hidden ${
+                                        className={`w-full p-1 sm:p-1.5 lg:p-2 rounded-xl sm:rounded-2xl print:rounded text-white shadow-xs relative group transition-all flex flex-col items-center justify-center text-center min-h-[58px] sm:min-h-[66px] lg:min-h-[74px] print:min-h-[48px] print:max-h-[52px] print-card-slot cursor-pointer active:cursor-grabbing hover:shadow-md hover:ring-2 hover:ring-white/80 overflow-hidden ${
                                           draggedSlot?.id === slot.id
                                             ? 'opacity-40 ring-2 ring-white scale-95'
                                             : 'hover:scale-[1.01]'
@@ -2897,6 +3002,7 @@ export default function TimetablePage() {
                                         style={{
                                           backgroundColor: slot.subject?.color_code || '#0284c7',
                                         }}
+                                        title={dir === 'rtl' ? 'انقر لتعديل الحصة والمادة أو الأستاذ' : 'Cliquer pour modifier la matière ou la séance'}
                                       >
                                         {/* Drag grip icon on top left hover */}
                                         <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-75 transition-opacity print:hidden pointer-events-none">
@@ -2916,7 +3022,7 @@ export default function TimetablePage() {
                                         </button>
 
                                         {/* Centered text content */}
-                                        <div className="w-full flex flex-col items-center justify-center text-center overflow-hidden">
+                                        <div className="w-full flex flex-col items-center justify-center text-center overflow-hidden pointer-events-none">
                                           <div className="font-black text-[10px] sm:text-xs lg:text-[13px] tracking-wide text-white text-center leading-tight truncate w-full px-0.5 print-card-subject">
                                             [{getSubjectAbbreviation(slot.subject)}] {slot.subject?.name || 'Matière'}
                                           </div>
@@ -2935,8 +3041,16 @@ export default function TimetablePage() {
                                         </div>
                                       </div>
                                     ) : (
-                                      <div className="w-full h-full min-h-[58px] sm:min-h-[66px] lg:min-h-[74px] print:min-h-[48px] print:max-h-[52px] print-empty-slot rounded-xl sm:rounded-2xl print:rounded border-2 border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-300 dark:text-slate-700 text-xs font-bold transition-colors hover:border-sky-300 dark:hover:border-sky-800">
-                                        —
+                                      <div
+                                        onClick={() => openSlotEditor(day.id, period)}
+                                        className="w-full h-full min-h-[58px] sm:min-h-[66px] lg:min-h-[74px] print:min-h-[48px] print:max-h-[52px] print-empty-slot rounded-xl sm:rounded-2xl print:rounded border-2 border-dashed border-slate-200 dark:border-slate-800 hover:border-sky-500 dark:hover:border-sky-500 hover:bg-sky-50/60 dark:hover:bg-sky-950/40 flex flex-col items-center justify-center text-slate-300 hover:text-sky-600 dark:hover:text-sky-400 text-xs font-bold transition-all cursor-pointer group/empty"
+                                        title={dir === 'rtl' ? 'انقر لإضافة حصة وتحديد المادة' : 'Cliquer pour choisir la matière de ce créneau'}
+                                      >
+                                        <Plus className="w-4 h-4 opacity-0 group-hover/empty:opacity-100 transition-opacity mb-0.5" />
+                                        <span className="group-hover/empty:hidden">—</span>
+                                        <span className="hidden group-hover/empty:inline text-[10px] font-bold">
+                                          {dir === 'rtl' ? '+ مادة' : '+ Matière'}
+                                        </span>
                                       </div>
                                     )}
                                   </td>
@@ -3405,37 +3519,50 @@ export default function TimetablePage() {
           </div>
         )}
 
-        {/* Modal 1: Add Slot */}
+        {/* Modal 1: Add or Edit Slot with Subject Selection */}
         {showAddModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in print:hidden">
-            <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-sky-500/20 animate-in zoom-in-95">
-              <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-sky-500/15 text-sky-500">
-                    <CalendarDays className="w-5 h-5" />
+            <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-sky-500/20 animate-in zoom-in-95 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2.5 rounded-2xl bg-sky-500/15 text-sky-500">
+                    <BookOpen className="w-5 h-5" />
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                    Ajouter une Séance (55 min)
-                  </h3>
+                  <div>
+                    <h3 className="text-base font-black text-slate-900 dark:text-white">
+                      {editingSlotId
+                        ? (dir === 'rtl' ? 'تعديل الحصة واختيار المادة' : 'Modifier la Séance & la Matière')
+                        : (dir === 'rtl' ? 'إضافة حصة وتحديد المادة' : 'Ajouter une Séance & Choisir la Matière')}
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      {viewMode === 'CLASS'
+                        ? `Classe : ${selectedClass?.name || 'Classe'}`
+                        : `Enseignant : ${selectedTeacher?.first_name} ${selectedTeacher?.last_name}`}
+                    </p>
+                  </div>
                 </div>
                 <button
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setEditingSlotId(null);
+                  }}
                   className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <form onSubmit={handleAddSlot} className="space-y-4 mt-4">
-                <div className="grid grid-cols-2 gap-4">
+              <form onSubmit={handleAddSlot} className="space-y-4">
+                {/* Day & Period */}
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                       Jour de la Semaine
                     </label>
                     <select
                       value={newSlot.day_of_week}
                       onChange={(e) => setNewSlot({ ...newSlot, day_of_week: Number(e.target.value) })}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
                     >
                       {MOROCCAN_SCHOOL_DAYS.map((d) => (
                         <option key={d.id} value={d.id}>
@@ -3446,8 +3573,8 @@ export default function TimetablePage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Créneau (55 minutes)
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Créneau Horaire (55 min)
                     </label>
                     <select
                       value={newSlot.start_time}
@@ -3460,7 +3587,7 @@ export default function TimetablePage() {
                           end_time: period ? period.end : '09:25',
                         });
                       }}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
                     >
                       {MOROCCAN_55MIN_PERIODS.map((p) => (
                         <option
@@ -3468,36 +3595,38 @@ export default function TimetablePage() {
                           value={p.start}
                           disabled={Number(newSlot.day_of_week) === 5 && p.notOnFriday}
                         >
-                          {p.label} &mdash; {p.sessionName} {Number(newSlot.day_of_week) === 5 && p.notOnFriday ? '(Non dispo Vendredi)' : ''}
+                          {p.label} &mdash; {p.sessionName} {Number(newSlot.day_of_week) === 5 && p.notOnFriday ? '(Libre Vendredi)' : ''}
                         </option>
                       ))}
                     </select>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Matière
-                    </label>
-                    <select
-                      required
-                      value={newSlot.subject_id}
-                      onChange={(e) => setNewSlot({ ...newSlot, subject_id: e.target.value })}
-                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
-                    >
-                      <option value="">-- Choisir --</option>
-                      {subjects.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                {/* Subject Selector with Visual Preview */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Matière Enseignée (المادة الدراسية)
+                  </label>
+                  <select
+                    required
+                    value={newSlot.subject_id}
+                    onChange={(e) => handleSubjectChange(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-black text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+                  >
+                    <option value="">-- Sélectionner une Matière --</option>
+                    {subjects.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.code || getSubjectAbbreviation(s)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
+                {/* Class, Teacher & Room Pickers */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Enseignant
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Enseignant (Professeur)
                     </label>
                     <select
                       required
@@ -3505,18 +3634,18 @@ export default function TimetablePage() {
                       onChange={(e) => setNewSlot({ ...newSlot, teacher_id: e.target.value })}
                       className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
                     >
-                      <option value="">-- Choisir --</option>
+                      <option value="">-- Choisir Professeur --</option>
                       {teachers.map((t) => (
                         <option key={t.id} value={t.id}>
-                          {t.first_name} {t.last_name}
+                          {t.first_name} {t.last_name} ({t.specialization || 'Prof'})
                         </option>
                       ))}
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Salle
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Salle de Cours
                     </label>
                     <select
                       required
@@ -3524,7 +3653,7 @@ export default function TimetablePage() {
                       onChange={(e) => setNewSlot({ ...newSlot, room_id: e.target.value })}
                       className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
                     >
-                      <option value="">-- Choisir --</option>
+                      <option value="">-- Choisir Salle --</option>
                       {rooms.map((r) => (
                         <option key={r.id} value={r.id}>
                           {r.name} ({r.room_number})
@@ -3534,20 +3663,44 @@ export default function TimetablePage() {
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddModal(false)}
-                    className="px-4 py-2.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
-                  >
-                    Annuler
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-6 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 rounded-xl shadow-lg shadow-sky-500/25 transition-all cursor-pointer"
-                  >
-                    Enregistrer la Séance
-                  </button>
+                {/* Footer buttons */}
+                <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
+                  {editingSlotId ? (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await handleDeleteSlot(editingSlotId);
+                        setShowAddModal(false);
+                        setEditingSlotId(null);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900 transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Supprimer cette séance</span>
+                    </button>
+                  ) : (
+                    <div />
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddModal(false);
+                        setEditingSlotId(null);
+                      }}
+                      className="px-4 py-2.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-6 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 rounded-xl shadow-lg shadow-sky-500/25 transition-all cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Check className="w-4 h-4" />
+                      <span>{editingSlotId ? 'Mettre à jour la séance' : 'Enregistrer la séance'}</span>
+                    </button>
+                  </div>
                 </div>
               </form>
             </div>
