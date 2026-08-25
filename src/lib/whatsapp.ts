@@ -270,7 +270,13 @@ export function buildPaymentReminderMessage(params: PaymentReminderParams): stri
 export function getWhatsAppLink(phone: string, message: string): string {
   const normalized = normalizeMoroccanPhone(phone);
   if (!normalized) return '';
-  return `https://wa.me/${normalized}?text=${encodeURIComponent(message)}`;
+  
+  let finalMsg = message ? message.trim() : '';
+  if (finalMsg && !finalMsg.includes('generationsmontantes.com')) {
+    finalMsg = `${finalMsg}\n🌐 https://generationsmontantes.com`;
+  }
+  
+  return `https://wa.me/${normalized}?text=${encodeURIComponent(finalMsg)}`;
 }
 
 /**

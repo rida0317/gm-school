@@ -567,14 +567,23 @@ export default function AnnouncementsPage() {
       cleanNumber = '212' + cleanNumber;
     }
 
-    const encodedText = encodeURIComponent(generatedWhatsAppText);
+    let finalMsg = generatedWhatsAppText.trim();
+    if (!finalMsg.includes('generationsmontantes.com')) {
+      finalMsg += '\n🌐 https://generationsmontantes.com';
+    }
+
+    const encodedText = encodeURIComponent(finalMsg);
     const waUrl = `https://api.whatsapp.com/send?phone=${cleanNumber}&text=${encodedText}`;
     window.open(waUrl, '_blank');
   };
 
   // Copy message to clipboard
   const handleCopyMessage = () => {
-    navigator.clipboard.writeText(generatedWhatsAppText);
+    let finalMsg = generatedWhatsAppText.trim();
+    if (!finalMsg.includes('generationsmontantes.com')) {
+      finalMsg += '\n🌐 https://generationsmontantes.com';
+    }
+    navigator.clipboard.writeText(finalMsg);
     setCopied(true);
     notify({ title: 'Copié !', message: 'Texte du message copié dans le presse-papier.', type: 'success' });
     setTimeout(() => setCopied(false), 2500);
