@@ -163,8 +163,9 @@ export default function TeachersPage() {
 
   const openCreateModal = () => {
     setEditingId(null);
+    const nextNum = (teachers.length + 1).toString().padStart(3, '0');
     setFormData({
-      teacher_code: '',
+      teacher_code: `ENS-${nextNum}`,
       first_name: '',
       last_name: '',
       email: '',
@@ -185,7 +186,7 @@ export default function TeachersPage() {
     const existingLevels = Array.isArray(tch.teaching_levels) ? tch.teaching_levels : [];
     const existingGroups = Array.isArray(tch.teaching_groups) ? tch.teaching_groups : [];
     setFormData({
-      teacher_code: tch.teacher_code || '',
+      teacher_code: tch.teacher_code || `ENS-${tch.id.slice(0, 3).toUpperCase()}`,
       first_name: tch.first_name || '',
       last_name: tch.last_name || '',
       email: tch.email || '',
@@ -807,10 +808,25 @@ export default function TeachersPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                      <span>{dir === 'rtl' ? 'رقم / كود الأستاذ' : 'Matricule / Code'} *</span>
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">ENS-004</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="ENS-004"
+                      value={formData.teacher_code}
+                      onChange={(e) => setFormData({ ...formData, teacher_code: e.target.value.toUpperCase() })}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono font-bold text-emerald-600 dark:text-emerald-400 uppercase focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Prénom
+                      {dir === 'rtl' ? 'الاسم الشخصي' : 'Prénom'} *
                     </label>
                     <input
                       type="text"
@@ -823,7 +839,7 @@ export default function TeachersPage() {
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Nom de Famille
+                      {dir === 'rtl' ? 'الاسم العائلي' : 'Nom de Famille'} *
                     </label>
                     <input
                       type="text"

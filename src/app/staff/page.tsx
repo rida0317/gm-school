@@ -320,8 +320,9 @@ export default function StaffManagementPage() {
     // If adding a teacher -> Open dedicated rich Teacher Modal
     if (cat === 'ENSEIGNANT') {
       setEditingTeacherId(null);
+      const nextNum = (teachersList.length + 1).toString().padStart(3, '0');
       setTeacherFormData({
-        teacher_code: `ENS-${Math.floor(100 + Math.random() * 900)}`,
+        teacher_code: `ENS-${nextNum}`,
         first_name: '',
         last_name: '',
         email: '',
@@ -1155,10 +1156,25 @@ export default function StaffManagementPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                      <span>{dir === 'rtl' ? 'رقم / كود الأستاذ' : 'Matricule / Code'} *</span>
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">ENS-004</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="ENS-004"
+                      value={teacherFormData.teacher_code}
+                      onChange={(e) => setTeacherFormData({ ...teacherFormData, teacher_code: e.target.value.toUpperCase() })}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono font-bold text-emerald-600 dark:text-emerald-400 uppercase focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Prénom
+                      {dir === 'rtl' ? 'الاسم الشخصي' : 'Prénom'} *
                     </label>
                     <input
                       type="text"
@@ -1171,7 +1187,7 @@ export default function StaffManagementPage() {
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Nom de Famille
+                      {dir === 'rtl' ? 'الاسم العائلي' : 'Nom de Famille'} *
                     </label>
                     <input
                       type="text"
