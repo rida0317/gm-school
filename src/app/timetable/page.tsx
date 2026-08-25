@@ -2745,8 +2745,8 @@ export default function TimetablePage() {
               )}
             </div>
 
-            {/* Admin-only Timetable Actions */}
-            {!isTeacher && (
+            {/* Admin & Direction only Timetable Actions (Hidden for Teachers & Staff) */}
+            {(profile?.role === 'SUPER_ADMIN' || profile?.role === 'ADMIN') && (
               <>
                 {/* Real-time Schedule Inspector / Conflict Verifier Badge */}
                 {detectedConflicts.length > 0 ? (

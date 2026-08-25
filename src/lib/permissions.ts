@@ -86,6 +86,11 @@ export function hasRouteAccess(role: UserRole | string | undefined | null, pathn
     return effectiveRole === 'SUPER_ADMIN';
   }
 
+  // Strict restriction: /timetable/generator is strictly reserved for Direction & Super Admin
+  if (cleanPath === '/timetable/generator' || cleanPath.startsWith('/timetable/generator/')) {
+    return effectiveRole === 'SUPER_ADMIN' || effectiveRole === 'ADMIN';
+  }
+
   if (effectiveRole === 'SUPER_ADMIN' || effectiveRole === 'ADMIN') {
     return true;
   }
