@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useI18n } from '@/lib/i18n';
 import { useSettings } from '@/lib/settings';
+import { useAuth } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/client';
 import { Student, ClassEntity } from '@/types/database';
 import { useConfirm, useNotify } from '@/lib/modal-service';
@@ -21,14 +22,21 @@ import {
   UserCheck,
   Bus,
   Coins,
-  CreditCard
+  CreditCard,
+  ShieldAlert,
+  BookOpen
 } from 'lucide-react';
 
 export default function StudentsPage() {
   const { t, dir } = useI18n();
   const { settings } = useSettings();
+  const { profile } = useAuth();
+  const isTeacher = profile?.role === 'TEACHER';
+
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<ClassEntity[]>([]);
+  const [teacherClassIds, setTeacherClassIds] = useState<string[]>([]);
+  const [teacherName, setTeacherName] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClass, setSelectedClass] = useState<string>('ALL');
@@ -61,15 +69,60 @@ export default function StudentsPage() {
     setLoading(true);
     try {
       const supabase = createClient();
+      
+      let allowedClassIds: string[] | null = null;
+
+      // If current user is TEACHER, scope exclusively to their assigned classes
+      if (profile?.role === 'TEACHER') {
+        // 1. Find teacher record
+        const { data: teacherData } = await supabase
+          .from('teachers')
+          .select('id, first_name, last_name')
+          .or(`profile_id.eq.${profile.id},email.eq.${profile.email}`)
+          .maybeSingle();
+
+        if (teacherData) {
+          setTeacherName(`${teacherData.first_name} ${teacherData.last_name}`);
+          // 2. Find classes where teacher teaches via timetable_slots or main_teacher
+          const [{ data: slots }, { data: mainClasses }] = await Promise.all([
+            supabase.from('timetable_slots').select('class_id').eq('teacher_id', teacherData.id),
+            supabase.from('classes').select('id').eq('main_teacher_id', teacherData.id),
+          ]);
+
+          const classIdSet = new Set<string>();
+          (slots || []).forEach((s) => {
+            if (s.class_id) classIdSet.add(s.class_id);
+          });
+          (mainClasses || []).forEach((c) => {
+            if (c.id) classIdSet.add(c.id);
+          });
+
+          allowedClassIds = Array.from(classIdSet);
+          setTeacherClassIds(allowedClassIds);
+        } else {
+          allowedClassIds = [];
+          setTeacherClassIds([]);
+        }
+      }
+
       const [{ data: studs }, { data: cls }] = await Promise.all([
         supabase.from('students').select('*, class:classes(*)').order('last_name'),
         supabase.from('classes').select('*').order('name'),
       ]);
-      if (studs) setStudents(studs);
-      if (cls) {
-        setClasses(cls);
-        if (cls.length > 0 && !formData.class_id) {
-          setFormData((prev) => ({ ...prev, class_id: cls[0].id }));
+
+      if (allowedClassIds !== null) {
+        // Scope classes and students to teacher's assigned classes
+        const scopedClasses = (cls || []).filter((c) => allowedClassIds!.includes(c.id));
+        const scopedStudents = (studs || []).filter((s) => s.class_id && allowedClassIds!.includes(s.class_id));
+        setClasses(scopedClasses);
+        setStudents(scopedStudents);
+      } else {
+        if (studs) setStudents(studs);
+        if (cls) {
+          setClasses(cls);
+          if (cls.length > 0 && !formData.class_id) {
+            setFormData((prev) => ({ ...prev, class_id: cls[0].id }));
+          }
         }
       }
     } catch (err) {
@@ -81,7 +134,7 @@ export default function StudentsPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [profile]);
 
   const handleOpenCreateModal = () => {
     setEditingStudent(null);
@@ -271,6 +324,30 @@ export default function StudentsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        {/* Teacher Scoping Banner */}
+        {isTeacher && (
+          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3 text-emerald-800 dark:text-emerald-300 animate-in fade-in">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center shrink-0">
+                <BookOpen className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <div className="font-bold text-sm">
+                  {dir === 'rtl' ? 'فضاء الأستاذ — لوائح تلاميذ أقسامك' : `Espace Enseignant ${teacherName ? `(${teacherName})` : ''}`}
+                </div>
+                <div className="text-xs text-emerald-700/80 dark:text-emerald-400/80">
+                  {dir === 'rtl'
+                    ? 'يتم عرض تلاميذ الأقسام المسندة إليك في جدول الحصص فقط مع قفل التعديلات الإدارية والمالية.'
+                    : 'Affichage exclusif des élèves inscrits dans vos classes assignées. Les modifications administratives sont désactivées.'}
+                </div>
+              </div>
+            </div>
+            <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 shrink-0">
+              {classes.length} {dir === 'rtl' ? 'أقسام مسندة' : 'classes'}
+            </span>
+          </div>
+        )}
+
         {/* Header Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -282,19 +359,21 @@ export default function StudentsPage() {
               {t('students_page_title')}
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              {dir === 'rtl' ? 'الاطلاع على لوائح التلاميذ، إضافة ملفات جديدة وتحديث بيانات التمدرس.' : "Consultez, inscrivez et modifiez les dossiers et fiches des élèves de l'établissement."}
+              {dir === 'rtl' ? 'الاطلاع على لوائح التلاميذ، وتفقد بيانات التمدرس.' : "Consultez et visualisez les dossiers et fiches des élèves de l'établissement."}
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleOpenCreateModal}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs shadow-md shadow-blue-600/20 hover:from-blue-700 hover:to-indigo-700 transition-all cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>{t('add_student')}</span>
-            </button>
-          </div>
+          {!isTeacher && (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleOpenCreateModal}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs shadow-md shadow-blue-600/20 hover:from-blue-700 hover:to-indigo-700 transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>{t('add_student')}</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Filter and Search Bar */}
@@ -338,20 +417,22 @@ export default function StudentsPage() {
                   <th className="px-6 py-3.5">{dir === 'rtl' ? 'الاتصال' : t('contact')}</th>
                   <th className="px-6 py-3.5">{dir === 'rtl' ? 'الجنس' : t('gender')}</th>
                   <th className="px-6 py-3.5">{t('status')}</th>
-                  <th className="px-6 py-3.5 text-right rtl:text-left">{t('actions')}</th>
+                  {!isTeacher && <th className="px-6 py-3.5 text-right rtl:text-left">{t('actions')}</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-slate-400 font-semibold">
+                    <td colSpan={isTeacher ? 5 : 6} className="px-6 py-12 text-center text-slate-400 font-semibold">
                       {t('loading')}
                     </td>
                   </tr>
                 ) : filteredStudents.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-slate-400 font-semibold">
-                      {t('no_data')}
+                    <td colSpan={isTeacher ? 5 : 6} className="px-6 py-12 text-center text-slate-400 font-semibold">
+                      {isTeacher && classes.length === 0
+                        ? (dir === 'rtl' ? 'لم يتم تعيين أي أقسام لك بعد في جدول الحصص.' : 'Aucune classe ne vous a encore été assignée dans l\'emploi du temps.')
+                        : t('no_data')}
                     </td>
                   </tr>
                 ) : (
@@ -418,30 +499,32 @@ export default function StudentsPage() {
                           Actif
                         </span>
                       </td>
-                      <td className="px-6 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {/* Modifier Button */}
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditModal(student)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/60 font-bold text-xs transition-colors cursor-pointer"
-                            title="Modifier les informations de l'élève"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                            <span>Modifier</span>
-                          </button>
+                      {!isTeacher && (
+                        <td className="px-6 py-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {/* Modifier Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditModal(student)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/60 font-bold text-xs transition-colors cursor-pointer"
+                              title="Modifier les informations de l'élève"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                              <span>Modifier</span>
+                            </button>
 
-                          {/* Supprimer Button */}
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(student.id, `${student.first_name} ${student.last_name}`)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
-                            title="Archiver / Supprimer l'élève"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
+                            {/* Supprimer Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(student.id, `${student.first_name} ${student.last_name}`)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                              title="Archiver / Supprimer l'élève"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}

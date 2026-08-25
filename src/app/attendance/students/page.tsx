@@ -46,6 +46,8 @@ import {
   buildAbsenceMessage
 } from '@/lib/whatsapp';
 
+import { useAuth } from '@/lib/auth';
+
 // Format delay duration helper
 export function formatDelayDuration(minutes: number): string {
   if (!minutes || minutes <= 0) return '0 min';
@@ -59,6 +61,8 @@ export function formatDelayDuration(minutes: number): string {
 export default function StudentAttendancePage() {
   const { t, dir, locale } = useI18n();
   const { settings } = useSettings();
+  const { profile } = useAuth();
+  const isTeacher = profile?.role === 'TEACHER';
   const notify = useNotify();
 
   // WhatsApp Hub Modal state
@@ -90,6 +94,7 @@ export default function StudentAttendancePage() {
 
   // Core Data
   const [classes, setClasses] = useState<ClassEntity[]>([]);
+  const [teacherName, setTeacherName] = useState<string>('');
   const [students, setStudents] = useState<Student[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<StudentAttendance[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,14 +119,57 @@ export default function StudentAttendancePage() {
       setLoading(true);
       try {
         const supabase = createClient();
+        
+        let allowedClassIds: string[] | null = null;
+
+        // If current user is TEACHER, scope exclusively to their assigned classes
+        if (profile?.role === 'TEACHER') {
+          const { data: teacherData } = await supabase
+            .from('teachers')
+            .select('id, first_name, last_name')
+            .or(`profile_id.eq.${profile.id},email.eq.${profile.email}`)
+            .maybeSingle();
+
+          if (teacherData) {
+            setTeacherName(`${teacherData.first_name} ${teacherData.last_name}`);
+            const [{ data: slots }, { data: mainClasses }] = await Promise.all([
+              supabase.from('timetable_slots').select('class_id').eq('teacher_id', teacherData.id),
+              supabase.from('classes').select('id').eq('main_teacher_id', teacherData.id),
+            ]);
+
+            const classIdSet = new Set<string>();
+            (slots || []).forEach((s) => {
+              if (s.class_id) classIdSet.add(s.class_id);
+            });
+            (mainClasses || []).forEach((c) => {
+              if (c.id) classIdSet.add(c.id);
+            });
+
+            allowedClassIds = Array.from(classIdSet);
+          } else {
+            allowedClassIds = [];
+          }
+        }
+
         const [{ data: cls }, { data: studs }, { data: att }] = await Promise.all([
           supabase.from('classes').select('*').order('name'),
           supabase.from('students').select('*, class:classes(*)').order('last_name'),
           supabase.from('student_attendance').select('*'),
         ]);
 
-        if (cls) setClasses(cls);
-        if (studs) setStudents(studs);
+        if (allowedClassIds !== null) {
+          const scopedClasses = (cls || []).filter((c) => allowedClassIds!.includes(c.id));
+          const scopedStudents = (studs || []).filter((s) => s.class_id && allowedClassIds!.includes(s.class_id));
+          setClasses(scopedClasses);
+          setStudents(scopedStudents);
+          if (scopedClasses.length > 0) {
+            setSelectedClassId(scopedClasses[0].id);
+          }
+        } else {
+          if (cls) setClasses(cls);
+          if (studs) setStudents(studs);
+        }
+
         if (att) {
           const parsed = (att as any[]).map((r) => ({
             id: r.id,
@@ -938,6 +986,30 @@ export default function StudentAttendancePage() {
           </div>
         </div>
 
+        {/* Teacher Scoping Banner */}
+        {isTeacher && (
+          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3 text-emerald-800 dark:text-emerald-300 animate-in fade-in print:hidden">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center shrink-0">
+                <ClipboardCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <div className="font-bold text-sm">
+                  {dir === 'rtl' ? 'فضاء الأستاذ — تسجيل حضور وغياب أقسامك' : `Espace Enseignant ${teacherName ? `(${teacherName})` : ''}`}
+                </div>
+                <div className="text-xs text-emerald-700/80 dark:text-emerald-400/80">
+                  {dir === 'rtl'
+                    ? 'تسجيل نقط الحضور والغياب متاح فقط للأقسام التي تدرسها. إرسال إشعارات الواتساب مخصص للإدارة والحراسة العامة.'
+                    : 'Le pointage de présence est restreint à vos classes assignées. L\'envoi des alertes WhatsApp est réservé à l\'administration.'}
+                </div>
+              </div>
+            </div>
+            <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 shrink-0">
+              {classes.length} {dir === 'rtl' ? 'أقسام مسندة' : 'classes'}
+            </span>
+          </div>
+        )}
+
         {/* Top Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
           <div className="min-w-0 flex-1">
@@ -955,21 +1027,23 @@ export default function StudentAttendancePage() {
 
           {/* Quick Actions & Exports Dropdowns */}
           <div className="flex items-center gap-2 shrink-0">
-            {/* WhatsApp Absence Hub Button */}
-            <button
-              type="button"
-              onClick={() => setShowWhatsAppModal(true)}
-              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-teal-600 text-white font-bold text-xs shadow-md shadow-emerald-500/25 transition-all cursor-pointer whitespace-nowrap transform active:scale-95"
-              title={dir === 'rtl' ? 'مركز إرسال رسائل واتساب لأولياء الأمور' : 'Centre d\'envoi WhatsApp aux parents'}
-            >
-              <MessageSquare className="w-4 h-4 shrink-0" />
-              <span>{dir === 'rtl' ? 'إشعارات واتساب' : 'WhatsApp Parents'}</span>
-              {todayAbsentsAndLatesCount > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full bg-white text-emerald-700 text-[10px] font-black leading-none ml-0.5 shadow-2xs">
-                  {todayAbsentsAndLatesCount}
-                </span>
-              )}
-            </button>
+            {/* WhatsApp Absence Hub Button - Hidden for Teachers */}
+            {!isTeacher && (
+              <button
+                type="button"
+                onClick={() => setShowWhatsAppModal(true)}
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-teal-600 text-white font-bold text-xs shadow-md shadow-emerald-500/25 transition-all cursor-pointer whitespace-nowrap transform active:scale-95"
+                title={dir === 'rtl' ? 'مركز إرسال رسائل واتساب لأولياء الأمور' : 'Centre d\'envoi WhatsApp aux parents'}
+              >
+                <MessageSquare className="w-4 h-4 shrink-0" />
+                <span>{dir === 'rtl' ? 'إشعارات واتساب' : 'WhatsApp Parents'}</span>
+                {todayAbsentsAndLatesCount > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-white text-emerald-700 text-[10px] font-black leading-none ml-0.5 shadow-2xs">
+                    {todayAbsentsAndLatesCount}
+                  </span>
+                )}
+              </button>
+            )}
 
             {/* Print / PDF Dropdown Hub */}
             <div className="relative">
@@ -2323,18 +2397,20 @@ export default function StudentAttendancePage() {
         )}
 
         {/* WhatsApp Absence & Retard Modal Hub */}
-        <WhatsAppAbsenceModal
-          isOpen={showWhatsAppModal}
-          onClose={() => setShowWhatsAppModal(false)}
-          selectedDate={selectedDate}
-          students={students}
-          attendanceRecords={attendanceRecords}
-          onStudentUpdated={(updatedStudent) => {
-            setStudents((prev) =>
-              prev.map((s) => (s.id === updatedStudent.id ? updatedStudent : s))
-            );
-          }}
-        />
+        {!isTeacher && (
+          <WhatsAppAbsenceModal
+            isOpen={showWhatsAppModal}
+            onClose={() => setShowWhatsAppModal(false)}
+            selectedDate={selectedDate}
+            students={students}
+            attendanceRecords={attendanceRecords}
+            onStudentUpdated={(updatedStudent) => {
+              setStudents((prev) =>
+                prev.map((s) => (s.id === updatedStudent.id ? updatedStudent : s))
+              );
+            }}
+          />
+        )}
       </div>
     </DashboardLayout>
   );

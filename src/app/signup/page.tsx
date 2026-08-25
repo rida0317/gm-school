@@ -99,6 +99,44 @@ export default function SignUpPage() {
           console.warn('Profile sync warning:', profileError.message);
         }
 
+        // If registered as TEACHER, auto-link or create corresponding teacher record
+        if (formData.role === 'TEACHER') {
+          try {
+            // Check for existing teacher record with matching email
+            const { data: existingTeacher } = await supabase
+              .from('teachers')
+              .select('id, profile_id')
+              .ilike('email', formData.email.trim())
+              .maybeSingle();
+
+            if (existingTeacher) {
+              await supabase
+                .from('teachers')
+                .update({
+                  profile_id: userId,
+                  phone: formData.phone.trim() || undefined,
+                })
+                .eq('id', existingTeacher.id);
+            } else {
+              // Create new teacher record
+              const teacherCode = `ENS-${Date.now().toString().slice(-4)}`;
+              await supabase
+                .from('teachers')
+                .insert({
+                  profile_id: userId,
+                  teacher_code: teacherCode,
+                  first_name: formData.firstName.trim(),
+                  last_name: formData.lastName.trim(),
+                  email: formData.email.trim(),
+                  phone: formData.phone.trim() || null,
+                  status: 'ACTIVE',
+                });
+            }
+          } catch (teacherErr) {
+            console.warn('Teacher record link warning:', teacherErr);
+          }
+        }
+
         // 3. Create admin notification
         try {
           await supabase.from('notifications').insert({

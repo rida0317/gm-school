@@ -167,11 +167,17 @@ export function getSubjectAbbreviation(subject?: { code?: string; name?: string 
   return (subject.name || '').slice(0, 4).toUpperCase();
 }
 
+import { useAuth } from '@/lib/auth';
+
 export default function TimetablePage() {
   const { t, dir } = useI18n();
   const { settings } = useSettings();
+  const { profile } = useAuth();
+  const isTeacher = profile?.role === 'TEACHER';
+
   const [classes, setClasses] = useState<ClassEntity[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [teacherName, setTeacherName] = useState<string>('');
   const [rooms, setRooms] = useState<Room[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [slots, setSlots] = useState<TimetableSlot[]>([]);
@@ -255,17 +261,53 @@ export default function TimetablePage() {
             .select('*, teacher:teachers(*), room:rooms(*), subject:subjects(*), class:classes(*)'),
         ]);
 
-      if (cls && cls.length > 0) {
-        setClasses(cls);
-        if (!selectedClassId) setSelectedClassId(cls[0].id);
-      }
-      if (tch && tch.length > 0) {
-        setTeachers(tch);
-        if (!selectedTeacherId) setSelectedTeacherId(tch[0].id);
-      }
       if (rm) setRooms(rm);
       if (sbj) setSubjects(sbj);
       if (slt) setSlots(slt);
+
+      if (profile?.role === 'TEACHER') {
+        // Teacher scoping: scope to current teacher and their taught classes
+        const { data: teacherData } = await supabase
+          .from('teachers')
+          .select('*')
+          .or(`profile_id.eq.${profile.id},email.eq.${profile.email}`)
+          .maybeSingle();
+
+        if (teacherData) {
+          setTeacherName(`${teacherData.first_name} ${teacherData.last_name}`);
+          setTeachers([teacherData]);
+          setSelectedTeacherId(teacherData.id);
+          setViewMode('TEACHER');
+
+          // Find classes taught by this teacher
+          const teacherSlotClassIds = new Set<string>();
+          (slt || []).forEach((s) => {
+            if (s.teacher_id === teacherData.id && s.class_id) {
+              teacherSlotClassIds.add(s.class_id);
+            }
+          });
+
+          const teacherClasses = (cls || []).filter(
+            (c) => teacherSlotClassIds.has(c.id) || c.main_teacher_id === teacherData.id
+          );
+          setClasses(teacherClasses);
+          if (teacherClasses.length > 0) {
+            setSelectedClassId(teacherClasses[0].id);
+          }
+        } else {
+          setTeachers([]);
+          setClasses([]);
+        }
+      } else {
+        if (cls && cls.length > 0) {
+          setClasses(cls);
+          if (!selectedClassId) setSelectedClassId(cls[0].id);
+        }
+        if (tch && tch.length > 0) {
+          setTeachers(tch);
+          if (!selectedTeacherId) setSelectedTeacherId(tch[0].id);
+        }
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -275,7 +317,7 @@ export default function TimetablePage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [profile]);
 
   const normalizeTime = (t: string | undefined | null): string => {
     if (!t) return '';
@@ -2540,6 +2582,30 @@ export default function TimetablePage() {
       `}</style>
 
       <div className="space-y-6 print:space-y-0">
+        {/* Teacher Consultation Banner */}
+        {isTeacher && (
+          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3 text-emerald-800 dark:text-emerald-300 animate-in fade-in print:hidden">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center shrink-0">
+                <CalendarDays className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <div className="font-bold text-sm">
+                  {dir === 'rtl' ? 'فضاء الأستاذ — الإطلاع على استعمال الزمن' : `Espace Enseignant ${teacherName ? `(${teacherName})` : ''}`}
+                </div>
+                <div className="text-xs text-emerald-700/80 dark:text-emerald-400/80">
+                  {dir === 'rtl'
+                    ? 'يمكنك مشاهدة استعمال الزمن الخاص بك أو للأقسام التي تدرسها فقط. ميزات التعديل والإضافة مقفلة ومخصصة للإدارة.'
+                    : 'Consultation exclusive de votre emploi du temps et des classes que vous enseignez. Les modifications sont verrouillées.'}
+                </div>
+              </div>
+            </div>
+            <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 shrink-0">
+              🔒 {dir === 'rtl' ? 'وضع القراءة فقط' : 'Lecture Seule'}
+            </span>
+          </div>
+        )}
+
         {/* Top Header */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 print:hidden">
           <div className="flex items-center gap-4">
@@ -2554,7 +2620,7 @@ export default function TimetablePage() {
                 {t('timetable_page_title')}
               </h1>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                {dir === 'rtl' ? 'تنظيم الحصص الأسبوعية، جداول الفصول والأساتذة، مع السحب والإفلات التفاعلي.' : "Glissez et déposez les séances \u2022 Alerte automatique si un vacataire n'est pas disponible sur le créneau."}
+                {dir === 'rtl' ? 'تنظيم الحصص الأسبوعية، جداول الفصول والأساتذة.' : "Emploi du temps officiel des classes et plannings des enseignants."}
               </p>
             </div>
           </div>
@@ -2562,18 +2628,6 @@ export default function TimetablePage() {
           <div className="flex flex-wrap items-center gap-2.5">
             {/* View Switcher */}
             <div className="flex items-center p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-              <button
-                onClick={() => setViewMode('CLASS')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  viewMode === 'CLASS'
-                    ? 'bg-white dark:bg-slate-900 text-sky-600 dark:text-sky-400 shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                }`}
-              >
-                <GraduationCap className="w-3.5 h-3.5" />
-                <span>{dir === 'rtl' ? 'حسب القسم' : 'Par Classe'}</span>
-              </button>
-
               <button
                 onClick={() => setViewMode('TEACHER')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
@@ -2583,34 +2637,54 @@ export default function TimetablePage() {
                 }`}
               >
                 <User className="w-3.5 h-3.5" />
-                <span>{dir === 'rtl' ? 'حسب الأستاذ' : 'Par Enseignant'}</span>
+                <span>{isTeacher ? (dir === 'rtl' ? 'جدولي الخاص' : 'Mon Planning') : (dir === 'rtl' ? 'حسب الأستاذ' : 'Par Enseignant')}</span>
               </button>
 
               <button
-                onClick={() => setViewMode('MASTER_GRID')}
+                onClick={() => setViewMode('CLASS')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  viewMode === 'MASTER_GRID'
-                    ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                  viewMode === 'CLASS'
+                    ? 'bg-white dark:bg-slate-900 text-sky-600 dark:text-sky-400 shadow-xs'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                 }`}
               >
-                <Table className="w-3.5 h-3.5" />
-                <span>{dir === 'rtl' ? 'الجدول الشامل للأساتذة' : 'Grille Globale Tous Profs'}</span>
+                <GraduationCap className="w-3.5 h-3.5" />
+                <span>{isTeacher ? (dir === 'rtl' ? 'أقسامي' : 'Mes Classes') : (dir === 'rtl' ? 'حسب القسم' : 'Par Classe')}</span>
               </button>
+
+              {!isTeacher && (
+                <button
+                  onClick={() => setViewMode('MASTER_GRID')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    viewMode === 'MASTER_GRID'
+                      ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  }`}
+                >
+                  <Table className="w-3.5 h-3.5" />
+                  <span>{dir === 'rtl' ? 'الجدول الشامل للأساتذة' : 'Grille Globale Tous Profs'}</span>
+                </button>
+              )}
             </div>
 
             {/* Export PDF Button */}
             <div className="relative">
               <button
-                onClick={() => setShowExportDropdown(!showExportDropdown)}
+                onClick={() => {
+                  if (isTeacher) {
+                    triggerPrint('CURRENT');
+                  } else {
+                    setShowExportDropdown(!showExportDropdown);
+                  }
+                }}
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs shadow-xs hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 transition-all cursor-pointer"
               >
                 <Printer className="w-4 h-4 text-sky-500" />
-                <span>{dir === 'rtl' ? 'تصدير PDF' : 'Exporter PDF'}</span>
-                <ChevronDown className="w-3.5 h-3.5 opacity-60 ml-0.5" />
+                <span>{dir === 'rtl' ? 'طباعة / PDF' : 'Imprimer / PDF'}</span>
+                {!isTeacher && <ChevronDown className="w-3.5 h-3.5 opacity-60 ml-0.5" />}
               </button>
 
-              {showExportDropdown && (
+              {!isTeacher && showExportDropdown && (
                 <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl z-50 p-2 space-y-1 animate-in fade-in zoom-in-95">
                   <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                     Options d&apos;Impression PDF
@@ -2671,53 +2745,58 @@ export default function TimetablePage() {
               )}
             </div>
 
-            {/* Real-time Schedule Inspector / Conflict Verifier Badge */}
-            {detectedConflicts.length > 0 ? (
-              <button
-                onClick={() => setShowConflictModal(true)}
-                className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white font-extrabold text-xs shadow-lg shadow-rose-500/25 transition-all hover:scale-105 animate-pulse cursor-pointer"
-              >
-                <ShieldAlert className="w-4 h-4" />
-                <span>{detectedConflicts.length} Conflit{detectedConflicts.length > 1 ? 's' : ''} Détecté{detectedConflicts.length > 1 ? 's' : ''}</span>
-              </button>
-            ) : (
-              <button
-                onClick={() => setShowConflictModal(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300 font-bold text-[11px] hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors cursor-pointer"
-                title="Vérifier la conformité de l'emploi du temps"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                <span>0 Conflit • Vérifié</span>
-              </button>
+            {/* Admin-only Timetable Actions */}
+            {!isTeacher && (
+              <>
+                {/* Real-time Schedule Inspector / Conflict Verifier Badge */}
+                {detectedConflicts.length > 0 ? (
+                  <button
+                    onClick={() => setShowConflictModal(true)}
+                    className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white font-extrabold text-xs shadow-lg shadow-rose-500/25 transition-all hover:scale-105 animate-pulse cursor-pointer"
+                  >
+                    <ShieldAlert className="w-4 h-4" />
+                    <span>{detectedConflicts.length} Conflit{detectedConflicts.length > 1 ? 's' : ''} Détecté{detectedConflicts.length > 1 ? 's' : ''}</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowConflictModal(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300 font-bold text-[11px] hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors cursor-pointer"
+                    title="Vérifier la conformité de l'emploi du temps"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>0 Conflit • Vérifié</span>
+                  </button>
+                )}
+
+                {/* Clear Timetable Secure Button */}
+                <button
+                  onClick={() => {
+                    setConfirmKeyword('');
+                    setShowClearModal(true);
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 font-bold text-xs hover:bg-rose-100 dark:hover:bg-rose-900/60 transition-all cursor-pointer"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>Vider l&apos;Emploi du Temps</span>
+                </button>
+
+                <Link
+                  href="/timetable/generator"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-xs shadow-lg shadow-orange-500/25 transition-all hover:scale-105"
+                >
+                  <Sparkles className="w-4 h-4 text-yellow-200" />
+                  Générateur IA
+                </Link>
+
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-sky-500/25 transition-all hover:scale-105 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  Ajouter une Séance
+                </button>
+              </>
             )}
-
-            {/* Clear Timetable Secure Button */}
-            <button
-              onClick={() => {
-                setConfirmKeyword('');
-                setShowClearModal(true);
-              }}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 font-bold text-xs hover:bg-rose-100 dark:hover:bg-rose-900/60 transition-all cursor-pointer"
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>Vider l&apos;Emploi du Temps</span>
-            </button>
-
-            <Link
-              href="/timetable/generator"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-xs shadow-lg shadow-orange-500/25 transition-all hover:scale-105"
-            >
-              <Sparkles className="w-4 h-4 text-yellow-200" />
-              Générateur IA
-            </Link>
-
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-sky-500/25 transition-all hover:scale-105 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              Ajouter une Séance
-            </button>
           </div>
         </div>
 
@@ -3017,10 +3096,16 @@ export default function TimetablePage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40 px-2.5 py-1 rounded-xl font-bold flex items-center gap-1.5 border border-sky-200 dark:border-sky-800">
-                      <Move className="w-3 h-3" />
-                      Glisser-déposer pour permuter / déplacer
-                    </span>
+                    {isTeacher ? (
+                      <span className="text-[11px] text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-xl font-bold flex items-center gap-1.5 border border-emerald-200 dark:border-emerald-800">
+                        🔒 {dir === 'rtl' ? 'وضع القراءة فقط للأستاذ' : 'Consultation Enseignant (Lecture seule)'}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40 px-2.5 py-1 rounded-xl font-bold flex items-center gap-1.5 border border-sky-200 dark:border-sky-800">
+                        <Move className="w-3 h-3" />
+                        Glisser-déposer pour permuter / déplacer
+                      </span>
+                    )}
                     <span className="text-xs text-slate-500 font-bold">
                       {activeSlots.length} séances planifiées
                     </span>
@@ -3091,15 +3176,16 @@ export default function TimetablePage() {
                                 );
 
                                 const isDragOver =
+                                  !isTeacher &&
                                   dragOverCell?.day === day.id &&
                                   dragOverCell?.start === period.start;
 
                                 return (
                                   <td
                                     key={day.id}
-                                    onDragOver={(e) => handleDragOver(e, day.id, period.start)}
-                                    onDragLeave={handleDragLeave}
-                                    onDrop={(e) => handleDropOnCell(e, day.id, period, slot)}
+                                    onDragOver={!isTeacher ? (e) => handleDragOver(e, day.id, period.start) : undefined}
+                                    onDragLeave={!isTeacher ? handleDragLeave : undefined}
+                                    onDrop={!isTeacher ? (e) => handleDropOnCell(e, day.id, period, slot) : undefined}
                                     className={`p-1 sm:p-1.5 print:p-0.5 border-r border-slate-200 dark:border-slate-800 print:border-slate-300 last:border-r-0 align-middle transition-all ${
                                       isDragOver
                                         ? 'bg-sky-100/70 dark:bg-sky-900/40 ring-2 ring-sky-500 ring-inset scale-[1.01]'
@@ -3108,39 +3194,49 @@ export default function TimetablePage() {
                                   >
                                     {slot ? (
                                       <div
-                                        draggable={true}
-                                        onClick={() => openSlotEditor(day.id, period, slot)}
-                                        onDragStart={(e) => handleDragStart(e, slot)}
+                                        draggable={!isTeacher}
+                                        onClick={() => !isTeacher && openSlotEditor(day.id, period, slot)}
+                                        onDragStart={!isTeacher ? (e) => handleDragStart(e, slot) : undefined}
                                         onDragEnd={() => {
                                           setDraggedSlot(null);
                                           setDragOverCell(null);
                                         }}
-                                        className={`w-full p-1 sm:p-1.5 lg:p-2 rounded-xl sm:rounded-2xl print:rounded text-white shadow-xs relative group transition-all flex flex-col items-center justify-center text-center min-h-[58px] sm:min-h-[66px] lg:min-h-[74px] print:min-h-[48px] print:max-h-[52px] print-card-slot cursor-pointer active:cursor-grabbing hover:shadow-md hover:ring-2 hover:ring-white/80 overflow-hidden ${
+                                        className={`w-full p-1 sm:p-1.5 lg:p-2 rounded-xl sm:rounded-2xl print:rounded text-white shadow-xs relative group transition-all flex flex-col items-center justify-center text-center min-h-[58px] sm:min-h-[66px] lg:min-h-[74px] print:min-h-[48px] print:max-h-[52px] print-card-slot ${
+                                          isTeacher ? 'cursor-default' : 'cursor-pointer active:cursor-grabbing hover:shadow-md hover:ring-2 hover:ring-white/80 hover:scale-[1.01]'
+                                        } overflow-hidden ${
                                           draggedSlot?.id === slot.id
                                             ? 'opacity-40 ring-2 ring-white scale-95'
-                                            : 'hover:scale-[1.01]'
+                                            : ''
                                         }`}
                                         style={{
                                           backgroundColor: slot.subject?.color_code || '#0284c7',
                                         }}
-                                        title={dir === 'rtl' ? 'انقر لتعديل الحصة والمادة أو الأستاذ' : 'Cliquer pour modifier la matière ou la séance'}
+                                        title={
+                                          isTeacher
+                                            ? `${slot.subject?.name || ''} - ${slot.class?.name || ''} - Salle: ${slot.room?.name || slot.room?.room_number || 'N/A'}`
+                                            : dir === 'rtl' ? 'انقر لتعديل الحصة والمادة أو الأستاذ' : 'Cliquer pour modifier la matière ou la séance'
+                                        }
                                       >
                                         {/* Drag grip icon on top left hover */}
-                                        <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-75 transition-opacity print:hidden pointer-events-none">
-                                          <GripVertical className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
-                                        </div>
+                                        {!isTeacher && (
+                                          <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-75 transition-opacity print:hidden pointer-events-none">
+                                            <GripVertical className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
+                                          </div>
+                                        )}
 
                                         {/* Delete button on top right hover */}
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDeleteSlot(slot.id);
-                                          }}
-                                          title="Supprimer la séance"
-                                          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 hover:text-rose-200 transition-opacity p-0.5 print:hidden cursor-pointer"
-                                        >
-                                          <Trash2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
-                                        </button>
+                                        {!isTeacher && (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleDeleteSlot(slot.id);
+                                            }}
+                                            title="Supprimer la séance"
+                                            className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 hover:text-rose-200 transition-opacity p-0.5 print:hidden cursor-pointer"
+                                          >
+                                            <Trash2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
+                                          </button>
+                                        )}
 
                                         {/* Centered text content */}
                                         <div className="w-full flex flex-col items-center justify-center text-center overflow-hidden pointer-events-none">
@@ -3160,6 +3256,10 @@ export default function TimetablePage() {
                                             {slot.room ? `Salle : ${slot.room.name || slot.room.room_number}` : 'Salle Standard'}
                                           </div>
                                         </div>
+                                      </div>
+                                    ) : isTeacher ? (
+                                      <div className="w-full h-full min-h-[58px] sm:min-h-[66px] lg:min-h-[74px] print:min-h-[48px] print:max-h-[52px] print-empty-slot rounded-xl sm:rounded-2xl print:rounded border border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-300 dark:text-slate-700 text-xs font-bold select-none">
+                                        —
                                       </div>
                                     ) : (
                                       <div
