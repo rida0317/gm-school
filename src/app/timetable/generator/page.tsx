@@ -364,11 +364,40 @@ export default function TimetableGeneratorPage() {
     const isIslam = sName.includes('islam') || sCode.includes('isl');
     const isInfo = sName.includes('info') || sName.includes('ordin') || sCode.includes('inf');
 
-    // 2. Strict Subject to Teacher Specialization Mapping
+    // 2. Strict Subject to Teacher Specialization, Teaching Level & Teaching Group (Class) Matching
     const qualified = allTeachers.filter((t) => {
       const tSpec = (t.specialization || '').toLowerCase().trim();
       const tName = `${t.first_name} ${t.last_name}`.toLowerCase();
       if (!tSpec) return false;
+
+      // Check Teaching Levels if configured for teacher
+      const tLevels = Array.isArray(t.teaching_levels) ? t.teaching_levels : [];
+      if (tLevels.length > 0) {
+        const clsLevel = (cls.level || '').toUpperCase().trim();
+        const clsName = (cls.name || '').toUpperCase().trim();
+        const matchesLevel = tLevels.some((lvl) => {
+          const u = lvl.toUpperCase().trim();
+          return u === clsLevel || clsName.startsWith(u) || clsName.includes(u);
+        });
+        if (!matchesLevel) return false;
+      }
+
+      // Check Teaching Groups / Classes if configured for teacher
+      const tGroups = Array.isArray(t.teaching_groups) ? t.teaching_groups : [];
+      if (tGroups.length > 0) {
+        const clsName = (cls.name || '').trim();
+        const groupName = (cls.group_name || '').trim();
+        const matchesGroup = tGroups.some((grp) => {
+          const g = grp.trim();
+          return (
+            g === clsName ||
+            clsName.includes(g) ||
+            (groupName && (g === groupName || g.includes(groupName))) ||
+            g.includes('Tous les groupes')
+          );
+        });
+        if (!matchesGroup) return false;
+      }
 
       const tIsEPS =
         tSpec.includes('sport') ||
@@ -406,6 +435,13 @@ export default function TimetableGeneratorPage() {
       if (sCode && (tSpec === sCode || tSpec.includes(sCode))) return true;
 
       return false;
+    });
+
+    // Prioritize teachers who explicitly have this class in their teaching_groups
+    qualified.sort((t1, t2) => {
+      const g1 = Array.isArray(t1.teaching_groups) && t1.teaching_groups.includes(cls.name) ? 1 : 0;
+      const g2 = Array.isArray(t2.teaching_groups) && t2.teaching_groups.includes(cls.name) ? 1 : 0;
+      return g2 - g1;
     });
 
     return qualified;
