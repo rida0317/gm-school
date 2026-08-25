@@ -109,7 +109,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           isSidebarCollapsed={sidebarCollapsed}
           onToggleSidebarCollapse={toggleSidebarCollapse}
         />
-        <main className="flex-1 p-3 sm:p-5 md:p-6 lg:p-8 max-w-[1600px] w-full mx-auto print:p-0 print:m-0 print:max-w-none print:w-full animate-in fade-in duration-300 min-w-0 overflow-x-hidden">
+        <main className="flex-1 px-3.5 sm:px-5 md:px-6 lg:px-8 pt-3 sm:pt-5 pb-[max(2rem,calc(1.5rem+env(safe-area-inset-bottom,0px)))] max-w-[1600px] w-full mx-auto print:p-0 print:m-0 print:max-w-none print:w-full animate-in fade-in duration-300 min-w-0 overflow-x-hidden">
           {isPendingApproval ? (
             <div className="min-h-[60vh] flex items-center justify-center p-4">
               <div className="max-w-md w-full p-8 rounded-3xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-amber-300 dark:border-amber-900/50 shadow-2xl text-center space-y-4">

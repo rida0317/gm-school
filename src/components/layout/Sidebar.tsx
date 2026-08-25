@@ -358,8 +358,8 @@ export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) 
               }`
         }`}
       >
-        {/* Brand Header */}
-        <div className="flex items-center justify-between h-20 px-5 border-b border-sky-900/30 bg-slate-950/80 backdrop-blur-md">
+        {/* Brand Header with Safe Area Top Padding */}
+        <div className="flex items-center justify-between min-h-[5rem] h-auto pt-[max(0.75rem,env(safe-area-inset-top,0px))] pb-3 px-4 sm:px-5 border-b border-sky-900/30 bg-slate-950/80 backdrop-blur-md">
           <Link href="/dashboard" className="flex items-center gap-3 group overflow-hidden">
             <div className="relative shrink-0 w-11 h-11 rounded-2xl bg-white p-1 shadow-lg shadow-sky-500/25 ring-2 ring-sky-400/60 group-hover:scale-105 group-hover:ring-orange-400 transition-all duration-300 flex items-center justify-center">
               <img
@@ -388,9 +388,10 @@ export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) 
             <button
               type="button"
               onClick={onClose}
-              className="lg:hidden p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 cursor-pointer"
+              className="lg:hidden flex items-center justify-center w-10 h-10 min-w-[40px] min-h-[40px] text-slate-300 hover:text-white rounded-xl bg-slate-800/80 hover:bg-slate-700 active:scale-95 transition-all cursor-pointer shrink-0 border border-slate-700/60 shadow-xs"
+              aria-label="Fermer le menu"
             >
-              <X className="w-5 h-5" />
+              <X className="w-5 h-5 text-slate-300" />
             </button>
           )}
         </div>
@@ -507,8 +508,8 @@ export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) 
           })}
         </div>
 
-        {/* Footer Academic Info & Logout */}
-        <div className="p-3.5 border-t border-sky-900/30 bg-slate-950/70 space-y-2">
+        {/* Footer Academic Info & Logout with Safe Area Bottom Padding */}
+        <div className="p-3.5 pb-[max(1rem,calc(0.75rem+env(safe-area-inset-bottom,0px)))] border-t border-sky-900/30 bg-slate-950/80 space-y-2">
           <div className="flex items-center gap-2.5 p-2 rounded-xl bg-gradient-to-br from-sky-950/50 to-slate-900/80 border border-sky-500/20 shadow-sm">
             <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0 ring-2 ring-emerald-400/30" />
             <div className="text-xs min-w-0">

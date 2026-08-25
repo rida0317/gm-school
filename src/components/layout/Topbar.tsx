@@ -70,17 +70,18 @@ export function Topbar({ onOpenSidebar, isSidebarCollapsed = false, onToggleSide
     : user?.email?.[0]?.toUpperCase() || 'A';
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-3 sm:px-4 md:px-8 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors print:hidden">
+    <header className="sticky top-0 z-30 flex items-center justify-between min-h-[4rem] h-auto pt-[max(0.5rem,env(safe-area-inset-top,0px))] pb-2 px-3.5 sm:px-5 md:px-8 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800 transition-colors print:hidden shadow-xs">
       {/* Left section: Hamburger & Search */}
-      <div className="flex items-center gap-2 sm:gap-4 flex-1 max-w-xl">
-        {/* Mobile menu button */}
+      <div className="flex items-center gap-2.5 sm:gap-4 flex-1 max-w-xl">
+        {/* Mobile menu button with 44x44px touch target, prominent background and ring */}
         <button
           type="button"
           onClick={onOpenSidebar}
-          className="lg:hidden p-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+          className="lg:hidden flex items-center justify-center w-11 h-11 min-w-[44px] min-h-[44px] text-slate-800 dark:text-white bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 active:scale-90 rounded-2xl shadow-xs border border-slate-300/80 dark:border-slate-700 transition-all cursor-pointer shrink-0"
           aria-label="Toggle sidebar"
+          title={dir === 'rtl' ? 'فتح القائمة الجانبية' : 'Ouvrir le menu'}
         >
-          <Menu className="w-5 h-5" />
+          <Menu className="w-5 h-5 text-sky-600 dark:text-sky-400" />
         </button>
 
         {/* Desktop Collapse Toggle for Full Screen Table space */}
@@ -114,8 +115,8 @@ export function Topbar({ onOpenSidebar, isSidebarCollapsed = false, onToggleSide
         )}
 
         <div className="flex items-center gap-2 lg:hidden">
-          <img src={settings.logo_url || '/logo.png'} alt="Logo GM" className="w-8 h-8 object-contain rounded-lg" />
-          <span className="font-bold text-xs text-slate-900 dark:text-white tracking-tight hidden xs:inline">GM School</span>
+          <img src={settings.logo_url || '/logo.png'} alt="Logo GM" className="w-8 h-8 object-contain rounded-xl ring-1 ring-sky-500/30" />
+          <span className="font-extrabold text-xs text-slate-900 dark:text-white tracking-tight hidden xs:inline">GM School</span>
         </div>
 
         <div className="relative w-full hidden sm:block">

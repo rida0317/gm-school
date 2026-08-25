@@ -4,6 +4,12 @@
   --background: #f8fafc;
   --foreground: #0f172a;
   
+  /* Safe Area Insets for Mobile / PWA */
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  
   /* GM Brand Palette */
   --gm-cyan: #38bdf8;
   --gm-cyan-dark: #0284c7;
@@ -29,11 +35,30 @@
   }
 }
 
-body {
+html, body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
   min-height: 100vh;
+  min-height: 100dvh;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Safe Area Insets Helpers */
+.safe-pt {
+  padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
+}
+
+.safe-pb {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+}
+
+.safe-pl {
+  padding-left: max(0.75rem, env(safe-area-inset-left, 0px));
+}
+
+.safe-pr {
+  padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
 }
 
 /* Custom GM Brand Utility Gradients */
