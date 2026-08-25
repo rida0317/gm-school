@@ -436,3 +436,22 @@ export interface Announcement {
   created_at: string;
   updated_at?: string;
 }
+
+export interface SystemBackup {
+  id: string;
+  backup_name: string;
+  file_size_bytes: number;
+  total_records: number;
+  data_summary?: {
+    students_count?: number;
+    teachers_count?: number;
+    classes_count?: number;
+    payments_count?: number;
+    stock_count?: number;
+    movements_count?: number;
+    attendance_count?: number;
+    timetables_count?: number;
+  };
+  created_by?: string;
+  created_at: string;
+}
