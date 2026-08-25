@@ -82,7 +82,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
 
   const loadSettingsFromSupabase = useCallback(async () => {
-    setLoading(true);
     try {
       const supabase = createClient();
       const { data, error } = await supabase
@@ -114,23 +113,27 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       }
     } catch (err) {
       console.warn('Error fetching school settings from Supabase:', err);
-    } finally {
-      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadSettingsFromSupabase().catch(() => {});
+    let isMounted = true;
+    
+    // Asynchronously synchronize settings from backend
+    (async () => {
+      await loadSettingsFromSupabase();
+    })();
 
     const handleCustomChange = (e: Event) => {
       const customEvent = e as CustomEvent<SchoolSettings>;
-      if (customEvent.detail) {
+      if (customEvent.detail && isMounted) {
         setSettings(customEvent.detail);
       }
     };
 
     window.addEventListener('gm_settings_change', handleCustomChange);
     return () => {
+      isMounted = false;
       window.removeEventListener('gm_settings_change', handleCustomChange);
     };
   }, [loadSettingsFromSupabase]);

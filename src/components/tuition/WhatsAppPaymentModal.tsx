@@ -63,16 +63,23 @@ export function WhatsAppPaymentModal({
   const [selectedCycle, setSelectedCycle] = useState<string>('ALL');
   
   // Persistent tracking for sent messages per month
-  const storageKey = `gm_sent_tuition_whatsapp_${selectedMonth}`;
-  const [sentStudentIds, setSentStudentIds] = useState<Record<string, boolean>>({});
+  const [sentStudentIds, setSentStudentIds] = useState<Record<string, boolean>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(`gm_sent_tuition_whatsapp_${selectedMonth}`);
+        if (saved) return JSON.parse(saved);
+      } catch {
+        // ignore
+      }
+    }
+    return {};
+  });
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem(`gm_sent_tuition_whatsapp_${selectedMonth}`);
-        if (saved) {
-          setSentStudentIds(JSON.parse(saved));
-        }
+        setSentStudentIds(saved ? JSON.parse(saved) : {});
       } catch (e) {
         console.error('Error loading sent WhatsApp status:', e);
       }
@@ -287,19 +294,19 @@ export function WhatsAppPaymentModal({
     if (!editingPhoneStudent) return;
     setSavingPhone(true);
     try {
+      const updatedPhone = editingPhoneStudent.phone.trim();
+      const updatedGuardianName = editingPhoneStudent.guardianName.trim();
       const supabase = createClient();
+
       const { error } = await supabase
         .from('students')
         .update({
-          guardian_phone: editingPhoneStudent.phone.trim(),
-          guardian_name: editingPhoneStudent.guardianName.trim() || null,
+          guardian_phone: updatedPhone,
+          guardian_name: updatedGuardianName || null,
         })
         .eq('id', editingPhoneStudent.student.id);
 
       if (error) throw error;
-
-      editingPhoneStudent.student.guardian_phone = editingPhoneStudent.phone.trim();
-      editingPhoneStudent.student.guardian_name = editingPhoneStudent.guardianName.trim();
 
       notify({
         title: 'Téléphone Enregistré',
@@ -312,10 +319,11 @@ export function WhatsAppPaymentModal({
       }
 
       setEditingPhoneStudent(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Impossible d\'enregistrer le numéro.';
       notify({
         title: 'Erreur',
-        message: err.message || 'Impossible d\'enregistrer le numéro.',
+        message,
         type: 'danger',
       });
     } finally {

@@ -8,8 +8,6 @@ import {
   CheckCircle2,
   Info,
   X,
-  ShieldAlert,
-  AlertCircle
 } from 'lucide-react';
 
 export type ModalType = 'danger' | 'warning' | 'info' | 'success';

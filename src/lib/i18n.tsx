@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 
 export type Locale = 'fr' | 'ar';
 
@@ -414,14 +414,17 @@ export const translations = {
 interface I18nContextType {
   locale: Locale;
   setLocale: (locale: Locale) => void;
-  t: (key: any) => string;
+  t: (key: TranslationKey | string) => string;
   dir: 'ltr' | 'rtl';
 }
 
 const I18nContext = createContext<I18nContextType>({
   locale: 'fr',
   setLocale: () => {},
-  t: (key) => (translations.fr as any)[key] || key,
+  t: (key: string) => {
+    const dict = translations.fr as Record<string, string>;
+    return dict[key] || key;
+  },
   dir: 'ltr',
 });
 
@@ -445,8 +448,10 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
   const dir = locale === 'ar' ? 'rtl' : 'ltr';
 
-  const t = (key: any): string => {
-    const val = (translations[locale] as any)?.[key as keyof typeof translations['fr']] || (translations.fr as any)[key as keyof typeof translations['fr']];
+  const t = (key: TranslationKey | string): string => {
+    const currentDict = translations[locale] as Record<string, string>;
+    const fallbackDict = translations.fr as Record<string, string>;
+    const val = currentDict?.[key] || fallbackDict?.[key];
     if (val) return val;
     if (typeof key === 'string') {
       return key
