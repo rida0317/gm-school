@@ -279,8 +279,8 @@ export function PaymentModal({
           </div>
         </div>
 
-        {/* Date & Reference */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Date & Dynamic Reference Input */}
+        <div className={`grid gap-3 ${paymentMethod === 'CASH' ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2 animate-in fade-in duration-200'}`}>
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
               {dir === 'rtl' ? 'تاريخ الأداء' : 'Date de Règlement'}
@@ -289,22 +289,60 @@ export function PaymentModal({
               type="date"
               value={paymentDate}
               onChange={(e) => setPaymentDate(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500"
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-              {dir === 'rtl' ? 'رقم الشيك / المرجع' : 'N° Chèque / Réf Virement'}
-            </label>
-            <input
-              type="text"
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
-              placeholder="Ex: CHQ-882341..."
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500"
-            />
-          </div>
+          {paymentMethod === 'CHECK' && (
+            <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+              <label className="block text-xs font-bold text-emerald-700 dark:text-emerald-400 mb-1 flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5" />
+                <span>{dir === 'rtl' ? 'رقم الشيك البنكي' : 'Numéro du Chèque'}</span>
+              </label>
+              <input
+                type="text"
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+                placeholder={dir === 'rtl' ? 'مثال: CHQ-882341 (البنك الشعبي)...' : 'Ex: CHQ-882341 (Attijari / BP)...'}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-emerald-300 dark:border-emerald-700 bg-emerald-50/40 dark:bg-emerald-950/20 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500"
+                autoFocus
+              />
+            </div>
+          )}
+
+          {paymentMethod === 'TRANSFER' && (
+            <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+              <label className="block text-xs font-bold text-sky-700 dark:text-sky-400 mb-1 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5" />
+                <span>{dir === 'rtl' ? 'مرجع التحويل البنكي' : 'Référence du Virement'}</span>
+              </label>
+              <input
+                type="text"
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+                placeholder={dir === 'rtl' ? 'مثال: VIR-2026-9041...' : 'Ex: VIR-2026-9041 (Banque...)'}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-sky-300 dark:border-sky-700 bg-sky-50/40 dark:bg-sky-950/20 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
+                autoFocus
+              />
+            </div>
+          )}
+
+          {paymentMethod === 'CARD' && (
+            <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+              <label className="block text-xs font-bold text-indigo-700 dark:text-indigo-400 mb-1 flex items-center gap-1.5">
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>{dir === 'rtl' ? 'رقم التوصيل / العملية (TPE)' : 'N° Transaction / Ticket TPE'}</span>
+              </label>
+              <input
+                type="text"
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+                placeholder={dir === 'rtl' ? 'مثال: TPE-99412...' : 'Ex: TPE-99412...'}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-indigo-300 dark:border-indigo-700 bg-indigo-50/40 dark:bg-indigo-950/20 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                autoFocus
+              />
+            </div>
+          )}
         </div>
 
         {/* Notes */}
