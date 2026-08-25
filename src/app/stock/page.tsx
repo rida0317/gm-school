@@ -391,10 +391,11 @@ export default function StockPage() {
     setLoading(true);
     try {
       const supabase = createClient();
-      const [{ data: prods, error: prodsErr }, { data: cats }, { data: tchs }] = await Promise.all([
-        supabase.from('stock_products').select('*, category:stock_categories(*)').order('name'),
+      const [{ data: prods, error: prodsErr }, { data: cats }, { data: tchs }, { data: movs, error: movsErr }] = await Promise.all([
+        supabase.from('stock_products').select('*, category:stock_categories(*)').order('created_at', { ascending: false }),
         supabase.from('stock_categories').select('*').order('name'),
         supabase.from('teachers').select('*').order('last_name'),
+        supabase.from('stock_movements').select('*, product:stock_products(*)').order('created_at', { ascending: false }),
       ]);
 
       if (cats && cats.length > 0) {
@@ -404,16 +405,17 @@ export default function StockPage() {
         setTeachers(tchs);
       }
 
-      let effectiveProds: StockProduct[] | null = (prods && prods.length > 0) ? (prods as StockProduct[]) : null;
-      if (!effectiveProds || prodsErr) {
-        if (typeof window !== 'undefined') {
-          const saved = localStorage.getItem('gm_stock_products_v2');
-          if (saved) {
-            try {
-              effectiveProds = JSON.parse(saved);
-            } catch {
-              effectiveProds = null;
-            }
+      // 1. Set Products
+      let effectiveProds: StockProduct[] | null = null;
+      if (!prodsErr && prods && prods.length > 0) {
+        effectiveProds = prods as StockProduct[];
+      } else if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('gm_stock_products_v2');
+        if (saved) {
+          try {
+            effectiveProds = JSON.parse(saved);
+          } catch {
+            effectiveProds = null;
           }
         }
       }
@@ -428,31 +430,24 @@ export default function StockPage() {
 
       setProducts(effectiveProds || []);
 
-      // Load Movements History from Supabase or localStorage
-      const { data: movs, error: movsErr } = await supabase
-        .from('stock_movements')
-        .select('*, product:stock_products(*)')
-        .order('created_at', { ascending: false });
-
-      let effectiveMovs: StockMovement[] | null = (movs && movs.length > 0) ? (movs as StockMovement[]) : null;
-      if (!effectiveMovs || movsErr) {
-        if (typeof window !== 'undefined') {
-          const savedMovs = localStorage.getItem('gm_stock_movements_v2');
-          if (savedMovs) {
-            try {
-              effectiveMovs = JSON.parse(savedMovs);
-            } catch {
-              effectiveMovs = null;
-            }
+      // 2. Set Movements History
+      let effectiveMovs: StockMovement[] = [];
+      if (!movsErr && movs) {
+        effectiveMovs = movs as StockMovement[];
+      } else if (typeof window !== 'undefined') {
+        const savedMovs = localStorage.getItem('gm_stock_movements_v2');
+        if (savedMovs) {
+          try {
+            effectiveMovs = JSON.parse(savedMovs) || [];
+          } catch {
+            effectiveMovs = [];
           }
         }
       }
 
-      if (effectiveMovs) {
-        setMovements(effectiveMovs);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('gm_stock_movements_v2', JSON.stringify(effectiveMovs));
-        }
+      setMovements(effectiveMovs);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('gm_stock_movements_v2', JSON.stringify(effectiveMovs));
       }
     } catch (err) {
       console.error('Error loading stock data:', err);
