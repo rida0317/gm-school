@@ -473,8 +473,24 @@ export default function AnnouncementsPage() {
 
         notify({ title: 'Succès', message: 'Annonce mise à jour avec succès !', type: 'success' });
       } else {
-        // Insert
-        const newAnn: Announcement = {
+        // Insert in Supabase
+        const { data: insertedData, error: insertError } = await supabase
+          .from('announcements')
+          .insert([
+            {
+              title: annFormData.title,
+              content: annFormData.content,
+              target_audience: annFormData.target_audience,
+              priority: annFormData.priority,
+              author_name: author,
+              is_pinned: annFormData.is_pinned,
+              expires_at: annFormData.expires_at || null,
+            },
+          ])
+          .select()
+          .single();
+
+        const newAnn: Announcement = insertedData || {
           id: `ann-${Date.now()}`,
           title: annFormData.title,
           content: annFormData.content,
@@ -489,21 +505,10 @@ export default function AnnouncementsPage() {
 
         setAnnouncements([newAnn, ...announcements]);
 
-        await supabase.from('announcements').insert([
-          {
-            title: annFormData.title,
-            content: annFormData.content,
-            target_audience: annFormData.target_audience,
-            priority: annFormData.priority,
-            author_name: author,
-            is_pinned: annFormData.is_pinned,
-            expires_at: annFormData.expires_at || null,
-          },
-        ]);
-
         logAuditEvent({
           action: 'ANNOUNCEMENT_CREATED',
           entity_type: 'announcements',
+          entity_id: newAnn.id,
           details: { title: annFormData.title, audience: annFormData.target_audience },
         });
 
