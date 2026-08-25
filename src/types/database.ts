@@ -292,6 +292,30 @@ export interface StockMovement {
   product?: StockProduct;
 }
 
+export interface StockReport {
+  id: string;
+  title: string;
+  report_type: 'MONTHLY' | 'PERIODIC' | 'INVENTORY';
+  period_month?: string;
+  start_date?: string;
+  end_date?: string;
+  total_articles: number;
+  total_in_items: number;
+  total_out_items: number;
+  total_stock_units: number;
+  total_stock_value: number;
+  data_summary?: {
+    categories_breakdown?: Record<string, number>;
+    top_dispatched_items?: Array<{ name: string; quantity: number; unit: string }>;
+    top_beneficiaries?: Array<{ name: string; count: number }>;
+  };
+  generated_by?: string;
+  author_name?: string;
+  notes?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
 export interface Supplier {
   id: string;
   name: string;

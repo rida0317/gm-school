@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useI18n } from '@/lib/i18n';
 import { createClient } from '@/lib/supabase/client';
-import { StockProduct, StockCategory, StockMovement, StockMovementType, Teacher } from '@/types/database';
+import { StockProduct, StockCategory, StockMovement, StockMovementType, Teacher, StockReport } from '@/types/database';
 import { formatCurrency } from '@/lib/utils';
 import { useConfirm, useNotify } from '@/lib/modal-service';
 import { logAuditEvent } from '@/lib/audit';
@@ -39,7 +39,14 @@ import {
   Sparkle,
   Dumbbell,
   FlaskConical,
-  SprayCan
+  SprayCan,
+  Calendar,
+  Archive,
+  Save,
+  Check,
+  RefreshCw,
+  FileCheck,
+  Eye
 } from 'lucide-react';
 
 // Default Visual Categories with Icons & Color Palettes
@@ -351,8 +358,20 @@ export default function StockPage() {
   const [editingProduct, setEditingProduct] = useState<StockProduct | null>(null);
   const [showBeneficiaryDropdown, setShowBeneficiaryDropdown] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [reportPeriod, setReportPeriod] = useState<'MONTH' | 'ALL' | 'YEAR'>('MONTH');
-  const [reportViewTab, setReportViewTab] = useState<'INVENTORY' | 'DISPATCHES' | 'FULL'>('FULL');
+  
+  // Advanced Monthly & Periodic Report States
+  const [reportType, setReportType] = useState<'MONTHLY' | 'PERIODIC'>('MONTHLY');
+  const [selectedReportMonth, setSelectedReportMonth] = useState<string>(() => new Date().toISOString().slice(0, 7)); // 'YYYY-MM'
+  const [periodicStartDate, setPeriodicStartDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(1);
+    return d.toISOString().split('T')[0];
+  });
+  const [periodicEndDate, setPeriodicEndDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [reportViewTab, setReportViewTab] = useState<'FULL' | 'INVENTORY' | 'DISPATCHES'>('FULL');
+  const [reportSubTab, setReportSubTab] = useState<'VIEW' | 'ARCHIVES'>('VIEW');
+  const [savedReports, setSavedReports] = useState<StockReport[]>([]);
+  const [savingReport, setSavingReport] = useState(false);
 
   // Form states
   const [dispatchForm, setDispatchForm] = useState({
@@ -386,16 +405,23 @@ export default function StockPage() {
   const confirm = useConfirm();
   const notify = useNotify();
 
-  // Load Products, Teachers, Categories & Movements
+  // Load Products, Teachers, Categories, Movements & Saved Reports
   async function loadStockData() {
     setLoading(true);
     try {
       const supabase = createClient();
-      const [{ data: prods, error: prodsErr }, { data: cats }, { data: tchs }, { data: movs, error: movsErr }] = await Promise.all([
+      const [
+        { data: prods, error: prodsErr },
+        { data: cats },
+        { data: tchs },
+        { data: movs, error: movsErr },
+        { data: repData }
+      ] = await Promise.all([
         supabase.from('stock_products').select('*, category:stock_categories(*)').order('created_at', { ascending: false }),
         supabase.from('stock_categories').select('*').order('name'),
         supabase.from('teachers').select('*').order('last_name'),
         supabase.from('stock_movements').select('*, product:stock_products(*)').order('created_at', { ascending: false }),
+        supabase.from('stock_reports').select('*').order('created_at', { ascending: false }),
       ]);
 
       if (cats && cats.length > 0) {
@@ -403,6 +429,9 @@ export default function StockPage() {
       }
       if (tchs && tchs.length > 0) {
         setTeachers(tchs);
+      }
+      if (repData && repData.length > 0) {
+        setSavedReports(repData as StockReport[]);
       }
 
       // 1. Set Products
@@ -1098,15 +1127,164 @@ export default function StockPage() {
       .slice(0, 8);
   }, [beneficiaryOptions, dispatchForm.requested_by]);
 
+  // Filtered movements for Monthly vs Periodic report
+  const reportFilteredMovements = useMemo(() => {
+    if (reportType === 'MONTHLY') {
+      return movements.filter((m) => m.created_at?.startsWith(selectedReportMonth));
+    } else {
+      return movements.filter((m) => {
+        const d = (m.created_at || '').slice(0, 10);
+        return d >= periodicStartDate && d <= periodicEndDate;
+      });
+    }
+  }, [movements, reportType, selectedReportMonth, periodicStartDate, periodicEndDate]);
+
+  // Real-time KPI Stats specifically for the active Report
+  const reportStats = useMemo(() => {
+    const inMovs = reportFilteredMovements.filter((m) => m.movement_type === 'IN');
+    const outMovs = reportFilteredMovements.filter((m) => m.movement_type === 'OUT');
+    const totalInUnits = inMovs.reduce((acc, m) => acc + (Number(m.quantity) || 0), 0);
+    const totalOutUnits = outMovs.reduce((acc, m) => acc + (Number(m.quantity) || 0), 0);
+    const totalDispatchesCount = outMovs.length;
+    const totalReassortsCount = inMovs.length;
+    const totalStockValue = products.reduce((acc, p) => acc + (Number(p.quantity) || 0) * (Number(p.purchase_price) || 0), 0);
+    const totalUnitsInStock = products.reduce((acc, p) => acc + (Number(p.quantity) || 0), 0);
+
+    return {
+      totalInUnits,
+      totalOutUnits,
+      totalDispatchesCount,
+      totalReassortsCount,
+      totalStockValue,
+      totalUnitsInStock,
+    };
+  }, [reportFilteredMovements, products]);
+
+  // Save report into Supabase
+  const handleSaveReportToSupabase = async () => {
+    setSavingReport(true);
+    try {
+      const supabase = createClient();
+      const reportTitle =
+        reportType === 'MONTHLY'
+          ? `Bilan Mensuel du Stock - ${selectedReportMonth}`
+          : `Bilan Périodique du Stock (${periodicStartDate} au ${periodicEndDate})`;
+
+      const payload = {
+        title: reportTitle,
+        report_type: reportType,
+        period_month: reportType === 'MONTHLY' ? selectedReportMonth : null,
+        start_date: reportType === 'PERIODIC' ? periodicStartDate : null,
+        end_date: reportType === 'PERIODIC' ? periodicEndDate : null,
+        total_articles: products.length,
+        total_in_items: reportStats.totalInUnits,
+        total_out_items: reportStats.totalOutUnits,
+        total_stock_units: reportStats.totalUnitsInStock,
+        total_stock_value: reportStats.totalStockValue,
+        author_name: 'Responsable Économat',
+        data_summary: {
+          dispatches_count: reportStats.totalDispatchesCount,
+          reassorts_count: reportStats.totalReassortsCount,
+          top_movements: reportFilteredMovements.slice(0, 15),
+        },
+      };
+
+      const { data, error } = await supabase.from('stock_reports').insert([payload]).select().single();
+      if (error) throw error;
+
+      if (data) {
+        setSavedReports((prev) => [data as StockReport, ...prev]);
+      }
+
+      notify({
+        title: 'Bilan Archivé dans Supabase',
+        message: `Le rapport "${reportTitle}" a été enregistré avec succès.`,
+        type: 'success',
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erreur';
+      notify({ title: 'Erreur d\'archivage', message: msg, type: 'danger' });
+    } finally {
+      setSavingReport(false);
+    }
+  };
+
+  // Delete saved report from Supabase
+  const handleDeleteSavedReport = async (reportId: string, title: string) => {
+    const isConfirmed = await confirm({
+      title: 'Supprimer le rapport archivé ?',
+      message: `Voulez-vous vraiment supprimer définitivement "${title}" de la base de données ?`,
+      confirmText: 'Supprimer',
+    });
+    if (!isConfirmed) return;
+
+    try {
+      const supabase = createClient();
+      await supabase.from('stock_reports').delete().eq('id', reportId);
+      setSavedReports((prev) => prev.filter((r) => r.id !== reportId));
+      notify({ title: 'Rapport Supprimé', message: 'Le rapport a été supprimé des archives.', type: 'success' });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erreur';
+      notify({ title: 'Erreur', message: msg, type: 'danger' });
+    }
+  };
+
   const handlePrintReport = () => {
     if (typeof window === 'undefined') return;
     const originalTitle = document.title;
-    const today = new Date().toISOString().split('T')[0];
-    document.title = `Rapport_Inventaire_Stock_GM_${today}`;
+    const label = reportType === 'MONTHLY' ? `Mensuel_${selectedReportMonth}` : `Periodique_${periodicStartDate}_${periodicEndDate}`;
+    document.title = `Bilan_Stock_GM_${label}`;
     window.print();
     setTimeout(() => {
       document.title = originalTitle;
     }, 1500);
+  };
+
+  const handleExportReportExcel = () => {
+    try {
+      const label = reportType === 'MONTHLY' ? `Mensuel_${selectedReportMonth}` : `Periodique_${periodicStartDate}_au_${periodicEndDate}`;
+      const headers = [
+        'N° Bon de Sortie / Référence',
+        'Date & Heure',
+        'Type de Mouvement',
+        'Désignation de l\'Article',
+        'Bénéficiaire / Demandeur',
+        'Département / Service',
+        'Quantité Mouvement',
+        'Motif / Justification',
+        'Stock Restant Après Mouvement'
+      ];
+
+      const rows = reportFilteredMovements.map((mov) => {
+        const movType = mov.movement_type === 'OUT' ? 'SORTIE / DÉCHARGE' : 'ENTRÉE / RÉASSORT';
+        return [
+          `"${mov.voucher_number || mov.id}"`,
+          `"${new Date(mov.created_at).toLocaleDateString('fr-FR')} ${new Date(mov.created_at).toLocaleTimeString('fr-FR')}"`,
+          `"${movType}"`,
+          `"${(mov.product?.name || 'Article').replace(/"/g, '""')}"`,
+          `"${(mov.requested_by || 'Personnel').replace(/"/g, '""')}"`,
+          `"${(mov.department || 'Pédagogique').replace(/"/g, '""')}"`,
+          mov.quantity,
+          `"${(mov.reason || '').replace(/"/g, '""')}"`,
+          mov.new_quantity
+        ].join(';');
+      });
+
+      const csvContent = '\uFEFF' + [headers.join(';'), ...rows].join('\r\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Bilan_Stock_GM_${label}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      notify({ type: 'success', title: 'Export Réussi', message: `Le bilan (${label}) a été exporté en CSV.` });
+    } catch (err) {
+      console.error('Error exporting report:', err);
+      notify({ type: 'danger', title: 'Erreur d\'export', message: 'Impossible de générer le fichier.' });
+    }
   };
 
   const handleExportExcel = () => {
@@ -2094,219 +2272,516 @@ export default function StockPage() {
         )}
 
         {/* ------------------------------------------------------------- */}
-        {/* MODAL 4: RAPPORT & BILAN GÉNÉRAL D'INVENTAIRE (1 PAGE COMPACT) */}
+        {/* MODAL 4: RAPPORT & BILAN DU STOCK (MENSUEL & PÉRIODIQUE + SUPABASE) */}
         {/* ------------------------------------------------------------- */}
         {showReportModal && (
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in overflow-y-auto print:hidden">
-            <div className="w-[95vw] max-w-4xl bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 space-y-4 my-auto max-h-[90vh] overflow-y-auto">
+            <div className="w-[95vw] max-w-5xl bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 space-y-4 my-auto max-h-[92vh] overflow-y-auto">
               {/* Header Modal */}
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/logo.png" alt="Logo GM" className="w-10 h-10 object-contain shrink-0 rounded-lg p-0.5 bg-white border border-slate-200 dark:border-slate-700 shadow-xs" />
+                  <img src="/logo.png" alt="Logo GM" className="w-11 h-11 object-contain shrink-0 rounded-xl p-1 bg-white border border-slate-200 dark:border-slate-700 shadow-xs" />
                   <div className="min-w-0">
-                    <h3 className="text-base font-black text-slate-900 dark:text-white truncate">
-                      Rapport &amp; Bilan d&apos;Inventaire &amp; Décharges (1 Page)
+                    <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white truncate flex items-center gap-2">
+                      <span>Bilan &amp; Rapports d&apos;Inventaire du Stock</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300">
+                        {reportType === 'MONTHLY' ? 'Mensuel' : 'Périodique'}
+                      </span>
                     </h3>
-                    <p className="text-[11px] text-slate-400 truncate">
-                      Format compact officiel &bull; Tableau récapitulatif &bull; Prêt pour impression A4 directe
+                    <p className="text-xs text-slate-400 truncate">
+                      Génération de rapports mensuels ou sur plage de dates personnalisée &bull; Archivage Supabase
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setShowReportModal(false)}
-                  className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer shrink-0"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Filter Ribbons */}
-              <div className="flex flex-wrap items-center justify-between gap-2.5 p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-slate-600 dark:text-slate-300 text-[11px]">Période :</span>
-                  <div className="inline-flex p-0.5 rounded-xl bg-slate-200/80 dark:bg-slate-700">
-                    {(['MONTH', 'YEAR', 'ALL'] as const).map((p) => (
-                      <button
-                        key={p}
-                        type="button"
-                        onClick={() => setReportPeriod(p)}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                          reportPeriod === p
-                            ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
-                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                        }`}
-                      >
-                        {p === 'MONTH' ? 'Ce Mois-ci' : p === 'YEAR' ? 'Année Scolaire' : 'Historique Complet'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-slate-600 dark:text-slate-300 text-[11px]">Vue :</span>
-                  <div className="inline-flex p-0.5 rounded-xl bg-slate-200/80 dark:bg-slate-700">
-                    {(['FULL', 'INVENTORY', 'DISPATCHES'] as const).map((t) => (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => setReportViewTab(t)}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                          reportViewTab === t
-                            ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
-                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                        }`}
-                      >
-                        {t === 'FULL' ? 'Bilan Complet' : t === 'INVENTORY' ? 'Inventaire' : 'Décharges'}
-                      </button>
-                    ))}
+                  <div className="inline-flex p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    <button
+                      type="button"
+                      onClick={() => setReportSubTab('VIEW')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        reportSubTab === 'VIEW'
+                          ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                      }`}
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Générateur &amp; Vue</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReportSubTab('ARCHIVES')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        reportSubTab === 'ARCHIVES'
+                          ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                      }`}
+                    >
+                      <Archive className="w-3.5 h-3.5" />
+                      <span>Archives Supabase ({savedReports.length})</span>
+                    </button>
                   </div>
+
+                  <button
+                    onClick={() => setShowReportModal(false)}
+                    className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer shrink-0"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
               </div>
 
-              {/* INTEGRATED KPI SUMMARY TABLE */}
-              <div className="border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden shadow-xs">
-                <table className="w-full text-center text-xs table-fixed">
-                  <thead className="bg-slate-100 dark:bg-slate-800 text-[10px] uppercase font-black text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
-                    <tr>
-                      <th className="p-2 border-r border-slate-200 dark:border-slate-700">📦 Total Articles</th>
-                      <th className="p-2 border-r border-slate-200 dark:border-slate-700">📊 Unités en Magasin</th>
-                      <th className="p-2 border-r border-slate-200 dark:border-slate-700">📤 Décharges Réalisées</th>
-                      <th className="p-2">⚠️ Alertes &amp; Ruptures</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white dark:bg-slate-900 font-black text-sm">
-                    <tr>
-                      <td className="p-2 border-r border-slate-200 dark:border-slate-700 text-blue-600 dark:text-blue-400">
-                        {stockStats.totalArticles} Références
-                      </td>
-                      <td className="p-2 border-r border-slate-200 dark:border-slate-700 text-emerald-600 dark:text-emerald-400">
-                        {stockStats.totalItemsCount.toLocaleString()} U
-                      </td>
-                      <td className="p-2 border-r border-slate-200 dark:border-slate-700 text-purple-600 dark:text-purple-400">
-                        {movements.filter((m) => m.movement_type === 'OUT').length} Sorties
-                      </td>
-                      <td className="p-2 text-rose-600 dark:text-rose-400">
-                        {stockStats.lowStockCount + stockStats.outOfStockCount} Alertes
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+              {reportSubTab === 'VIEW' ? (
+                <>
+                  {/* Mode & Filter Selection Ribbon */}
+                  <div className="p-3 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      {/* Report Type Selector: Monthly vs Periodic */}
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-xs text-slate-700 dark:text-slate-300">Type de Bilan :</span>
+                        <div className="inline-flex p-0.5 rounded-xl bg-slate-200/80 dark:bg-slate-700">
+                          <button
+                            type="button"
+                            onClick={() => setReportType('MONTHLY')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                              reportType === 'MONTHLY'
+                                ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                            }`}
+                          >
+                            <Calendar className="w-3.5 h-3.5" />
+                            <span>Rapport du Mois (Mensuel)</span>
+                          </button>
 
-              {/* 1. TABLEAU 1: ÉTAT D'INVENTAIRE DU STOCK */}
-              {(reportViewTab === 'FULL' || reportViewTab === 'INVENTORY') && (
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-[11px] font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider flex items-center gap-1.5">
-                      <Boxes className="w-3.5 h-3.5 text-amber-500" />
-                      <span>1. État Détaillé du Stock par Article</span>
-                    </h4>
-                    <span className="text-[10px] text-slate-400 font-bold">{products.length} articles</span>
+                          <button
+                            type="button"
+                            onClick={() => setReportType('PERIODIC')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                              reportType === 'PERIODIC'
+                                ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                            }`}
+                          >
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>Rapport Périodique (Plage de Dates)</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* View Tab Selector */}
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-600 dark:text-slate-400 text-xs">Section :</span>
+                        <div className="inline-flex p-0.5 rounded-xl bg-slate-200/80 dark:bg-slate-700">
+                          {(['FULL', 'INVENTORY', 'DISPATCHES'] as const).map((t) => (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => setReportViewTab(t)}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                reportViewTab === t
+                                  ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+                                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                              }`}
+                            >
+                              {t === 'FULL' ? 'Bilan Complet' : t === 'INVENTORY' ? 'Inventaire' : 'Mouvements'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Dynamic Date Controls */}
+                    {reportType === 'MONTHLY' ? (
+                      <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                        <label className="text-xs font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                          <Calendar className="w-4 h-4 text-blue-500" />
+                          <span>Sélectionner le Mois :</span>
+                        </label>
+                        <input
+                          type="month"
+                          value={selectedReportMonth}
+                          onChange={(e) => setSelectedReportMonth(e.target.value)}
+                          className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white cursor-pointer shadow-xs focus:ring-2 focus:ring-blue-500"
+                        />
+                        <div className="flex items-center gap-1 text-[11px] text-slate-500">
+                          <span>Mois actif :</span>
+                          <span className="font-extrabold text-blue-600 dark:text-blue-400 uppercase">
+                            {new Date(`${selectedReportMonth}-01`).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs font-bold text-slate-600 dark:text-slate-400">Date Début :</label>
+                          <input
+                            type="date"
+                            value={periodicStartDate}
+                            onChange={(e) => setPeriodicStartDate(e.target.value)}
+                            className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white cursor-pointer shadow-xs"
+                          />
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs font-bold text-slate-600 dark:text-slate-400">Date Fin :</label>
+                          <input
+                            type="date"
+                            value={periodicEndDate}
+                            onChange={(e) => setPeriodicEndDate(e.target.value)}
+                            className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white cursor-pointer shadow-xs"
+                          />
+                        </div>
+
+                        {/* Quick Period Presets */}
+                        <div className="flex items-center gap-1.5 ml-auto flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const d = new Date();
+                              d.setDate(d.getDate() - 7);
+                              setPeriodicStartDate(d.toISOString().split('T')[0]);
+                              setPeriodicEndDate(new Date().toISOString().split('T')[0]);
+                            }}
+                            className="px-2 py-1 rounded-lg bg-slate-200/70 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-bold hover:bg-slate-300 cursor-pointer"
+                          >
+                            7 Derniers Jours
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const d = new Date();
+                              d.setDate(1);
+                              setPeriodicStartDate(d.toISOString().split('T')[0]);
+                              setPeriodicEndDate(new Date().toISOString().split('T')[0]);
+                            }}
+                            className="px-2 py-1 rounded-lg bg-slate-200/70 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-bold hover:bg-slate-300 cursor-pointer"
+                          >
+                            Ce Mois-ci
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const d = new Date();
+                              d.setDate(d.getDate() - 30);
+                              setPeriodicStartDate(d.toISOString().split('T')[0]);
+                              setPeriodicEndDate(new Date().toISOString().split('T')[0]);
+                            }}
+                            className="px-2 py-1 rounded-lg bg-slate-200/70 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-bold hover:bg-slate-300 cursor-pointer"
+                          >
+                            30 Derniers Jours
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
-                    <table className="w-full text-left text-xs table-fixed">
-                      <thead className="bg-slate-50 dark:bg-slate-800/80 text-[10px] uppercase font-black text-slate-500 border-b border-slate-200 dark:border-slate-800">
-                        <tr>
-                          <th className="w-[14%] p-2">Réf / SKU</th>
-                          <th className="w-[34%] p-2">Désignation</th>
-                          <th className="w-[18%] p-2">Catégorie</th>
-                          <th className="w-[14%] p-2 text-center">Stock Dispo</th>
-                          <th className="w-[10%] p-2 text-center">Seuil</th>
-                          <th className="w-[10%] p-2 text-center">Statut</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {products.map((p) => {
-                          const isOut = p.quantity === 0;
-                          const isLow = p.quantity > 0 && p.quantity <= p.minimum_quantity;
-                          return (
-                            <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                              <td className="p-2 font-mono font-bold text-slate-500 text-[11px] truncate">{p.sku}</td>
-                              <td className="p-2 font-bold text-slate-900 dark:text-white text-[11px] truncate">{p.name}</td>
-                              <td className="p-2 text-slate-600 dark:text-slate-300 text-[11px] truncate">{p.category?.name || 'Général'}</td>
-                              <td className="p-2 text-center font-black text-slate-900 dark:text-white text-xs">
-                                {p.quantity} {p.unit}s
-                              </td>
-                              <td className="p-2 text-center text-slate-500 text-[11px]">{p.minimum_quantity}</td>
-                              <td className="p-2 text-center">
-                                <span
-                                  className={`px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase ${
-                                    isOut
-                                      ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300'
-                                      : isLow
-                                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/70 dark:text-amber-300'
-                                      : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300'
-                                  }`}
-                                >
-                                  {isOut ? 'Rupture' : isLow ? 'Faible' : 'OK'}
-                                </span>
-                              </td>
+                  {/* INTEGRATED KPI SUMMARY FOR ACTIVE PERIOD */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <div className="p-3 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-center">
+                      <div className="text-[10px] font-black uppercase text-blue-700 dark:text-blue-300 tracking-wider">
+                        Articles Référencés
+                      </div>
+                      <div className="text-xl font-black text-blue-900 dark:text-blue-200 mt-0.5">
+                        {products.length} réf.
+                      </div>
+                      <div className="text-[10px] text-blue-600 dark:text-blue-400 font-bold">
+                        {reportStats.totalUnitsInStock.toLocaleString()} unités en stock
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-center">
+                      <div className="text-[10px] font-black uppercase text-emerald-700 dark:text-emerald-300 tracking-wider">
+                        Entrées Période (+IN)
+                      </div>
+                      <div className="text-xl font-black text-emerald-800 dark:text-emerald-300 mt-0.5">
+                        +{reportStats.totalInUnits}
+                      </div>
+                      <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                        {reportStats.totalReassortsCount} réassort(s)
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-center">
+                      <div className="text-[10px] font-black uppercase text-purple-700 dark:text-purple-300 tracking-wider">
+                        Sorties Période (-OUT)
+                      </div>
+                      <div className="text-xl font-black text-purple-800 dark:text-purple-300 mt-0.5">
+                        -{reportStats.totalOutUnits}
+                      </div>
+                      <div className="text-[10px] text-purple-600 dark:text-purple-400 font-bold">
+                        {reportStats.totalDispatchesCount} dotation(s)
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-center">
+                      <div className="text-[10px] font-black uppercase text-amber-700 dark:text-amber-300 tracking-wider">
+                        Valeur Globale
+                      </div>
+                      <div className="text-xl font-black text-amber-800 dark:text-amber-300 mt-0.5">
+                        {reportStats.totalStockValue.toLocaleString()} MAD
+                      </div>
+                      <div className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">
+                        Prix d&apos;achat HT
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 1. TABLEAU 1: ÉTAT D'INVENTAIRE DU STOCK */}
+                  {(reportViewTab === 'FULL' || reportViewTab === 'INVENTORY') && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-[11px] font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider flex items-center gap-1.5">
+                          <Boxes className="w-3.5 h-3.5 text-amber-500" />
+                          <span>1. Inventaire Physique des Articles en Magasin</span>
+                        </h4>
+                        <span className="text-[10px] text-slate-400 font-bold">{products.length} articles répertoriés</span>
+                      </div>
+
+                      <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden max-h-48 overflow-y-auto">
+                        <table className="w-full text-left text-xs table-fixed">
+                          <thead className="bg-slate-50 dark:bg-slate-800/80 text-[10px] uppercase font-black text-slate-500 border-b border-slate-200 dark:border-slate-800 sticky top-0">
+                            <tr>
+                              <th className="w-[14%] p-2">Réf / SKU</th>
+                              <th className="w-[34%] p-2">Désignation</th>
+                              <th className="w-[18%] p-2">Catégorie</th>
+                              <th className="w-[14%] p-2 text-center">Stock Actuel</th>
+                              <th className="w-[10%] p-2 text-center">Seuil</th>
+                              <th className="w-[10%] p-2 text-center">Statut</th>
                             </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {products.map((p) => {
+                              const isOut = p.quantity === 0;
+                              const isLow = p.quantity > 0 && p.quantity <= p.minimum_quantity;
+                              return (
+                                <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                                  <td className="p-2 font-mono font-bold text-slate-500 text-[11px] truncate">{p.sku}</td>
+                                  <td className="p-2 font-bold text-slate-900 dark:text-white text-[11px] truncate">{p.name}</td>
+                                  <td className="p-2 text-slate-600 dark:text-slate-300 text-[11px] truncate">{p.category?.name || 'Général'}</td>
+                                  <td className="p-2 text-center font-black text-slate-900 dark:text-white text-xs">
+                                    {p.quantity} {p.unit}s
+                                  </td>
+                                  <td className="p-2 text-center text-slate-500 text-[11px]">{p.minimum_quantity}</td>
+                                  <td className="p-2 text-center">
+                                    <span
+                                      className={`px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                        isOut
+                                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300'
+                                          : isLow
+                                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/70 dark:text-amber-300'
+                                          : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300'
+                                      }`}
+                                    >
+                                      {isOut ? 'Rupture' : isLow ? 'Faible' : 'OK'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
 
-              {/* 2. TABLEAU 2: REGISTRE DES DÉCHARGES & SORTIES */}
-              {(reportViewTab === 'FULL' || reportViewTab === 'DISPATCHES') && (
-                <div className="space-y-1.5">
+                  {/* 2. TABLEAU 2: REGISTRE DES MOUVEMENTS FILTRÉS DE LA PÉRIODE */}
+                  {(reportViewTab === 'FULL' || reportViewTab === 'DISPATCHES') && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-[11px] font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider flex items-center gap-1.5">
+                          <History className="w-3.5 h-3.5 text-blue-500" />
+                          <span>
+                            2. Mouvements &amp; Décharges ({reportType === 'MONTHLY' ? selectedReportMonth : `${periodicStartDate} au ${periodicEndDate}`})
+                          </span>
+                        </h4>
+                        <span className="text-[10px] text-slate-400 font-bold">
+                          {reportFilteredMovements.length} mouvement(s) trouvé(s)
+                        </span>
+                      </div>
+
+                      <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden max-h-56 overflow-y-auto">
+                        <table className="w-full text-left text-xs table-fixed">
+                          <thead className="bg-slate-50 dark:bg-slate-800/80 text-[10px] uppercase font-black text-slate-500 border-b border-slate-200 dark:border-slate-800 sticky top-0">
+                            <tr>
+                              <th className="w-[12%] p-2">N° Bon</th>
+                              <th className="w-[12%] p-2">Type</th>
+                              <th className="w-[14%] p-2">Date</th>
+                              <th className="w-[24%] p-2">Demandeur / Fournisseur</th>
+                              <th className="w-[22%] p-2">Article</th>
+                              <th className="w-[16%] p-2 text-center">Quantité</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {reportFilteredMovements.length === 0 ? (
+                              <tr>
+                                <td colSpan={6} className="p-4 text-center text-slate-400 text-xs">
+                                  Aucun mouvement enregistré pour cette période.
+                                </td>
+                              </tr>
+                            ) : (
+                              reportFilteredMovements.map((mov) => (
+                                <tr key={mov.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                                  <td className="p-2 font-mono font-bold text-slate-500 text-[11px] truncate">
+                                    {mov.voucher_number || `BS-${mov.id.slice(-4)}`}
+                                  </td>
+                                  <td className="p-2">
+                                    <span
+                                      className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
+                                        mov.movement_type === 'IN'
+                                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                          : 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
+                                      }`}
+                                    >
+                                      {mov.movement_type === 'IN' ? '+ Entrée' : '- Sortie'}
+                                    </span>
+                                  </td>
+                                  <td className="p-2 text-slate-600 dark:text-slate-300 text-[11px] truncate">
+                                    {new Date(mov.created_at).toLocaleDateString('fr-FR')}
+                                  </td>
+                                  <td className="p-2 font-bold text-blue-600 dark:text-blue-400 text-[11px] truncate">
+                                    {mov.requested_by || 'Personnel'}
+                                  </td>
+                                  <td className="p-2 font-bold text-slate-900 dark:text-white text-[11px] truncate">
+                                    {mov.product?.name || 'Article'}
+                                  </td>
+                                  <td className="p-2 text-center font-black text-xs truncate">
+                                    <span className={mov.movement_type === 'IN' ? 'text-emerald-600 dark:text-emerald-400' : 'text-purple-600 dark:text-purple-400'}>
+                                      {mov.movement_type === 'IN' ? `+${mov.quantity}` : `-${mov.quantity}`} {mov.product?.unit || 'U'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Signatures Preview */}
+                  <div className="grid grid-cols-3 gap-2.5 pt-1">
+                    <div className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 text-center">
+                      <div className="text-[10px] font-bold text-slate-600 dark:text-slate-400">Responsable Économat</div>
+                      <div className="h-6"></div>
+                      <div className="text-[9px] text-slate-400">Signature &amp; Date</div>
+                    </div>
+
+                    <div className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 text-center">
+                      <div className="text-[10px] font-bold text-slate-600 dark:text-slate-400">Bénéficiaires (Demandeurs)</div>
+                      <div className="h-6"></div>
+                      <div className="text-[9px] text-slate-400">Émargement / Réception</div>
+                    </div>
+
+                    <div className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 text-center">
+                      <div className="text-[10px] font-bold text-slate-600 dark:text-slate-400">Direction Générale</div>
+                      <div className="h-6"></div>
+                      <div className="text-[9px] text-slate-400">Visa &amp; Cachet</div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* TAB 2: ARCHIVES SUPABASE DES RAPPORTS ENREGISTRÉS */
+                <div className="space-y-3 animate-in fade-in">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-[11px] font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider flex items-center gap-1.5">
-                      <Send className="w-3.5 h-3.5 text-emerald-500" />
-                      <span>2. Registre des Décharges &amp; Sorties de Matériel</span>
-                    </h4>
-                    <span className="text-[10px] text-slate-400 font-bold">
-                      {movements.filter((m) => m.movement_type === 'OUT').length} décharges
+                    <div>
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                        Bilans Archivés dans Supabase
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Consultez, téléchargez ou réimprimez les bilans mensuels et périodiques enregistrés.
+                      </p>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 font-black text-xs border border-blue-200 dark:border-blue-800">
+                      {savedReports.length} rapport(s) archivé(s)
                     </span>
                   </div>
 
-                  <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+                  <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden max-h-96 overflow-y-auto">
                     <table className="w-full text-left text-xs table-fixed">
-                      <thead className="bg-slate-50 dark:bg-slate-800/80 text-[10px] uppercase font-black text-slate-500 border-b border-slate-200 dark:border-slate-800">
+                      <thead className="bg-slate-50 dark:bg-slate-800/80 text-[10px] uppercase font-black text-slate-500 border-b border-slate-200 dark:border-slate-800 sticky top-0">
                         <tr>
-                          <th className="w-[12%] p-2">N° Bon</th>
-                          <th className="w-[14%] p-2">Date</th>
-                          <th className="w-[24%] p-2">Demandeur (Chkoun Talbo)</th>
-                          <th className="w-[26%] p-2">Article Remis</th>
-                          <th className="w-[10%] p-2 text-center">Qté</th>
-                          <th className="w-[14%] p-2">Motif</th>
+                          <th className="w-[34%] p-3">Titre du Bilan</th>
+                          <th className="w-[14%] p-3">Type</th>
+                          <th className="w-[18%] p-3">Période / Date</th>
+                          <th className="w-[14%] p-3 text-center">Mouvements</th>
+                          <th className="w-[20%] p-3 text-right">Actions</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {movements.length === 0 ? (
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                        {savedReports.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="p-3 text-center text-slate-400 text-xs">
-                              Aucune décharge enregistrée.
+                            <td colSpan={5} className="p-8 text-center text-slate-400 text-xs">
+                              Aucun bilan n&apos;a encore été archivé dans Supabase.
+                              <br />
+                              <span className="text-[11px] text-slate-500">
+                                Générez un bilan et cliquez sur &quot;Sauvegarder dans Supabase&quot;.
+                              </span>
                             </td>
                           </tr>
                         ) : (
-                          movements
-                            .filter((m) => m.movement_type === 'OUT')
-                            .map((mov) => (
-                              <tr key={mov.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                                <td className="p-2 font-mono font-bold text-slate-500 text-[11px] truncate">
-                                  {mov.voucher_number || `BS-${mov.id.slice(-4)}`}
-                                </td>
-                                <td className="p-2 text-slate-600 dark:text-slate-300 text-[11px] truncate">
-                                  {new Date(mov.created_at).toLocaleDateString('fr-FR')}
-                                </td>
-                                <td className="p-2 font-bold text-blue-600 dark:text-blue-400 text-[11px] truncate">
-                                  {mov.requested_by || 'Personnel'}
-                                </td>
-                                <td className="p-2 font-bold text-slate-900 dark:text-white text-[11px] truncate">
-                                  {mov.product?.name || 'Article'}
-                                </td>
-                                <td className="p-2 text-center font-black text-rose-600 dark:text-rose-400 text-xs truncate">
-                                  -{mov.quantity} {mov.product?.unit || 'U'}
-                                </td>
-                                <td className="p-2 text-slate-500 text-[11px] truncate">{mov.reason || 'Dotation'}</td>
-                              </tr>
-                            ))
+                          savedReports.map((rep) => (
+                            <tr key={rep.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                              <td className="p-3 font-bold text-slate-900 dark:text-white truncate">
+                                <div className="flex items-center gap-2">
+                                  <FileCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                  <span className="truncate">{rep.title}</span>
+                                </div>
+                              </td>
+                              <td className="p-3">
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                                    rep.report_type === 'MONTHLY'
+                                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/70 dark:text-blue-300'
+                                      : 'bg-purple-100 text-purple-700 dark:bg-purple-950/70 dark:text-purple-300'
+                                  }`}
+                                >
+                                  {rep.report_type === 'MONTHLY' ? 'Mensuel' : 'Périodique'}
+                                </span>
+                              </td>
+                              <td className="p-3 text-slate-600 dark:text-slate-300 text-xs truncate">
+                                {rep.report_type === 'MONTHLY'
+                                  ? rep.period_month
+                                  : `${rep.start_date || ''} au ${rep.end_date || ''}`}
+                              </td>
+                              <td className="p-3 text-center font-bold text-xs">
+                                <span className="text-purple-600 dark:text-purple-400">-{rep.total_out_items || 0} U</span>
+                                <span className="text-slate-400 mx-1">&bull;</span>
+                                <span className="text-emerald-600 dark:text-emerald-400">+{rep.total_in_items || 0} U</span>
+                              </td>
+                              <td className="p-3 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (rep.report_type === 'MONTHLY' && rep.period_month) {
+                                        setReportType('MONTHLY');
+                                        setSelectedReportMonth(rep.period_month);
+                                      } else if (rep.start_date && rep.end_date) {
+                                        setReportType('PERIODIC');
+                                        setPeriodicStartDate(rep.start_date);
+                                        setPeriodicEndDate(rep.end_date);
+                                      }
+                                      setReportSubTab('VIEW');
+                                    }}
+                                    className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50 cursor-pointer"
+                                    title="Charger dans la vue"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteSavedReport(rep.id, rep.title)}
+                                    className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/50 cursor-pointer"
+                                    title="Supprimer des archives"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))
                         )}
                       </tbody>
                     </table>
@@ -2314,35 +2789,8 @@ export default function StockPage() {
                 </div>
               )}
 
-              {/* Signatures Boxes Preview */}
-              <div className="grid grid-cols-3 gap-2.5 pt-1">
-                <div className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 text-center">
-                  <div className="text-[10px] font-bold text-slate-600 dark:text-slate-400">
-                    Responsable Économat
-                  </div>
-                  <div className="h-8"></div>
-                  <div className="text-[9px] text-slate-400">Signature &amp; Date</div>
-                </div>
-
-                <div className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 text-center">
-                  <div className="text-[10px] font-bold text-slate-600 dark:text-slate-400">
-                    Bénéficiaires (Demandeurs)
-                  </div>
-                  <div className="h-8"></div>
-                  <div className="text-[9px] text-slate-400">Émargement / Réception</div>
-                </div>
-
-                <div className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 text-center">
-                  <div className="text-[10px] font-bold text-slate-600 dark:text-slate-400">
-                    Direction Générale
-                  </div>
-                  <div className="h-8"></div>
-                  <div className="text-[9px] text-slate-400">Visa &amp; Cachet</div>
-                </div>
-              </div>
-
               {/* Footer Buttons */}
-              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800 w-full flex-wrap">
+              <div className="flex items-center justify-between gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800 w-full flex-wrap">
                 <button
                   type="button"
                   onClick={() => setShowReportModal(false)}
@@ -2351,23 +2799,37 @@ export default function StockPage() {
                   Fermer
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleExportExcel}
-                  className="px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer flex items-center gap-1.5 shrink-0"
-                >
-                  <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                  <span>Exporter Excel (.csv)</span>
-                </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {reportSubTab === 'VIEW' && (
+                    <button
+                      type="button"
+                      onClick={handleSaveReportToSupabase}
+                      disabled={savingReport}
+                      className="px-4 py-2.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 rounded-xl cursor-pointer flex items-center gap-1.5 shrink-0 transition-all"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>{savingReport ? 'Sauvegarde...' : 'Sauvegarder dans Supabase'}</span>
+                    </button>
+                  )}
 
-                <button
-                  type="button"
-                  onClick={handlePrintReport}
-                  className="px-5 py-2.5 text-xs font-black text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl shadow-md shadow-blue-500/25 transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
-                >
-                  <Printer className="w-4 h-4" />
-                  <span>Exporter PDF (1 Page A4)</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleExportReportExcel}
+                    className="px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer flex items-center gap-1.5 shrink-0"
+                  >
+                    <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>Exporter Excel (.csv)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handlePrintReport}
+                    className="px-5 py-2.5 text-xs font-black text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl shadow-md shadow-blue-500/25 transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>Exporter PDF (1 Page A4)</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -2403,16 +2865,22 @@ export default function StockPage() {
               </div>
             </div>
             <div className="text-right border-2 border-black px-3 py-2 rounded-lg bg-gray-50">
-              <div className="font-black text-xs uppercase tracking-wide">BILAN OFFICIEL DU STOCK</div>
-              <div className="text-[9pt] font-semibold text-gray-800">Date : {new Date().toLocaleDateString('fr-FR')}</div>
-              <div className="text-[8pt] text-gray-600 font-mono">Réf : BILAN-STK-{new Date().getFullYear()}</div>
+              <div className="font-black text-xs uppercase tracking-wide">
+                {reportType === 'MONTHLY' ? 'BILAN MENSUEL DU STOCK' : 'BILAN PÉRIODIQUE DU STOCK'}
+              </div>
+              <div className="text-[9pt] font-semibold text-gray-800">
+                Période : {reportType === 'MONTHLY' ? selectedReportMonth : `${periodicStartDate} au ${periodicEndDate}`}
+              </div>
+              <div className="text-[8pt] text-gray-600 font-mono">Date d&apos;édition : {new Date().toLocaleDateString('fr-FR')}</div>
             </div>
           </div>
 
           {/* Title Banner */}
           <div className="text-center py-1 bg-gray-100 border border-black rounded-lg">
             <h2 className="text-sm font-black uppercase tracking-wide">
-              RAPPORT GÉNÉRAL D&apos;INVENTAIRE &amp; REGISTRE DES DÉCHARGES DE MATÉRIEL
+              {reportType === 'MONTHLY'
+                ? `RAPPORT DU MOIS DE ${new Date(`${selectedReportMonth}-01`).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }).toUpperCase()} &bull; INVENTAIRE &amp; DÉCHARGES`
+                : `RAPPORT PÉRIODIQUE D'INVENTAIRE &amp; DÉCHARGES (${periodicStartDate} AU ${periodicEndDate})`}
             </h2>
           </div>
 
@@ -2422,16 +2890,16 @@ export default function StockPage() {
               <tr className="bg-gray-200 font-black text-[9.5pt]">
                 <th className="border border-black p-2 w-1/4">📦 Articles Référencés</th>
                 <th className="border border-black p-2 w-1/4">📊 Unités Totales en Magasin</th>
-                <th className="border border-black p-2 w-1/4">📤 Décharges &amp; Sorties</th>
-                <th className="border border-black p-2 w-1/4">⚠️ Alertes de Rupture</th>
+                <th className="border border-black p-2 w-1/4">📤 Décharges Période (-OUT)</th>
+                <th className="border border-black p-2 w-1/4">📥 Entrées Période (+IN)</th>
               </tr>
             </thead>
             <tbody>
               <tr className="font-black text-[12pt] bg-white">
-                <td className="border border-black p-2 text-blue-900">{stockStats.totalArticles} Articles</td>
-                <td className="border border-black p-2 text-emerald-800">{stockStats.totalItemsCount.toLocaleString()} Unités</td>
-                <td className="border border-black p-2 text-purple-900">{movements.filter((m) => m.movement_type === 'OUT').length} Décharges</td>
-                <td className="border border-black p-2 text-rose-800">{stockStats.lowStockCount + stockStats.outOfStockCount} Alertes</td>
+                <td className="border border-black p-2 text-blue-900">{products.length} Articles</td>
+                <td className="border border-black p-2 text-emerald-800">{reportStats.totalUnitsInStock.toLocaleString()} Unités</td>
+                <td className="border border-black p-2 text-purple-900">-{reportStats.totalOutUnits} ({reportStats.totalDispatchesCount} bons)</td>
+                <td className="border border-black p-2 text-emerald-700">+{reportStats.totalInUnits} ({reportStats.totalReassortsCount} réassorts)</td>
               </tr>
             </tbody>
           </table>
@@ -2440,7 +2908,7 @@ export default function StockPage() {
           <div>
             <div className="flex items-center justify-between border-b-2 border-black pb-1 mb-1.5">
               <h3 className="font-black text-[10pt] uppercase tracking-wide">
-                1. Inventaire Physique Détaillé du Stock en Magasin
+                1. Inventaire Physique des Articles en Magasin
               </h3>
               <span className="text-[8.5pt] font-bold text-gray-600">{products.length} références actives</span>
             </div>
@@ -2472,14 +2940,14 @@ export default function StockPage() {
             </table>
           </div>
 
-          {/* Section 2: Dispatches */}
+          {/* Section 2: Dispatches / Movements of the period */}
           <div>
             <div className="flex items-center justify-between border-b-2 border-black pb-1 mb-1.5">
               <h3 className="font-black text-[10pt] uppercase tracking-wide">
-                2. Registre des Décharges &amp; Sorties de Matériel
+                2. Registre des Décharges &amp; Mouvements de la Période
               </h3>
               <span className="text-[8.5pt] font-bold text-gray-600">
-                {movements.filter((m) => m.movement_type === 'OUT').length} dotations enregistrées
+                {reportFilteredMovements.length} mouvement(s)
               </span>
             </div>
             <table className="w-full border-collapse border-2 border-black text-[9pt]">
@@ -2487,56 +2955,32 @@ export default function StockPage() {
                 <tr className="bg-gray-100 font-black">
                   <th className="border border-black p-1.5 text-left w-[13%]">N° Bon</th>
                   <th className="border border-black p-1.5 text-left w-[13%]">Date</th>
-                  <th className="border border-black p-1.5 text-left w-[26%]">Bénéficiaire (Demandeur)</th>
+                  <th className="border border-black p-1.5 text-left w-[26%]">Demandeur / Bénéficiaire</th>
                   <th className="border border-black p-1.5 text-left w-[26%]">Article Remis</th>
                   <th className="border border-black p-1.5 text-center w-[10%]">Qté</th>
                   <th className="border border-black p-1.5 text-left w-[12%]">Émargement</th>
                 </tr>
               </thead>
               <tbody>
-                {movements.filter((m) => m.movement_type === 'OUT').length === 0 ? (
+                {reportFilteredMovements.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="border border-black p-3 text-center text-gray-500 font-medium">
-                      Aucune sortie de matériel enregistrée pour cette période.
+                      Aucun mouvement de stock enregistré pour cette période.
                     </td>
                   </tr>
                 ) : (
-                  movements
-                    .filter((m) => m.movement_type === 'OUT')
-                    .slice(0, 5)
-                    .map((mov) => (
-                      <tr key={mov.id}>
-                        <td className="border border-black p-1.5 font-mono font-bold text-[8.5pt]">{mov.voucher_number || 'BS-001'}</td>
-                        <td className="border border-black p-1.5 text-[8.5pt]">{new Date(mov.created_at).toLocaleDateString('fr-FR')}</td>
-                        <td className="border border-black p-1.5 font-bold text-[9pt]">{mov.requested_by || 'Personnel'}</td>
-                        <td className="border border-black p-1.5 font-bold text-[9pt]">{mov.product?.name}</td>
-                        <td className="border border-black p-1.5 font-black text-center text-[9.5pt]">
-                          -{mov.quantity} {mov.product?.unit || 'U'}
-                        </td>
-                        <td className="border border-black p-1.5"></td>
-                      </tr>
-                    ))
-                )}
-                {/* Visual empty rows to balance the layout if few movements */}
-                {movements.filter((m) => m.movement_type === 'OUT').length < 3 && (
-                  <>
-                    <tr className="border border-black h-7 text-gray-300 text-center text-[8pt]">
-                      <td className="border border-black p-1 font-mono">---</td>
-                      <td className="border border-black p-1">---</td>
-                      <td className="border border-black p-1">---</td>
-                      <td className="border border-black p-1">---</td>
-                      <td className="border border-black p-1">---</td>
-                      <td className="border border-black p-1"></td>
+                  reportFilteredMovements.slice(0, 6).map((mov) => (
+                    <tr key={mov.id}>
+                      <td className="border border-black p-1.5 font-mono font-bold text-[8.5pt]">{mov.voucher_number || 'BS-001'}</td>
+                      <td className="border border-black p-1.5 text-[8.5pt]">{new Date(mov.created_at).toLocaleDateString('fr-FR')}</td>
+                      <td className="border border-black p-1.5 font-bold text-[9pt]">{mov.requested_by || 'Personnel'}</td>
+                      <td className="border border-black p-1.5 font-bold text-[9pt]">{mov.product?.name}</td>
+                      <td className="border border-black p-1.5 font-black text-center text-[9.5pt]">
+                        {mov.movement_type === 'IN' ? `+${mov.quantity}` : `-${mov.quantity}`} {mov.product?.unit || 'U'}
+                      </td>
+                      <td className="border border-black p-1.5"></td>
                     </tr>
-                    <tr className="border border-black h-7 text-gray-300 text-center text-[8pt]">
-                      <td className="border border-black p-1 font-mono">---</td>
-                      <td className="border border-black p-1">---</td>
-                      <td className="border border-black p-1">---</td>
-                      <td className="border border-black p-1">---</td>
-                      <td className="border border-black p-1">---</td>
-                      <td className="border border-black p-1"></td>
-                    </tr>
-                  </>
+                  ))
                 )}
               </tbody>
             </table>
@@ -2562,7 +3006,7 @@ export default function StockPage() {
 
           <div className="flex items-center justify-between text-[7.5pt] text-gray-600 border-t border-black pt-1">
             <span>Groupe Scolaire des Générations Montantes &bull; Système de Gestion &amp; Traçabilité des Stocks</span>
-            <span className="font-bold">Page 1 / 1 &bull; Document d&apos;inventaire faisant foi</span>
+            <span className="font-bold">Document officiel faisant foi &bull; Généré le {new Date().toLocaleDateString('fr-FR')}</span>
           </div>
         </div>
       </div>
