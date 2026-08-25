@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useI18n } from '@/lib/i18n';
 import { useSettings } from '@/lib/settings';
 import { Student } from '@/types/database';
@@ -31,8 +31,29 @@ export function PaymentReceiptModal({
   const { t, dir } = useI18n();
   const { settings } = useSettings();
 
+  const formattedTitle = React.useMemo(() => {
+    const studentName = `${student.first_name || ''} ${student.last_name || ''}`.trim();
+    const cleanStudentName = studentName.replace(/\s+/g, '_');
+    const cleanMonth = (monthName || record.month || 'Mois').replace(/\s+/g, '_');
+    return `Recu_${cleanStudentName}_${cleanMonth}`;
+  }, [student, record, monthName]);
+
+  useEffect(() => {
+    const originalTitle = document.title;
+    document.title = formattedTitle;
+
+    return () => {
+      document.title = originalTitle;
+    };
+  }, [formattedTitle]);
+
   const handlePrint = () => {
+    const originalTitle = document.title;
+    document.title = formattedTitle;
     window.print();
+    setTimeout(() => {
+      document.title = formattedTitle;
+    }, 1000);
   };
 
   const paymentMethodsLabels: Record<string, string> = {
