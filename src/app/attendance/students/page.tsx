@@ -343,6 +343,33 @@ export default function StudentAttendancePage() {
     });
   };
 
+  // Direct edit for late duration in minutes (Students)
+  const handleLateMinutesChange = (student: Student, minutes: number) => {
+    const existing = dailyRecordMap[student.id];
+    const safeMinutes = Math.max(1, Math.min(minutes || 1, 480));
+
+    const updatedRecord: StudentAttendance = {
+      id: existing?.id || `att-stud-${student.id}-${selectedDate}`,
+      student_id: student.id,
+      class_id: student.class_id || undefined,
+      date: selectedDate,
+      status: 'LATE',
+      check_in_time: existing?.check_in_time || '08:15',
+      expected_time: '08:00',
+      late_minutes: safeMinutes,
+      is_justified: existing?.is_justified || false,
+      justification_reason: existing?.justification_reason || '',
+      notes: existing?.notes || '',
+    };
+
+    const nextRecords = [
+      ...attendanceRecords.filter((r) => !(r.student_id === student.id && r.date === selectedDate)),
+      updatedRecord,
+    ];
+
+    persistAttendanceRecords(nextRecords);
+  };
+
   // Toggle justification for absent student (Justifié 🟢 / Non Justifié 🔴)
   const handleToggleJustification = (student: Student) => {
     const existing = dailyRecordMap[student.id];
@@ -1617,9 +1644,22 @@ export default function StudentAttendancePage() {
                             {/* Delay Duration */}
                             <td className="py-3.5 px-4 text-center whitespace-nowrap">
                               {status === 'LATE' ? (
-                                <span className="inline-block px-2.5 py-1 rounded bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 font-mono text-[11px] font-bold border border-amber-300/50">
-                                  {formatDelayDuration(lateMins)}
-                                </span>
+                                <div className="inline-flex items-center justify-center gap-1 px-1.5 py-0.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700/70 shadow-2xs">
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    max="480"
+                                    step="5"
+                                    value={lateMins || 15}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value, 10);
+                                      handleLateMinutesChange(student, isNaN(val) ? 0 : val);
+                                    }}
+                                    className="w-11 text-center font-mono text-xs font-black bg-white dark:bg-slate-900 text-amber-800 dark:text-amber-300 rounded border border-amber-300 dark:border-amber-700/80 py-0.5 px-0.5 focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-2xs"
+                                    title="Modifier la durée du retard en minutes"
+                                  />
+                                  <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400">min</span>
+                                </div>
                               ) : (
                                 <span className="text-slate-400 font-mono text-xs">-</span>
                               )}

@@ -386,6 +386,40 @@ export default function StaffAttendancePage() {
     });
   };
 
+  // Direct edit for late duration in minutes
+  const handleLateMinutesChange = (staff: StaffMember, minutes: number) => {
+    const existing = dailyRecordMap[staff.id];
+    const safeMinutes = Math.max(1, Math.min(minutes || 1, 480));
+    const currentDayOfWeek = new Date(selectedDate).getDay();
+    const shift = staffShifts[staff.id];
+    const isMorningGardeToday = shift && (shift.gardeEntryDays?.includes(currentDayOfWeek) || (shift.hasGardeEntry && currentDayOfWeek >= 1 && currentDayOfWeek <= 5));
+    const isEveningGardeToday = shift && (shift.gardeDays?.includes(currentDayOfWeek) || (shift.hasGarde && currentDayOfWeek >= 1 && currentDayOfWeek <= 5));
+
+    const expectedEntry = isMorningGardeToday ? (shift?.expectedEntry || '08:00') : (shift?.expectedEntry || '08:15');
+    const expectedExit = currentDayOfWeek === 5 ? '12:20' : (shift?.expectedExit || '16:15');
+
+    const updatedRecord: StaffAttendanceRecord = {
+      id: existing?.id || `att-${staff.id}-${selectedDate}`,
+      staff_id: staff.id,
+      date: selectedDate,
+      status: 'LATE',
+      check_in_time: existing?.check_in_time || '08:35',
+      expected_time: expectedEntry,
+      check_out_time: expectedExit,
+      late_minutes: safeMinutes,
+      is_justified: existing?.is_justified || false,
+      justification_reason: existing?.justification_reason || '',
+      notes: existing?.notes || (isMorningGardeToday ? 'Garde Matin' : isEveningGardeToday ? 'Garde Soir' : ''),
+    };
+
+    const nextRecords = [
+      ...attendanceRecords.filter((r) => !(r.staff_id === staff.id && r.date === selectedDate)),
+      updatedRecord,
+    ];
+
+    persistAttendanceRecords(nextRecords);
+  };
+
   // Apply ZKTeco import results with automated calculation of retards, gardes & absences
   const handleApplyZKTecoAttendance = (
     importedRecords: StaffAttendanceRecord[],
@@ -1765,9 +1799,22 @@ export default function StaffAttendancePage() {
                           {/* Delay Duration */}
                           <td className="py-2.5 px-3 text-center overflow-hidden">
                             {status === 'LATE' ? (
-                              <span className="inline-block max-w-full truncate px-1.5 py-0.5 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-mono text-[10px] font-bold">
-                                {formatDelayDuration(lateMins)}
-                              </span>
+                              <div className="inline-flex items-center justify-center gap-1 px-1.5 py-0.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700/70 shadow-2xs">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="480"
+                                  step="5"
+                                  value={lateMins || 20}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value, 10);
+                                    handleLateMinutesChange(staff, isNaN(val) ? 0 : val);
+                                  }}
+                                  className="w-11 text-center font-mono text-xs font-black bg-white dark:bg-slate-900 text-amber-800 dark:text-amber-300 rounded border border-amber-300 dark:border-amber-700/80 py-0.5 px-0.5 focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-2xs"
+                                  title="Modifier la durée du retard en minutes"
+                                />
+                                <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400">min</span>
+                              </div>
                             ) : status === 'ABSENT' || status === 'EXCUSED' ? (
                               <span
                                 className={`inline-block max-w-full truncate px-1.5 py-0.5 rounded-lg text-[10px] font-bold ${
