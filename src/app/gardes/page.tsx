@@ -136,6 +136,33 @@ export default function GardesPlanningPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedDayFilter, setSelectedDayFilter] = useState<number | 'ALL'>('ALL');
+  const [viewMode, setViewMode] = useState<'grid_floors' | 'matrix_teachers'>('grid_floors');
+
+  // Helper to get floor slots (Matin, Midi, Soir)
+  const getFloorSlots = (floor: SchoolFloor) => {
+    const slots: Array<{ key: 'morning' | 'lunch' | 'evening'; label: string; time: string; badgeColor: string }> = [
+      { key: 'morning', label: 'Matin', time: '08h00', badgeColor: 'bg-sky-50 text-sky-800 border-sky-300 dark:bg-sky-950/60 dark:text-sky-300' },
+    ];
+    if (floor.hasLunchGuard !== false) {
+      slots.push({ key: 'lunch', label: 'Midi', time: '12h20', badgeColor: 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300' });
+    }
+    slots.push({ key: 'evening', label: 'Soir', time: '16h00 (Ven 12h20)', badgeColor: 'bg-purple-50 text-purple-800 border-purple-300 dark:bg-purple-950/60 dark:text-purple-300' });
+    return slots;
+  };
+
+  // Helper to get assigned teachers for a given floor, day, and slot
+  const getSlotAssignedTeachers = (floorId: string, dayId: number, slotType: 'morning' | 'lunch' | 'evening') => {
+    return teachers.filter((t) => {
+      const shift = staffShifts[t.id];
+      if (!shift) return false;
+      const fId = shift.assignedFloors?.[dayId] || floors[0]?.id;
+      if (fId !== floorId) return false;
+      if (slotType === 'morning') return shift.gardeEntryDays?.includes(dayId);
+      if (slotType === 'lunch') return dayId !== 5 && shift.gardeLunchDays?.includes(dayId);
+      if (slotType === 'evening') return shift.gardeDays?.includes(dayId);
+      return false;
+    });
+  };
 
   // Floors Config Modal
   const [showFloorsModal, setShowFloorsModal] = useState<boolean>(false);
@@ -1311,39 +1338,195 @@ export default function GardesPlanningPage() {
             />
           </div>
 
-          {/* Day Pills (5 School Days) */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+          {/* View Mode Toggle Tabs */}
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700">
             <button
               type="button"
-              onClick={() => setSelectedDayFilter('ALL')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                selectedDayFilter === 'ALL'
-                  ? 'bg-purple-600 text-white shadow-sm shadow-purple-600/20'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+              onClick={() => setViewMode('grid_floors')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'grid_floors'
+                  ? 'bg-purple-600 text-white shadow-sm shadow-purple-600/30'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              Semaine Complète (Lun-Ven)
+              <Building2 className="w-3.5 h-3.5" />
+              <span>{dir === 'rtl' ? 'جدول الطوابق (الرسمي)' : 'Tableau par Étages (Officiel)'}</span>
             </button>
-            {SCHOOL_DAYS.map((day) => (
-              <button
-                key={day.id}
-                type="button"
-                onClick={() => setSelectedDayFilter(day.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                  selectedDayFilter === day.id
-                    ? 'bg-purple-600 text-white shadow-sm shadow-purple-600/20'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
-                }`}
-              >
-                <span>{day.name}</span>
-                {day.id === 5 && <span className="ml-1 text-[9px] text-amber-500 font-mono">(12h20)</span>}
-              </button>
-            ))}
+            <button
+              type="button"
+              onClick={() => setViewMode('matrix_teachers')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'matrix_teachers'
+                  ? 'bg-purple-600 text-white shadow-sm shadow-purple-600/30'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>{dir === 'rtl' ? 'حسب الأستاذ' : 'Par Enseignant'}</span>
+            </button>
           </div>
         </div>
 
-        {/* 4. Weekly Interactive Matrix Table (Fixed Width - 5 School Days) */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden print:hidden">
+        {/* 4. MAIN VIEW A: Official Floors & Créneaux Grid (Exact Layout from User Request) */}
+        {viewMode === 'grid_floors' && (
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden print:hidden animate-in fade-in duration-200">
+            <div className="overflow-x-auto">
+              <table className="w-full table-fixed text-left text-xs border-collapse min-w-[850px]">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 font-bold border-b border-slate-200 dark:border-slate-700 text-center">
+                    <th className="p-3 w-[15%] text-left border-r border-slate-200 dark:border-slate-700/80">Étages</th>
+                    <th className="p-3 w-[12%] text-center border-r border-slate-200 dark:border-slate-700/80">Créneaux</th>
+                    {SCHOOL_DAYS.map((day) => (
+                      <th key={day.id} className="p-3 w-[14.6%] text-center border-r border-slate-200 dark:border-slate-700/80 last:border-r-0">
+                        <div className="text-slate-900 dark:text-white font-bold leading-tight">{day.name}</div>
+                        <div className="text-[9.5px] font-normal text-slate-400 mt-0.5">
+                          {day.id === 5 ? '08:15 - 12:20' : '08:15 - 16:15'}
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                  {loading ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-12 text-slate-400 font-medium">
+                        Chargement du planning des gardes...
+                      </td>
+                    </tr>
+                  ) : floors.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-12 text-slate-400 font-medium">
+                        Aucun étage configuré.
+                      </td>
+                    </tr>
+                  ) : (
+                    floors.map((floor, fIdx) => {
+                      const slots = getFloorSlots(floor);
+                      return slots.map((slot, sIdx) => {
+                        return (
+                          <tr key={`${floor.id}-${slot.key}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                            {/* Floor Name Column with rowSpan */}
+                            {sIdx === 0 && (
+                              <td
+                                rowSpan={slots.length}
+                                className="p-3 border-r border-b border-slate-200 dark:border-slate-800 font-bold align-middle bg-slate-50/70 dark:bg-slate-800/40"
+                              >
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-purple-500 shrink-0"></span>
+                                    <span className="text-xs font-black text-slate-900 dark:text-white">{floor.name}</span>
+                                  </div>
+                                  {floor.isMaternelleOnly && (
+                                    <div className="text-[9.5px] text-pink-600 dark:text-pink-400 font-bold flex items-center gap-1">
+                                      <Baby className="w-3 h-3" />
+                                      <span>100% Maternelle</span>
+                                    </div>
+                                  )}
+                                  <div className="text-[10px] text-slate-400 font-medium">
+                                    Quota: <span className="font-bold text-slate-700 dark:text-slate-300">{floor.requiredTeachers} ens.</span>
+                                  </div>
+                                </div>
+                              </td>
+                            )}
+
+                            {/* Slot Name Column (Matin, Midi, Soir) */}
+                            <td className="p-2.5 border-r border-slate-200 dark:border-slate-800 text-center align-middle bg-slate-50/30 dark:bg-slate-800/20">
+                              <div className="inline-flex flex-col items-center">
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${slot.badgeColor}`}>
+                                  {slot.label === 'Matin' ? '🌅 Matin' : slot.label === 'Midi' ? '🍱 Midi' : '🌇 Soir'}
+                                </span>
+                                <span className="text-[9px] text-slate-400 font-mono mt-0.5">{slot.time}</span>
+                              </div>
+                            </td>
+
+                            {/* Day Cells (Lundi à Vendredi) */}
+                            {SCHOOL_DAYS.map((day) => {
+                              const isVenLunch = day.id === 5 && slot.key === 'lunch';
+                              const assigned = getSlotAssignedTeachers(floor.id, day.id, slot.key);
+                              const matchSearch = (t: GardeTeacher) =>
+                                !searchQuery.trim() ||
+                                `${t.first_name} ${t.last_name} ${t.staff_code} ${t.role_title}`
+                                  .toLowerCase()
+                                  .includes(searchQuery.toLowerCase());
+
+                              return (
+                                <td
+                                  key={day.id}
+                                  className={`p-2 border-r border-slate-200 dark:border-slate-800 last:border-r-0 align-middle ${
+                                    isVenLunch ? 'bg-slate-50/40 dark:bg-slate-800/20' : ''
+                                  }`}
+                                >
+                                  {isVenLunch ? (
+                                    <div className="text-center text-[9px] text-slate-400 italic">
+                                      -
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-1">
+                                      {assigned.map((tch) => {
+                                        const isHighlighted = searchQuery.trim() && matchSearch(tch);
+                                        return (
+                                          <div
+                                            key={tch.id}
+                                            className={`p-1.5 rounded-xl border flex items-center justify-between gap-1 shadow-2xs group transition-all ${
+                                              isHighlighted
+                                                ? 'bg-amber-100 dark:bg-amber-950/80 border-amber-400 text-amber-900 dark:text-amber-200 ring-2 ring-amber-400'
+                                                : 'bg-white dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white'
+                                            }`}
+                                          >
+                                            <div className="min-w-0">
+                                              <div className="font-bold text-[10.5px] leading-tight truncate" title={`${tch.first_name} ${tch.last_name} (${tch.role_title})`}>
+                                                {tch.first_name} {tch.last_name}
+                                              </div>
+                                              <div className="text-[8.5px] text-slate-400 truncate leading-tight mt-0.5">
+                                                {tch.role_title}
+                                              </div>
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleRemoveTeacherSlot(tch.id, slot.key, day.id)}
+                                              className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-rose-100 dark:hover:bg-rose-950/60 text-rose-500 rounded transition-opacity cursor-pointer shrink-0"
+                                              title="Retirer cet enseignant"
+                                            >
+                                              <X className="w-3 h-3" />
+                                            </button>
+                                          </div>
+                                        );
+                                      })}
+
+                                      {/* Affecter / Add button if quota not met */}
+                                      {assigned.length < floor.requiredTeachers && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setActiveFloorForManualFix(floor);
+                                            setManualFixDay(day.id);
+                                          }}
+                                          className="w-full py-1 px-1.5 rounded-xl border border-dashed border-purple-300 dark:border-purple-700/80 bg-purple-50/50 dark:bg-purple-950/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 text-[9.5px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
+                                          title={`Affecter un enseignant (${assigned.length}/${floor.requiredTeachers})`}
+                                        >
+                                          <Plus className="w-3 h-3" />
+                                          <span>{assigned.length > 0 ? `+ Ens. (${assigned.length}/${floor.requiredTeachers})` : '+ Affecter'}</span>
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      });
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* 4. MAIN VIEW B: Weekly Interactive Matrix Table by Teacher */}
+        {viewMode === 'matrix_teachers' && (
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden print:hidden animate-in fade-in duration-200">
           <table className="w-full table-fixed text-left text-xs">
             <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700">
               <tr>
@@ -1569,6 +1752,7 @@ export default function GardesPlanningPage() {
             </tbody>
           </table>
         </div>
+        )}
 
         {/* 5. Modal: Configuration des Étages et Quotas */}
         {showFloorsModal && (
@@ -2277,57 +2461,65 @@ export default function GardesPlanningPage() {
             </div>
           </div>
 
-          {/* Full Width Planning Table */}
+          {/* Official Planning Table by Floors & Days (Exact School Board Grid matching Sketch) */}
           <div className="print-table-wrapper">
-            <table className="print-table w-full table-fixed border-collapse text-[10px]">
+            <table className="print-table w-full table-fixed border-collapse text-[10px] border border-slate-900">
               <thead>
-                <tr className="bg-slate-100 border border-slate-400 text-center font-bold">
-                  <th className="p-2 text-left border border-slate-400 w-[24%]">Enseignant &amp; Fonction</th>
-                  <th className="p-2 border border-slate-400 w-[14%]">Lundi</th>
-                  <th className="p-2 border border-slate-400 w-[14%]">Mardi</th>
-                  <th className="p-2 border border-slate-400 w-[14%]">Mercredi</th>
-                  <th className="p-2 border border-slate-400 w-[14%]">Jeudi</th>
-                  <th className="p-2 border border-slate-400 w-[14%]">Vendredi (12h20)</th>
-                  <th className="p-2 border border-slate-400 w-[6%]">Total</th>
+                <tr className="bg-slate-100 border border-slate-900 text-center font-bold">
+                  <th className="p-2 text-left border border-slate-900 w-[14%] bg-slate-200 text-slate-900">Étages</th>
+                  <th className="p-2 border border-slate-900 w-[11%] bg-slate-200 text-slate-900">Créneaux</th>
+                  <th className="p-2 border border-slate-900 w-[15%]">Lundi</th>
+                  <th className="p-2 border border-slate-900 w-[15%]">Mardi</th>
+                  <th className="p-2 border border-slate-900 w-[15%]">Mercredi</th>
+                  <th className="p-2 border border-slate-900 w-[15%]">Jeudi</th>
+                  <th className="p-2 border border-slate-900 w-[15%]">Vendredi (12h20)</th>
                 </tr>
               </thead>
               <tbody>
-                {printableTeachers.map((t) => {
-                  const shift = staffShifts[t.id] || { expectedEntry: '08:15', expectedExit: '16:15' };
-                  const totalCount = (shift.gardeEntryDays?.length || 0) + (shift.gardeLunchDays?.length || 0) + (shift.gardeDays?.length || 0);
-
-                  return (
-                    <tr key={t.id} className="border border-slate-300 text-center">
-                      <td className="p-2 text-left border border-slate-300 font-bold leading-tight">
-                        <div className="text-[11px] text-slate-900">{t.first_name} {t.last_name}</div>
-                        <div className="text-[9px] text-slate-500 font-normal mt-0.5">{t.role_title} ({t.staff_code})</div>
+                {floors.map((floor) => {
+                  const slots = getFloorSlots(floor);
+                  return slots.map((slot, sIdx) => (
+                    <tr key={`${floor.id}-${slot.key}`} className="border border-slate-900 text-center">
+                      {sIdx === 0 && (
+                        <td
+                          rowSpan={slots.length}
+                          className="p-2 border border-slate-900 font-black text-center bg-slate-100/70 text-slate-900 text-[11px] align-middle"
+                        >
+                          <div className="font-extrabold">{floor.name}</div>
+                          {floor.isMaternelleOnly && (
+                            <div className="text-[8.5px] text-pink-700 font-bold mt-0.5">(Maternelle)</div>
+                          )}
+                          <div className="text-[8px] text-slate-600 font-normal mt-0.5">Quota: {floor.requiredTeachers} ens.</div>
+                        </td>
+                      )}
+                      <td className="p-1.5 border border-slate-900 font-bold text-center bg-slate-50 text-slate-800 text-[9.5px] align-middle">
+                        <div className="font-bold">{slot.label}</div>
+                        <div className="text-[8px] text-slate-500 font-normal">{slot.time}</div>
                       </td>
-                      {[1, 2, 3, 4, 5].map((d) => {
-                        const m = shift.gardeEntryDays?.includes(d);
-                        const l = shift.gardeLunchDays?.includes(d);
-                        const e = shift.gardeDays?.includes(d);
-                        const floorId = shift.assignedFloors?.[d];
-                        const floorName = floors.find((f) => f.id === floorId)?.name || 'Rez-de-chaussée & Cour';
+                      {SCHOOL_DAYS.map((day) => {
+                        const isVenLunch = day.id === 5 && slot.key === 'lunch';
+                        const assigned = getSlotAssignedTeachers(floor.id, day.id, slot.key);
 
                         return (
-                          <td key={d} className="p-1.5 border border-slate-300 text-[9.5px] leading-snug">
-                            {m && <div className="font-bold text-sky-800">🌅 Matin (08h00)</div>}
-                            {l && <div className="font-bold text-amber-800">🍱 Midi (12h20)</div>}
-                            {e && (
-                              <div className="font-bold text-purple-800">
-                                {d === 5 ? '🌇 Sortie (12h20)' : '🌇 Soir (16h00)'}
+                          <td key={day.id} className="p-1.5 border border-slate-900 text-center align-middle">
+                            {isVenLunch ? (
+                              <span className="text-slate-400 text-[8px]">-</span>
+                            ) : assigned.length > 0 ? (
+                              <div className="space-y-0.5">
+                                {assigned.map((t) => (
+                                  <div key={t.id} className="font-black text-[10px] text-slate-900 leading-tight">
+                                    {t.first_name} {t.last_name}
+                                  </div>
+                                ))}
                               </div>
+                            ) : (
+                              <span className="text-slate-300 font-mono text-[9px]">-</span>
                             )}
-                            {(m || l || e) && <div className="text-slate-600 font-semibold text-[8px] mt-0.5">🏢 {floorName}</div>}
-                            {!m && !l && !e && <span className="text-slate-300">-</span>}
                           </td>
                         );
                       })}
-                      <td className="p-2 border border-slate-300 font-black text-[12px] text-slate-900 bg-slate-50">
-                        {totalCount}
-                      </td>
                     </tr>
-                  );
+                  ));
                 })}
               </tbody>
             </table>
