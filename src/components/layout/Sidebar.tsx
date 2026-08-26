@@ -93,8 +93,8 @@ export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) 
     students_teachers: true,
     communication: true,
     finance: true,
-    structure: false,
-    attendance: false,
+    structure: true,
+    attendance: true,
     logistics: true,
     admin: false,
   });
@@ -192,11 +192,12 @@ export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) 
     },
     {
       id: 'students_teachers',
-      title: dir === 'rtl' ? 'التلاميذ والأساتذة' : 'Élèves & Enseignants',
+      title: dir === 'rtl' ? 'التلاميذ، الأساتذة والمواد' : 'Élèves, Enseignants & Matières',
       icon: Users,
       items: [
         { href: '/students', label: t('students'), icon: GraduationCap, iconColor: 'text-sky-400' },
         { href: '/teachers', label: t('teachers'), icon: Users, iconColor: 'text-indigo-400' },
+        { href: '/subjects', label: dir === 'rtl' ? 'المواد الدراسية' : 'Matières & Modules', icon: BookOpen, iconColor: 'text-emerald-400' },
       ],
     },
     {

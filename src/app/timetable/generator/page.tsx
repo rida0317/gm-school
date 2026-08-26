@@ -151,6 +151,40 @@ export function getClassCycle(cls: ClassEntity): EducationCycle {
   return 'PRIMAIRE';
 }
 
+/**
+ * Helper: Check if two educational levels are equivalent (e.g. CE6 <-> 6AP, CP <-> 1AP)
+ */
+const areLevelsEquivalent = (lvl1: string, lvl2: string): boolean => {
+  const a = (lvl1 || '').toUpperCase().trim();
+  const b = (lvl2 || '').toUpperCase().trim();
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const synonyms: Record<string, string[]> = {
+    'CP': ['1AP', 'CP', '1 AEP'],
+    '1AP': ['1AP', 'CP', '1 AEP'],
+    'CE1': ['2AP', 'CE1', '2 AEP'],
+    '2AP': ['2AP', 'CE1', '2 AEP'],
+    'CE2': ['3AP', 'CE2', '3 AEP'],
+    '3AP': ['3AP', 'CE2', '3 AEP'],
+    'CM1': ['4AP', 'CM1', '4 AEP'],
+    '4AP': ['4AP', 'CM1', '4 AEP'],
+    'CM2': ['5AP', 'CM2', '5 AEP'],
+    '5AP': ['5AP', 'CM2', '5 AEP'],
+    'CE6': ['6AP', 'CE6', '6AEP', 'CM6', '6 AEP', '6EME'],
+    '6AP': ['6AP', 'CE6', '6AEP', 'CM6', '6 AEP', '6EME'],
+    '6AEP': ['6AP', 'CE6', '6AEP', 'CM6', '6 AEP', '6EME'],
+    '1AC': ['7AP', '1AC', '1ASC', '1ERE AC'],
+    '2AC': ['8AP', '2AC', '2ASC', '2EME AC'],
+    '3AC': ['9AP', '3AC', '3ASC', '3EME AC'],
+    'TC': ['TRONC', 'TC', 'TCS', 'TCL'],
+    '1BAC': ['1BAC', '1ER BAC'],
+    '2BAC': ['2BAC', '2EME BAC', 'BAC'],
+  };
+  if (synonyms[a]?.some((s) => s === b || b.includes(s) || s.includes(b))) return true;
+  if (synonyms[b]?.some((s) => s === a || a.includes(s) || s.includes(a))) return true;
+  return a.includes(b) || b.includes(a);
+};
+
 export default function TimetableGeneratorPage() {
   const router = useRouter();
   const [classes, setClasses] = useState<ClassEntity[]>([]);
@@ -310,6 +344,8 @@ export default function TimetableGeneratorPage() {
       const matchesLevel = cycleLevels.some((l) => {
         const u = l.toUpperCase().trim();
         return (
+          areLevelsEquivalent(u, clsLevel) ||
+          areLevelsEquivalent(u, clsName) ||
           u === clsLevel ||
           clsName.includes(u) ||
           clsLevel.includes(u) ||
@@ -377,7 +413,13 @@ export default function TimetableGeneratorPage() {
         const clsName = (cls.name || '').toUpperCase().trim();
         const matchesLevel = tLevels.some((lvl) => {
           const u = lvl.toUpperCase().trim();
-          return u === clsLevel || clsName.startsWith(u) || clsName.includes(u);
+          return (
+            areLevelsEquivalent(u, clsLevel) ||
+            areLevelsEquivalent(u, clsName) ||
+            u === clsLevel ||
+            clsName.startsWith(u) ||
+            clsName.includes(u)
+          );
         });
         if (!matchesLevel) return false;
       }
