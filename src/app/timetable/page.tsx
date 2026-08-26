@@ -302,8 +302,21 @@ export default function TimetablePage() {
         }
       } else {
         if (cls && cls.length > 0) {
-          setClasses(cls);
-          if (!selectedClassId) setSelectedClassId(cls[0].id);
+          const nonMaternelleClasses = cls.filter((c) => {
+            const lvl = (c.level || '').toUpperCase().trim();
+            const name = (c.name || '').toUpperCase().trim();
+            return !(
+              ['TPS', 'PS', 'MS', 'GS'].includes(lvl) ||
+              name.startsWith('TPS') ||
+              name.startsWith('PS') ||
+              name.startsWith('MS') ||
+              name.startsWith('GS') ||
+              lvl.includes('MATERNELLE') ||
+              name.includes('MATERNELLE')
+            );
+          });
+          setClasses(nonMaternelleClasses);
+          if (!selectedClassId && nonMaternelleClasses.length > 0) setSelectedClassId(nonMaternelleClasses[0].id);
         }
         if (tch && tch.length > 0) {
           setTeachers(tch);

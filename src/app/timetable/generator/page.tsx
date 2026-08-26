@@ -240,7 +240,10 @@ export default function TimetableGeneratorPage() {
         supabase.from('timetable_slots').select('*', { count: 'exact', head: true }),
       ]);
 
-    if (cls) setClasses(cls);
+    if (cls) {
+      const nonMaternelleClasses = cls.filter((c) => getClassCycle(c) !== 'MATERNELLE');
+      setClasses(nonMaternelleClasses);
+    }
     if (tch) setTeachers(tch);
     if (rms) setRooms(rms);
     setExistingSlotsCount(slotsCount || 0);
