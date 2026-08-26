@@ -178,6 +178,13 @@ export default function GardesPlanningPage() {
   const [manualFixSearch, setManualFixSearch] = useState<string>('');
   const [manualFixFilter, setManualFixFilter] = useState<'all' | 'maternelle' | 'available_today'>('all');
 
+  // Secure Clear Modal State (Requires typing "supprimer" to confirm)
+  const [showClearConfirmModal, setShowClearConfirmModal] = useState<boolean>(false);
+  const [clearConfirmInput, setClearConfirmInput] = useState<string>('');
+
+  // Modal: Must Empty First before Generation
+  const [showMustEmptyModal, setShowMustEmptyModal] = useState<boolean>(false);
+
   // Sync / Save states
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
@@ -631,17 +638,17 @@ export default function GardesPlanningPage() {
     saveToSupabase(staffShifts, floors, maternelleTeacherIds, false);
   };
 
-  // 🧹 Clear all Gardes with Custom Branded Modal
-  const handleClearGardes = async () => {
-    const ok = await confirm({
-      title: 'Vider le Planning des Gardes ?',
-      message: 'Êtes-vous sûr de vouloir vider et effacer toutes les affectations de garde de la semaine pour tous les enseignants ?',
-      confirmText: 'Oui, tout effacer',
-      cancelText: 'Annuler',
-      type: 'danger',
-    });
+  // 🧹 Open Clear Confirmation Modal
+  const handleClearGardes = () => {
+    setClearConfirmInput('');
+    setShowClearConfirmModal(true);
+  };
 
-    if (!ok) return;
+  // 🧹 Execute Clear after typing "supprimer"
+  const handleExecuteClearGardes = async () => {
+    if (clearConfirmInput.trim().toLowerCase() !== 'supprimer') return;
+    setShowClearConfirmModal(false);
+    setClearConfirmInput('');
 
     const resetShifts: Record<string, ShiftConfig> = {};
     teachers.forEach((t) => {
@@ -670,6 +677,19 @@ export default function GardesPlanningPage() {
   // If a floor is isMaternelleOnly (e.g. Sous-sol), ONLY Maternelle teachers are assigned.
   // If NO Maternelle teacher is available, that floor slot remains STRICTLY EMPTY and a clear warning is displayed!
   const handleSyncWithTimetable = async () => {
+    // 🛑 Check if the planning is NOT empty: user must empty it first before generating anew!
+    const hasExistingGardes = Object.values(staffShifts).some(
+      (s) =>
+        (s.gardeEntryDays?.length || 0) > 0 ||
+        (s.gardeLunchDays?.length || 0) > 0 ||
+        (s.gardeDays?.length || 0) > 0
+    );
+
+    if (hasExistingGardes) {
+      setShowMustEmptyModal(true);
+      return;
+    }
+
     setIsSyncing(true);
     setSyncFeedback(null);
     setSyncWarning(null);
@@ -2369,6 +2389,127 @@ export default function GardesPlanningPage() {
                   className="px-5 py-2 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs font-bold shadow-md shadow-purple-600/25 hover:from-purple-500 hover:to-indigo-500 cursor-pointer"
                 >
                   Enregistrer &amp; Fermer
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Confirmation de Sécurité pour Vider le Planning */}
+        {showClearConfirmModal && (
+          <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-rose-200 dark:border-rose-900/50 shadow-2xl max-w-md w-full p-6 space-y-5 animate-in zoom-in-95">
+              <div className="flex items-start gap-3.5">
+                <div className="p-3 rounded-2xl bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 shrink-0">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    {dir === 'rtl' ? 'تأكيد أمني: إفراغ جدول الحراسة' : 'Sécurité : Vider le Planning des Gardes'}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {dir === 'rtl'
+                      ? 'هذا الإجراء سيقوم بحذف وإلغاء جميع حصص الحراسة المسجلة لهذا الأسبوع لجميع الأساتذة.'
+                      : 'Attention, cette action va effacer toutes les affectations de garde de tous les enseignants pour cette semaine.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 space-y-2">
+                <label className="text-xs font-bold text-rose-900 dark:text-rose-200 block">
+                  {dir === 'rtl'
+                    ? 'لتأكيد العملية، يرجى كتابة كلمة "supprimer" في الخانة أسفله :'
+                    : 'Pour confirmer la suppression, veuillez taper le mot '}
+                  <span className="underline font-mono font-black text-rose-600 dark:text-rose-400">supprimer</span>
+                  {dir !== 'rtl' && ' ci-dessous :'}
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="supprimer"
+                  value={clearConfirmInput}
+                  onChange={(e) => setClearConfirmInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && clearConfirmInput.trim().toLowerCase() === 'supprimer') {
+                      handleExecuteClearGardes();
+                    }
+                  }}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-rose-300 dark:border-rose-800 bg-white dark:bg-slate-900 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500 shadow-inner"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowClearConfirmModal(false);
+                    setClearConfirmInput('');
+                  }}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  {dir === 'rtl' ? 'إلغاء' : 'Annuler'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteClearGardes}
+                  disabled={clearConfirmInput.trim().toLowerCase() !== 'supprimer'}
+                  className="px-5 py-2.5 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 dark:disabled:bg-slate-800 text-white disabled:text-slate-400 shadow-md shadow-rose-600/25 disabled:shadow-none transition-all cursor-pointer disabled:cursor-not-allowed flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{dir === 'rtl' ? 'تأكيد الإفراغ النهائي' : 'Confirmer et Vider'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Notification de Sécurité - Vider d'abord le planning avant génération */}
+        {showMustEmptyModal && (
+          <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-amber-300 dark:border-amber-700/60 shadow-2xl max-w-md w-full p-6 space-y-5 animate-in zoom-in-95">
+              <div className="flex items-start gap-3.5">
+                <div className="p-3 rounded-2xl bg-amber-100 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 shrink-0">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    {dir === 'rtl' ? 'يجب إفراغ الجدول أولاً' : 'Vider d\'abord le Planning'}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {dir === 'rtl'
+                      ? 'الجدول الحالي يحتوي مسبقاً على حصص حراسة مسجلة. لتوليد توزيع جديد كلياً 100%، يجب أولاً إفراغ الجدول الحالي لتفادي التداخل.'
+                      : 'Le planning contient déjà des affectations de garde. Pour générer un nouveau planning 100% automatique, vous devez d\'abord vider le planning existant.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-xs text-amber-900 dark:text-amber-200">
+                <p className="font-semibold leading-relaxed">
+                  {dir === 'rtl'
+                    ? '💡 إضغط على زر "إفراغ الجدول الآن"، ثم اكتب كلمة "supprimer" للتأكيد. بعد ذلك ستتمكن من التوليد بضغطة زر واحدة.'
+                    : '💡 Cliquez sur « Vider le planning maintenant », puis tapez « supprimer » pour confirmer. Vous pourrez ensuite relancer la génération 100% propre.'}
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowMustEmptyModal(false)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  {dir === 'rtl' ? 'إغلاق' : 'Fermer'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMustEmptyModal(false);
+                    setClearConfirmInput('');
+                    setShowClearConfirmModal(true);
+                  }}
+                  className="px-5 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white shadow-md shadow-rose-600/25 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{dir === 'rtl' ? 'إفراغ الجدول الآن' : 'Vider le planning maintenant'}</span>
                 </button>
               </div>
             </div>
