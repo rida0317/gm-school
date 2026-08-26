@@ -872,6 +872,9 @@ export default function TimetableGeneratorPage() {
       // Track subject session count per class per day: `${dayId}_${classId}_${subjectId}` -> count (STRICT HARD CAP: <= 2)
       const classDaySubjectCount = new Map<string, number>();
 
+      // Track teacher hours per day: `${dayId}_${teacherId}` -> count (STRICT HARD CAP: <= 5 hours per day)
+      const teacherDayHoursCount = new Map<string, number>();
+
       // Build demand list for each class
       interface SingleSessionDemand {
         classEntity: ClassEntity;
@@ -972,6 +975,9 @@ export default function TimetableGeneratorPage() {
               const teacherKey = `${slot.dayId}_${slot.start}_${t.id}`;
               if (teacherOccupied.has(teacherKey)) continue;
 
+              const tDayKey = `${slot.dayId}_${t.id}`;
+              if ((teacherDayHoursCount.get(tDayKey) || 0) >= 5) continue; // MAX 5H/DAY PER TEACHER
+
               validSlots.push({ slot, teacher: t, currentDaySessions: currentDayCount });
               break;
             }
@@ -988,10 +994,12 @@ export default function TimetableGeneratorPage() {
             const classKey = `${slot.dayId}_${slot.start}_${cls.id}`;
             const teacherKey = `${slot.dayId}_${slot.start}_${assignedTeacher.id}`;
             const daySubjKey = `${slot.dayId}_${cls.id}_${subj.id}`;
+            const tDayKey = `${slot.dayId}_${assignedTeacher.id}`;
 
             teacherOccupied.add(teacherKey);
             classOccupied.add(classKey);
             classDaySubjectCount.set(daySubjKey, (classDaySubjectCount.get(daySubjKey) || 0) + 1);
+            teacherDayHoursCount.set(tDayKey, (teacherDayHoursCount.get(tDayKey) || 0) + 1);
 
             generated.push({
               class_id: cls.id,
@@ -1042,15 +1050,20 @@ export default function TimetableGeneratorPage() {
               const teacherKey = `${slot.dayId}_${slot.start}_${t.id}`;
               if (teacherOccupied.has(teacherKey)) continue;
 
+              const tDayKey = `${slot.dayId}_${t.id}`;
+              if ((teacherDayHoursCount.get(tDayKey) || 0) >= 5) continue; // MAX 5H/DAY PER TEACHER
+
               assignedTeacher = t;
               break;
             }
 
             if (assignedTeacher) {
               const teacherKey = `${slot.dayId}_${slot.start}_${assignedTeacher.id}`;
+              const tDayKey = `${slot.dayId}_${assignedTeacher.id}`;
               teacherOccupied.add(teacherKey);
               classOccupied.add(classKey);
               classDaySubjectCount.set(daySubjKey, currentDayCount + 1);
+              teacherDayHoursCount.set(tDayKey, (teacherDayHoursCount.get(tDayKey) || 0) + 1);
 
               generated.push({
                 class_id: cls.id,
@@ -1102,15 +1115,20 @@ export default function TimetableGeneratorPage() {
               const teacherKey = `${slot.dayId}_${slot.start}_${t.id}`;
               if (teacherOccupied.has(teacherKey)) continue;
 
+              const tDayKey = `${slot.dayId}_${t.id}`;
+              if ((teacherDayHoursCount.get(tDayKey) || 0) >= 5) continue; // MAX 5H/DAY PER TEACHER
+
               assignedTeacher = t;
               break;
             }
 
             if (assignedTeacher) {
               const teacherKey = `${slot.dayId}_${slot.start}_${assignedTeacher.id}`;
+              const tDayKey = `${slot.dayId}_${assignedTeacher.id}`;
               teacherOccupied.add(teacherKey);
               classOccupied.add(classKey);
               classDaySubjectCount.set(daySubjKey, currentDayCount + 1);
+              teacherDayHoursCount.set(tDayKey, (teacherDayHoursCount.get(tDayKey) || 0) + 1);
 
               generated.push({
                 class_id: cls.id,
@@ -1135,7 +1153,7 @@ export default function TimetableGeneratorPage() {
         });
       });
 
-      // PASS 3: FAIL-SAFE GUARANTEE PASS (Strictly respecting max daily cap: 2h for Collège/Lycée, 4h for Primaire)
+      // PASS 3: FAIL-SAFE GUARANTEE PASS (Strictly respecting max daily cap: 2h for Collège/Lycée, 4h for Primaire, max 5h per teacher)
       targetClasses.forEach((cls) => {
         const demands = classDemandsMap.get(cls.id) || [];
         const clsCycle = getClassCycle(cls);
@@ -1145,23 +1163,26 @@ export default function TimetableGeneratorPage() {
           const demand = demands.shift()!;
           const subj = demand.subject;
 
-          // Find an open slot in the week where this day does not exceed maxAllowedPerDay for this subject
+          // Find an open slot in the week where this day does not exceed maxAllowedPerDay for this subject and teacher has < 5h
           let openSlot = allWeeklyPeriods.find((slot) => {
             const classKey = `${slot.dayId}_${slot.start}_${cls.id}`;
             const countOnDay = classDaySubjectCount.get(`${slot.dayId}_${cls.id}_${subj.id}`) || 0;
             if (classOccupied.has(classKey) || countOnDay >= maxAllowedPerDay) return false;
 
-            // If vacataire, MUST be available on this slot
-            if (demand.isVacataire) {
-              const hasAvail = demand.qualifiedTeachers.some(
-                (t) => isTeacherAvailableForSlot(t, slot.dayId, slot.periodId, slot.start) && !teacherOccupied.has(`${slot.dayId}_${slot.start}_${t.id}`)
-              );
-              return hasAvail;
-            }
-            return true;
+            const hasValidTeacher = demand.qualifiedTeachers.some((t) => {
+              if (t.contract_type === 'VACATAIRE') {
+                if (!isTeacherAvailableForSlot(t, slot.dayId, slot.periodId, slot.start)) return false;
+              }
+              const tKey = `${slot.dayId}_${slot.start}_${t.id}`;
+              if (teacherOccupied.has(tKey)) return false;
+              const tDayKey = `${slot.dayId}_${t.id}`;
+              return (teacherDayHoursCount.get(tDayKey) || 0) < 5;
+            });
+
+            return hasValidTeacher;
           });
 
-          // If no slot with count < max found, find any open slot for non-vacataires
+          // Fallback if no strict slot found
           if (!openSlot && !demand.isVacataire) {
             const candidateSlots = allWeeklyPeriods.filter((slot) => {
               const classKey = `${slot.dayId}_${slot.start}_${cls.id}`;
@@ -1183,14 +1204,19 @@ export default function TimetableGeneratorPage() {
                 if (!isTeacherAvailableForSlot(t, openSlot.dayId, openSlot.periodId, openSlot.start)) continue;
               }
               const tKey = `${openSlot.dayId}_${openSlot.start}_${t.id}`;
-              if (!teacherOccupied.has(tKey)) {
-                assignedTeacher = t;
-                break;
-              }
+              if (teacherOccupied.has(tKey)) continue;
+
+              const tDayKey = `${openSlot.dayId}_${t.id}`;
+              if ((teacherDayHoursCount.get(tDayKey) || 0) >= 5) continue; // MAX 5H/DAY
+
+              assignedTeacher = t;
+              break;
             }
 
             if (!assignedTeacher && !demand.isVacataire && demand.qualifiedTeachers.length > 0) {
-              const fallbackNonVac = demand.qualifiedTeachers.find((t) => t.contract_type !== 'VACATAIRE');
+              const fallbackNonVac = demand.qualifiedTeachers.find(
+                (t) => t.contract_type !== 'VACATAIRE' && !teacherOccupied.has(`${openSlot.dayId}_${openSlot.start}_${t.id}`)
+              );
               if (fallbackNonVac) assignedTeacher = fallbackNonVac;
             }
 
@@ -1198,10 +1224,12 @@ export default function TimetableGeneratorPage() {
               const classKey = `${openSlot.dayId}_${openSlot.start}_${cls.id}`;
               const teacherKey = `${openSlot.dayId}_${openSlot.start}_${assignedTeacher.id}`;
               const daySubjKey = `${openSlot.dayId}_${cls.id}_${subj.id}`;
+              const tDayKey = `${openSlot.dayId}_${assignedTeacher.id}`;
 
               classOccupied.add(classKey);
               teacherOccupied.add(teacherKey);
               classDaySubjectCount.set(daySubjKey, (classDaySubjectCount.get(daySubjKey) || 0) + 1);
+              teacherDayHoursCount.set(tDayKey, (teacherDayHoursCount.get(tDayKey) || 0) + 1);
 
               generated.push({
                 class_id: cls.id,

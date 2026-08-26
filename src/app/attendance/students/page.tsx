@@ -1401,58 +1401,99 @@ export default function StudentAttendancePage() {
           </div>
         </div>
 
-        {/* Filter & Selector Ribbon: Continuous Single Row with Responsive Scaling */}
-        <div className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm print:hidden">
-          <div className="flex flex-wrap items-center gap-2.5 w-full">
-            {/* Cycle Selector */}
-            <div className="flex items-center gap-1.5 flex-1 min-w-[140px]">
-              <label className="text-xs font-bold text-slate-600 dark:text-slate-400 whitespace-nowrap flex items-center gap-1 shrink-0">
-                <Layers className="w-3.5 h-3.5 text-blue-500" />
-                <span>Cycle :</span>
-              </label>
-              <select
-                value={selectedCycle}
-                onChange={(e) => {
-                  const newCycle = e.target.value;
-                  setSelectedCycle(newCycle);
-                  if (selectedClassId !== 'ALL') {
-                    const currentCls = classes.find((c) => c.id === selectedClassId);
-                    if (currentCls && !isClassInCycle(currentCls.level || currentCls.name, newCycle)) {
-                      setSelectedClassId('ALL');
-                    }
-                  }
-                }}
-                className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs truncate"
-              >
-                <option value="ALL">Tous les Cycles</option>
-                <option value="MATERNELLE">🧸 Maternelle</option>
-                <option value="PRIMAIRE">📚 Primaire</option>
-                <option value="COLLEGE">📐 Collège</option>
-                <option value="LYCEE">🎓 Lycée</option>
-              </select>
+        {/* Filter & Selector Ribbon: Interactive Cycle & Class Selection Buttons */}
+        <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm print:hidden space-y-3.5">
+          {/* Row 1: Cycle Selection Pills */}
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+              <Layers className="w-4 h-4 text-blue-500" />
+              <span>Cycles d&apos;Enseignement :</span>
             </div>
 
-            {/* Class Selector (Filtered dynamically by cycle) */}
-            <div className="flex items-center gap-1.5 flex-1 min-w-[150px]">
-              <label className="text-xs font-bold text-slate-600 dark:text-slate-400 whitespace-nowrap flex items-center gap-1 shrink-0">
-                <GraduationCap className="w-3.5 h-3.5 text-blue-500" />
-                <span>Classe :</span>
-              </label>
-              <select
-                value={selectedClassId}
-                onChange={(e) => setSelectedClassId(e.target.value)}
-                className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs truncate"
-              >
-                <option value="ALL">
-                  {selectedCycle === 'ALL' ? 'Toutes les classes' : `Toutes les classes du cycle (${filteredClasses.length})`}
-                </option>
-                {filteredClasses.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.level})
-                  </option>
-                ))}
-              </select>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {[
+                { id: 'ALL', label: 'Tous les Cycles', icon: '🌐' },
+                { id: 'MATERNELLE', label: 'Maternelle', icon: '🧸' },
+                { id: 'PRIMAIRE', label: 'Primaire', icon: '📚' },
+                { id: 'COLLEGE', label: 'Collège', icon: '📐' },
+                { id: 'LYCEE', label: 'Lycée', icon: '🎓' },
+              ].map((cyc) => {
+                const isActive = selectedCycle === cyc.id;
+                return (
+                  <button
+                    key={cyc.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCycle(cyc.id);
+                      if (selectedClassId !== 'ALL') {
+                        const currentCls = classes.find((c) => c.id === selectedClassId);
+                        if (currentCls && !isClassInCycle(currentCls.level || currentCls.name, cyc.id)) {
+                          setSelectedClassId('ALL');
+                        }
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      isActive
+                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs scale-105 ring-2 ring-blue-400/30'
+                        : 'bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>{cyc.icon}</span>
+                    <span>{cyc.label}</span>
+                  </button>
+                );
+              })}
             </div>
+          </div>
+
+          {/* Row 2: Classes Selection Buttons (Interactive Pills) */}
+          <div className="space-y-1.5 pt-1 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+              <span className="flex items-center gap-1">
+                <GraduationCap className="w-3.5 h-3.5 text-blue-500" />
+                <span>Sélectionner la Classe / Niveau :</span>
+              </span>
+              <span>{filteredClasses.length} classe(s) disponible(s)</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 flex-wrap max-h-[90px] overflow-y-auto pr-1">
+              <button
+                type="button"
+                onClick={() => setSelectedClassId('ALL')}
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  selectedClassId === 'ALL'
+                    ? 'bg-blue-600 text-white shadow-xs scale-105'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200/60'
+                }`}
+              >
+                Toutes les Classes ({filteredClasses.length})
+              </button>
+
+              {filteredClasses.map((cls) => {
+                const isSelected = selectedClassId === cls.id;
+                return (
+                  <button
+                    key={cls.id}
+                    type="button"
+                    onClick={() => setSelectedClassId(cls.id)}
+                    className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                      isSelected
+                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs scale-105 ring-2 ring-blue-400/30'
+                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-blue-400 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>{cls.name}</span>
+                    <span className={`text-[10px] opacity-75 font-normal ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>
+                      ({cls.level})
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Row 3: Date, Search & Quick Actions */}
+          <div className="flex flex-wrap items-center gap-2.5 pt-1 border-t border-slate-100 dark:border-slate-800">
 
             {/* Date / Month / Semester Selector */}
             {activeTab === 'pointage' || activeTab === 'daily_report' ? (
