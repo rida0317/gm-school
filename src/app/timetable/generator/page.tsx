@@ -39,7 +39,12 @@ import {
   FileCheck,
   ShieldAlert,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Settings2,
+  SlidersHorizontal,
+  Plus,
+  Minus,
+  RotateCcw
 } from 'lucide-react';
 
 interface GeneratedSlot {
@@ -203,6 +208,11 @@ export default function TimetableGeneratorPage() {
   const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
+  // Class Custom Subject Hours Modal States
+  const [selectedClassForQuota, setSelectedClassForQuota] = useState<ClassEntity | null>(null);
+  const [classQuotaFormData, setClassQuotaFormData] = useState<Record<string, number>>({});
+  const [isSavingQuota, setIsSavingQuota] = useState(false);
+
   const notify = useNotify();
 
   async function checkExistingSlots() {
@@ -300,6 +310,11 @@ export default function TimetableGeneratorPage() {
    * Helper: Get EXACT user-declared weekly hours quota for a subject in a specific class
    */
   const getWeeklyHoursForClass = (subj: Subject, cls: ClassEntity): number => {
+    // 0. Check class-specific custom override:
+    if (cls.custom_subject_hours && cls.custom_subject_hours[subj.id] !== undefined) {
+      return Number(cls.custom_subject_hours[subj.id]);
+    }
+
     const cycle = getClassCycle(cls);
 
     // 1. If user configured cycle_configs for this cycle, use that exact value:
@@ -320,9 +335,14 @@ export default function TimetableGeneratorPage() {
   };
 
   /**
-   * Helper: Check if subject is applicable to the class based on cycle and levels
+   * Helper: Check if subject is applicable to the class based on cycle, levels and custom overrides
    */
   const isSubjectApplicableToClass = (subj: Subject, cls: ClassEntity): boolean => {
+    // 0. Check custom class override: if explicit 0, exclude. If > 0, include!
+    if (cls.custom_subject_hours && cls.custom_subject_hours[subj.id] !== undefined) {
+      return cls.custom_subject_hours[subj.id] > 0;
+    }
+
     const cycle = getClassCycle(cls);
     const clsLevel = (cls.level || '').toUpperCase().trim();
     const clsName = (cls.name || '').toUpperCase().trim();
@@ -356,6 +376,103 @@ export default function TimetableGeneratorPage() {
     }
 
     return true;
+  };
+
+  // Open modal to customize subject hours for a specific class
+  const openClassQuotaModal = (cls: ClassEntity) => {
+    const currentCustom = cls.custom_subject_hours || {};
+    const initialHours: Record<string, number> = {};
+
+    subjects.forEach((subj) => {
+      if (currentCustom[subj.id] !== undefined) {
+        initialHours[subj.id] = currentCustom[subj.id];
+      } else if (isSubjectApplicableToClass(subj, cls)) {
+        initialHours[subj.id] = getWeeklyHoursForClass(subj, cls);
+      } else {
+        initialHours[subj.id] = 0;
+      }
+    });
+
+    setSelectedClassForQuota(cls);
+    setClassQuotaFormData(initialHours);
+  };
+
+  // Save custom class subject hours
+  const handleSaveClassQuota = async () => {
+    if (!selectedClassForQuota) return;
+    setIsSavingQuota(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from('classes')
+        .update({ custom_subject_hours: classQuotaFormData })
+        .eq('id', selectedClassForQuota.id);
+
+      if (error) throw error;
+
+      setClasses((prev) =>
+        prev.map((c) =>
+          c.id === selectedClassForQuota.id
+            ? { ...c, custom_subject_hours: classQuotaFormData }
+            : c
+        )
+      );
+
+      notify({
+        title: 'Horaires Personnalisés Enregistrés',
+        message: `Les volumes horaires de "${selectedClassForQuota.name}" ont été mis à jour avec succès.`,
+        type: 'success',
+      });
+
+      setSelectedClassForQuota(null);
+    } catch (err: any) {
+      notify({
+        title: 'Erreur',
+        message: err.message || 'Impossible d\'enregistrer les modifications.',
+        type: 'danger',
+      });
+    } finally {
+      setIsSavingQuota(false);
+    }
+  };
+
+  // Reset custom class subject hours to defaults
+  const handleResetClassQuota = async () => {
+    if (!selectedClassForQuota) return;
+    setIsSavingQuota(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from('classes')
+        .update({ custom_subject_hours: {} })
+        .eq('id', selectedClassForQuota.id);
+
+      if (error) throw error;
+
+      setClasses((prev) =>
+        prev.map((c) =>
+          c.id === selectedClassForQuota.id
+            ? { ...c, custom_subject_hours: {} }
+            : c
+        )
+      );
+
+      notify({
+        title: 'Horaires Réinitialisés',
+        message: `Les horaires de "${selectedClassForQuota.name}" ont été réinitialisés aux valeurs standards du cycle.`,
+        type: 'info',
+      });
+
+      setSelectedClassForQuota(null);
+    } catch (err: any) {
+      notify({
+        title: 'Erreur',
+        message: err.message || 'Impossible de réinitialiser.',
+        type: 'danger',
+      });
+    } finally {
+      setIsSavingQuota(false);
+    }
   };
 
   /**
@@ -1683,33 +1800,57 @@ export default function TimetableGeneratorPage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[260px] overflow-y-auto pr-1">
-            {classesQuotasSummary.map((sum) => (
-              <div
-                key={sum.classEntity.id}
-                className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 space-y-2 text-xs"
-              >
-                <div className="flex items-center justify-between font-bold">
-                  <span className="text-slate-900 dark:text-white font-black">
-                    {sum.classEntity.name}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-lg bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 text-[10px]">
-                    {sum.cycle} &bull; {sum.totalHours}h / sem.
-                  </span>
-                </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto pr-1">
+            {classesQuotasSummary.map((sum) => {
+              const hasCustomHours = sum.classEntity.custom_subject_hours && Object.keys(sum.classEntity.custom_subject_hours).length > 0;
+              return (
+                <div
+                  key={sum.classEntity.id}
+                  className={`p-3 rounded-2xl border space-y-2 text-xs transition-all ${
+                    hasCustomHours
+                      ? 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-300 dark:border-amber-700/60 shadow-2xs'
+                      : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700/60'
+                  }`}
+                >
+                  <div className="flex items-center justify-between font-bold gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-slate-900 dark:text-white font-black truncate">
+                        {sum.classEntity.name}
+                      </span>
+                      {hasCustomHours && (
+                        <span className="px-1.5 py-0.2 rounded text-[8.5px] font-bold bg-amber-200 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 whitespace-nowrap">
+                          Personnalisé ⚙️
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="px-2 py-0.5 rounded-lg bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 text-[10px] font-bold">
+                        {sum.cycle} &bull; {sum.totalHours}h / sem.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => openClassQuotaModal(sum.classEntity)}
+                        className="p-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-sky-600 dark:hover:text-sky-400 hover:border-sky-300 transition-all cursor-pointer shadow-2xs"
+                        title="Personnaliser les heures de cette classe (ex: + Anglais, - Informatique)"
+                      >
+                        <Settings2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
 
-                <div className="flex flex-wrap gap-1">
-                  {sum.items.map((i) => (
-                    <span
-                      key={i.subject.id}
-                      className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[10px] font-semibold text-slate-700 dark:text-slate-300"
-                    >
-                      {i.subject.name}: <strong className="text-sky-600 dark:text-sky-400">{i.hours}h</strong>
-                    </span>
-                  ))}
+                  <div className="flex flex-wrap gap-1">
+                    {sum.items.map((i) => (
+                      <span
+                        key={i.subject.id}
+                        className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[10px] font-semibold text-slate-700 dark:text-slate-300"
+                      >
+                        {i.subject.name}: <strong className="text-sky-600 dark:text-sky-400">{i.hours}h</strong>
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -1852,6 +1993,179 @@ export default function TimetableGeneratorPage() {
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Personnalisation des Volumes Horaires par Classe / Groupe */}
+      {selectedClassForQuota && (
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-2xl w-full p-6 space-y-5 my-8 max-h-[90vh] flex flex-col animate-in zoom-in-95">
+            {/* Header */}
+            <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-4 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-md shadow-sky-500/20">
+                  <SlidersHorizontal className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                      Personnaliser les Horaires — {selectedClassForQuota.name}
+                    </h3>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 font-bold border border-sky-300">
+                      {getClassCycle(selectedClassForQuota)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Modifiez le nombre d&apos;heures hebdomadaires par matière pour ce groupe (ex: + Anglais, - Informatique).
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedClassForQuota(null)}
+                className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Live Total Calculator Bar */}
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-sky-500/10 via-indigo-500/10 to-purple-500/10 border border-sky-200 dark:border-sky-800/60 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Volume Total Hebdomadaire pour cette classe :
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-black text-sky-700 dark:text-sky-300 font-mono">
+                  {Object.values(classQuotaFormData).reduce((acc, h) => acc + (Number(h) || 0), 0)} h / semaine
+                </span>
+              </div>
+            </div>
+
+            {/* Subjects List with Steppers */}
+            <div className="space-y-2.5 overflow-y-auto pr-1 flex-1">
+              {subjects.map((subj) => {
+                const currentHours = classQuotaFormData[subj.id] !== undefined ? classQuotaFormData[subj.id] : 0;
+                const standardHours = getWeeklyHoursForClass(subj, { ...selectedClassForQuota, custom_subject_hours: {} });
+
+                return (
+                  <div
+                    key={subj.id}
+                    className={`p-3 rounded-2xl border flex items-center justify-between gap-3 transition-all ${
+                      currentHours > 0
+                        ? 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700'
+                        : 'bg-slate-100/40 dark:bg-slate-800/20 border-slate-200/40 dark:border-slate-800 text-slate-400 opacity-60'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className="w-3.5 h-3.5 rounded-full shrink-0 shadow-2xs"
+                        style={{ backgroundColor: subj.color_code || '#6366f1' }}
+                      />
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                          {subj.name}
+                        </div>
+                        <div className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                          <span>Standard du cycle : <strong className="text-slate-600 dark:text-slate-300 font-mono">{standardHours}h</strong></span>
+                          {currentHours !== standardHours && currentHours > 0 && (
+                            <span className="text-amber-600 dark:text-amber-400 font-bold">
+                              ({currentHours > standardHours ? `+${currentHours - standardHours}h` : `-${standardHours - currentHours}h`})
+                            </span>
+                          )}
+                          {currentHours === 0 && (
+                            <span className="text-rose-500 font-bold">(Matière désactivée)</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Stepper Controls */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextVal = Math.max(0, currentHours - 1);
+                          setClassQuotaFormData((prev) => ({ ...prev, [subj.id]: nextVal }));
+                        }}
+                        className="w-8 h-8 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center font-bold text-sm cursor-pointer shadow-2xs active:scale-95 transition-transform"
+                      >
+                        <Minus className="w-3.5 h-3.5" />
+                      </button>
+
+                      <div className="w-14 text-center">
+                        <input
+                          type="number"
+                          min={0}
+                          max={30}
+                          value={currentHours}
+                          onChange={(e) => {
+                            const val = Math.max(0, parseInt(e.target.value) || 0);
+                            setClassQuotaFormData((prev) => ({ ...prev, [subj.id]: val }));
+                          }}
+                          className="w-full text-center font-mono font-black text-xs px-1 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
+                        />
+                        <span className="text-[9px] text-slate-400 font-mono">heures</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextVal = currentHours + 1;
+                          setClassQuotaFormData((prev) => ({ ...prev, [subj.id]: nextVal }));
+                        }}
+                        className="w-8 h-8 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center font-bold text-sm cursor-pointer shadow-2xs active:scale-95 transition-transform"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Footer Actions */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100 dark:border-slate-800 pt-4 shrink-0">
+              <button
+                type="button"
+                onClick={handleResetClassQuota}
+                disabled={isSavingQuota}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Réinitialiser aux standards</span>
+              </button>
+
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedClassForQuota(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-50 cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveClassQuota}
+                  disabled={isSavingQuota}
+                  className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-black text-xs shadow-md shadow-sky-600/25 cursor-pointer disabled:opacity-50"
+                >
+                  {isSavingQuota ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Enregistrement...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Enregistrer pour {selectedClassForQuota.name}</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -108,6 +108,7 @@ export interface ClassEntity {
   room_id?: string;
   capacity: number;
   is_active: boolean;
+  custom_subject_hours?: Record<string, number>;
   main_teacher?: Teacher;
   room?: Room;
 }
