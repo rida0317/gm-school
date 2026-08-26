@@ -2527,19 +2527,21 @@ export default function TimetablePage() {
             table-layout: fixed !important;
           }
           .print-master-table thead tr {
-            height: 9mm !important;
+            height: 9.5mm !important;
             background-color: #f1f5f9 !important;
           }
           .print-master-table th {
-            padding: 1px 1px !important;
-            font-size: 6.5pt !important;
-            line-height: 1.15 !important;
+            padding: 1px 0.5px !important;
+            font-size: 5pt !important;
+            line-height: 1.05 !important;
             background-color: #f1f5f9 !important;
-            border-right: 1.6px solid #1e293b !important;
+            border-right: 1.2px solid #334155 !important;
             border-bottom: 2px solid #0f172a !important;
             color: #0f172a !important;
             font-weight: 900 !important;
             vertical-align: middle !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
           }
           .print-master-table th:last-child {
             border-right: none !important;
@@ -3070,10 +3072,14 @@ export default function TimetablePage() {
                       <th className="p-3 text-center w-28 border-r-2 border-slate-300 dark:border-slate-600">Horaire</th>
                       {teachers.map((tch) => {
                         const count = slots.filter((s) => s.teacher_id === tch.id).length;
+                        const cleanLastName = (!tch.last_name || tch.last_name === '---') ? '' : tch.last_name.toUpperCase().trim();
+                        const cleanFirstName = (tch.first_name || '').trim();
+                        const displayName = cleanLastName ? `${cleanLastName} ${cleanFirstName}` : cleanFirstName;
+
                         return (
                           <th key={tch.id} className="p-2.5 border-r-2 border-slate-300 dark:border-slate-600 last:border-r-0 text-center min-w-[100px]">
                             <div className="font-black text-slate-900 dark:text-white text-xs leading-tight">
-                              {tch.last_name?.toUpperCase()} {tch.first_name}
+                              {displayName}
                             </div>
                             <div className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold truncate mt-0.5">
                               {tch.specialization || 'Enseignant'}
@@ -3787,16 +3793,23 @@ export default function TimetablePage() {
                       <th className="p-0.5 text-center w-20 border-r-2 border-slate-900">Horaire</th>
                       {teachers.map((tch) => {
                         const count = slots.filter((s) => s.teacher_id === tch.id).length;
+                        const cleanLastName = (!tch.last_name || tch.last_name === '---') ? '' : tch.last_name.toUpperCase().trim();
+                        const cleanFirstName = (tch.first_name || '').trim();
+                        const spec = (tch.specialization || 'Prof').trim();
+                        const specShort = spec.length > 7 ? `${spec.slice(0, 6)}.` : spec;
+
                         return (
-                          <th key={tch.id} className="p-0.5 border-r border-slate-700 last:border-r-0 text-center">
-                            <div className="font-black text-[5.8pt] leading-tight text-slate-950 uppercase tracking-tight">
-                              {tch.last_name}
+                          <th key={tch.id} className="p-0.5 border-r border-slate-700 last:border-r-0 text-center overflow-hidden">
+                            <div className="font-black text-[4.6pt] leading-[1.05] text-slate-950 uppercase tracking-tighter truncate">
+                              {cleanLastName || cleanFirstName}
                             </div>
-                            <div className="font-bold text-[5.4pt] leading-tight text-slate-800 capitalize">
-                              {tch.first_name}
-                            </div>
-                            <div className="text-[4.8pt] text-slate-600 font-bold leading-tight mt-0.5 truncate">
-                              {tch.specialization || 'Prof'} ({count}h)
+                            {cleanLastName && (
+                              <div className="font-bold text-[4.2pt] leading-[1.05] text-slate-800 capitalize truncate">
+                                {cleanFirstName}
+                              </div>
+                            )}
+                            <div className="text-[3.6pt] text-slate-600 font-bold leading-[1.05] mt-0.5 truncate">
+                              {specShort} ({count}h)
                             </div>
                           </th>
                         );
