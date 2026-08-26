@@ -614,52 +614,62 @@ export default function TeachersPage() {
               const teacherLevels = Array.isArray(tch.teaching_levels) ? tch.teaching_levels : [];
               const teacherGroups = Array.isArray(tch.teaching_groups) ? tch.teaching_groups : [];
 
+              const hasValidLastName = tch.last_name && tch.last_name.trim() !== '---' && tch.last_name.trim() !== '';
+              const fullName = hasValidLastName ? `${tch.first_name} ${tch.last_name}` : tch.first_name;
+              const firstLetter = (tch.first_name || '').trim()[0] || 'E';
+              const secondLetter = hasValidLastName ? tch.last_name.trim()[0] : (tch.first_name || '').trim()[1] || '';
+              const initials = `${firstLetter}${secondLetter}`.toUpperCase();
+
               return (
                 <div
                   key={tch.id}
-                  className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-500/50 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between group"
+                  className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-emerald-500/50 shadow-xs hover:shadow-lg transition-all flex flex-col justify-between group gap-3.5"
                 >
-                  <div>
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white font-bold flex items-center justify-center text-base shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform">
-                          {tch.first_name?.[0]}
-                          {tch.last_name?.[0]}
+                  <div className="space-y-3">
+                    {/* Header: Avatar, Name, Code & Contract Badge */}
+                    <div className="flex items-start justify-between gap-2.5">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white font-black flex items-center justify-center text-sm shadow-md shadow-emerald-500/20 shrink-0 group-hover:scale-105 transition-transform">
+                          {initials}
                         </div>
-                        <div>
-                          <h3 className="text-base font-black text-slate-900 dark:text-white">
-                            {tch.first_name} {tch.last_name}
+                        <div className="min-w-0">
+                          <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white leading-tight truncate" title={fullName}>
+                            {fullName}
                           </h3>
-                          <span className="font-mono text-[10px] font-bold text-slate-400">
+                          <span className="font-mono text-[10.5px] font-bold text-slate-400 dark:text-slate-500">
                             {tch.teacher_code}
                           </span>
                         </div>
                       </div>
 
                       {/* Contract Type Pill */}
-                      {isVacataire ? (
-                        <span className="px-2.5 py-1 rounded-xl text-[10px] font-black bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-300/40 flex items-center gap-1 shadow-xs">
-                          <Clock className="w-3 h-3 text-amber-500" />
-                          {dir === 'rtl' ? 'ساعات إضافية' : 'Vacataire'}
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-1 rounded-xl text-[10px] font-black bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300/40 flex items-center gap-1 shadow-xs">
-                          <Briefcase className="w-3 h-3 text-emerald-500" />
-                          {dir === 'rtl' ? 'دوام كامل' : 'Plein Temps'}
-                        </span>
-                      )}
+                      <div className="shrink-0">
+                        {isVacataire ? (
+                          <span className="px-2.5 py-1 rounded-xl text-[10px] font-black bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-300/40 flex items-center gap-1 shadow-2xs whitespace-nowrap">
+                            <Clock className="w-3 h-3 text-amber-500 shrink-0" />
+                            <span>{dir === 'rtl' ? 'ساعات' : 'Vacataire'}</span>
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-xl text-[10px] font-black bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300/40 flex items-center gap-1 shadow-2xs whitespace-nowrap">
+                            <Briefcase className="w-3 h-3 text-emerald-500 shrink-0" />
+                            <span>{dir === 'rtl' ? 'دوام كامل' : 'Plein Temps'}</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="mt-4 space-y-2 text-xs text-slate-600 dark:text-slate-400">
+                    {/* Details Rows */}
+                    <div className="space-y-2 text-xs text-slate-600 dark:text-slate-400">
+                      {/* Specialization */}
                       <div className="flex items-center gap-2">
                         <BookOpen className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                        <span className="font-semibold text-slate-800 dark:text-slate-200">
-                          {tch.specialization}
+                        <span className="font-bold text-slate-800 dark:text-slate-200 truncate">
+                          {tch.specialization || 'Enseignant'}
                         </span>
                       </div>
 
                       {/* Teaching Levels Chips */}
-                      <div className="flex items-start gap-2 pt-1">
+                      <div className="flex items-start gap-2">
                         <GraduationCap className="w-3.5 h-3.5 text-orange-500 shrink-0 mt-0.5" />
                         <div className="flex flex-wrap gap-1">
                           {teacherLevels.length === 0 ? (
@@ -668,7 +678,7 @@ export default function TeachersPage() {
                             teacherLevels.map((lvl) => (
                               <span
                                 key={lvl}
-                                className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-orange-50 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 border border-orange-300/40"
+                                className="px-1.5 py-0.5 rounded-lg text-[9.5px] font-bold bg-orange-50 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 border border-orange-300/40"
                               >
                                 {lvl}
                               </span>
@@ -679,13 +689,13 @@ export default function TeachersPage() {
 
                       {/* Teaching Groups & Classes Chips */}
                       {teacherGroups.length > 0 && (
-                        <div className="flex items-start gap-2 pt-1">
+                        <div className="flex items-start gap-2">
                           <Users className="w-3.5 h-3.5 text-purple-500 shrink-0 mt-0.5" />
                           <div className="flex flex-wrap gap-1">
                             {teacherGroups.map((grp) => (
                               <span
                                 key={grp}
-                                className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300/40"
+                                className="px-1.5 py-0.5 rounded-lg text-[9.5px] font-bold bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300/40"
                               >
                                 {grp}
                               </span>
@@ -694,47 +704,53 @@ export default function TeachersPage() {
                         </div>
                       )}
 
-                      <div className="flex items-center gap-2 pt-1">
-                        <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span className="truncate">{tch.email}</span>
-                      </div>
+                      {/* Email & Phone */}
+                      {tch.email && (
+                        <div className="flex items-center gap-2">
+                          <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="truncate text-[11px] text-slate-500 dark:text-slate-400">{tch.email}</span>
+                        </div>
+                      )}
                       {tch.phone && (
                         <div className="flex items-center gap-2">
                           <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span>{tch.phone}</span>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">{tch.phone}</span>
                         </div>
                       )}
+                    </div>
 
-                      {/* Availability status line */}
-                      <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
-                        <span className="text-slate-400">{dir === 'rtl' ? 'الحضور الأسبوعي :' : 'Présence :'}</span>
-                        {isVacataire ? (
-                          <strong className="text-amber-600 dark:text-amber-400 font-bold">
-                            {availabilityCount} {dir === 'rtl' ? 'حصة (ساعة / أسبوع)' : 'séances (h / semaine)'}
-                          </strong>
-                        ) : (
-                          <strong className="text-emerald-600 dark:text-emerald-400 font-bold">
-                            {dir === 'rtl' ? 'كامل الأسبوع (دوام كامل)' : 'Toute la semaine (Plein Temps)'}
-                          </strong>
-                        )}
-                      </div>
+                    {/* Availability / Presence micro-box */}
+                    <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2 text-xs">
+                      <span className="text-slate-500 dark:text-slate-400 font-medium text-[11px] whitespace-nowrap">
+                        {dir === 'rtl' ? 'الحضور الأسبوعي :' : 'Présence :'}
+                      </span>
+                      {isVacataire ? (
+                        <span className="text-amber-700 dark:text-amber-300 font-bold text-[11px] text-right truncate">
+                          {availabilityCount} {dir === 'rtl' ? 'حصة / أسبوع' : 'séances / sem.'}
+                        </span>
+                      ) : (
+                        <span className="text-emerald-700 dark:text-emerald-300 font-bold text-[11px] text-right truncate">
+                          {dir === 'rtl' ? 'كامل الأسبوع' : 'Toute la semaine'}
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  <div className="pt-3 mt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                    <span className="text-[10px] text-slate-400 font-medium">{t('actions')}</span>
+                  {/* Actions Footer */}
+                  <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{t('actions')}</span>
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => openEditModal(tch)}
                         title={dir === 'rtl' ? 'تعديل الأستاذ والمستويات والتوقيت' : "Modifier l'enseignant, ses niveaux et ses disponibilités"}
-                        className="p-2 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-white rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition-colors cursor-pointer"
+                        className="p-1.5 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-white rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition-colors cursor-pointer"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDelete(tch.id, `${tch.first_name} ${tch.last_name}`)}
+                        onClick={() => handleDelete(tch.id, fullName)}
                         title={dir === 'rtl' ? 'حذف الأستاذ' : 'Supprimer la fiche'}
-                        className="p-2 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
