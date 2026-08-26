@@ -939,7 +939,7 @@ export default function GardesPlanningPage() {
   // Export CSV
   const handleExportCSV = () => {
     const headers = ['Matricule', 'Enseignant', 'Matiere', 'Charge_Hebdo', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Total Gardes'];
-    const rows = filteredTeachers.map((t) => {
+    const rows = printableTeachers.map((t) => {
       const shift = staffShifts[t.id] || { expectedEntry: '08:15', expectedExit: '16:15' };
       const weeklyHours = teacherWeeklyHoursMap[t.id] || 0;
       
@@ -982,7 +982,7 @@ export default function GardesPlanningPage() {
     document.body.removeChild(link);
   };
 
-  // Filtered teachers list
+  // Filtered teachers list (Interactive Table View - respects day tabs and search)
   const filteredTeachers = useMemo(() => {
     return teachers.filter((t) => {
       const matchSearch = `${t.first_name} ${t.last_name} ${t.staff_code} ${t.role_title}`
@@ -999,6 +999,18 @@ export default function GardesPlanningPage() {
       return hasMorning || hasLunch || hasEvening;
     });
   }, [teachers, searchQuery, selectedDayFilter, staffShifts]);
+
+  // Complete Teachers list for Official Print & CSV Export (Full week Lundi-Vendredi without day filter cutoff)
+  const printableTeachers = useMemo(() => {
+    return teachers
+      .filter((t) => {
+        if (!searchQuery.trim()) return true;
+        return `${t.first_name} ${t.last_name} ${t.staff_code} ${t.role_title}`
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase());
+      })
+      .sort((a, b) => a.last_name.localeCompare(b.last_name, 'fr'));
+  }, [teachers, searchQuery]);
 
   // Floor Coverage Stats by Selected Day (Matin, Midi, Soir)
   const floorCoverage = useMemo(() => {
@@ -1065,105 +1077,116 @@ export default function GardesPlanningPage() {
     <DashboardLayout>
       <div className="p-4 sm:p-6 lg:p-8 space-y-6 w-full min-h-screen">
         {/* 1. Header & Actions Bar */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm print:hidden">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-3.5">
-              <img
-                src="/logo.png"
-                alt="Logo Groupe Scolaire Des Générations Montantes"
-                className="w-12 h-12 object-contain shrink-0 drop-shadow-xs"
-              />
-              <div>
-                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-                  <span>{dir === 'rtl' ? 'جدول وتوزيع الحراسة الأسبوعية (الإثنين — الجمعة)' : 'Planning des Gardes (Lundi — Vendredi)'}</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-bold border border-purple-200 dark:border-purple-800">
-                    {dir === 'rtl' ? 'التعليم الأولي 100% • الجمعة 12:20' : 'Sous-sol 100% Maternelle • Vendredi 12h20'}
+        <div className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4 print:hidden">
+          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+            {/* Title & Badges */}
+            <div className="flex items-start sm:items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 p-1.5 flex items-center justify-center shrink-0 shadow-xs">
+                <img
+                  src="/logo.png"
+                  alt="Logo GM School"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <div className="space-y-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+                    {dir === 'rtl' ? 'جدول وتوزيع الحراسة' : 'Planning des Gardes'}
+                  </h1>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                    <Calendar className="w-3 h-3" />
+                    <span>Lundi &mdash; Vendredi</span>
                   </span>
-                </h1>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-pink-50 dark:bg-pink-950/50 text-pink-700 dark:text-pink-300 border border-pink-200 dark:border-pink-800">
+                    <Baby className="w-3 h-3" />
+                    <span>Sous-sol 100% Maternelle</span>
+                  </span>
+                </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {dir === 'rtl' ? 'حراسة الصباح (08:00)، الاستراحة والغداء (12:20)، والمساء (16:15 الإثنين-الخميس / 12:20 الجمعة).' : 'Matin (08h00), Déjeuner (12h20 Lun-Jeu, Étages 1 & 2) et Sortie (16h00 Lun-Jeu / 12h20 Vendredi).'}
+                  {dir === 'rtl'
+                    ? 'حراسة الصباح (08:00)، الاستراحة والغداء (12:20)، والمساء (16:15 الإثنين-الخميس / 12:20 الجمعة).'
+                    : 'Matin (08h00), Déjeuner (12h20 Lun-Jeu, Étages 1 & 2) et Sortie (16h00 Lun-Jeu / 12h20 Vendredi).'}
                 </p>
               </div>
             </div>
-          </div>
 
-          {/* Top Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* 🏢 Configurer les Étages */}
-            <button
-              type="button"
-              onClick={() => setShowFloorsModal(true)}
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-bold bg-purple-50 dark:bg-purple-950/50 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition-all cursor-pointer whitespace-nowrap shadow-xs"
-            >
-              <Building2 className="w-4 h-4" />
-              <span>{dir === 'rtl' ? `إدارة الطوابق والحصص (${floors.length})` : `Gérer les Étages & Quotas (${floors.length})`}</span>
-            </button>
+            {/* Actions Toolbar */}
+            <div className="flex flex-wrap items-center gap-2 pt-1 xl:pt-0">
+              {/* 🏢 Configurer les Étages */}
+              <button
+                type="button"
+                onClick={() => setShowFloorsModal(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700 transition-all cursor-pointer shadow-xs whitespace-nowrap"
+              >
+                <Building2 className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                <span>{dir === 'rtl' ? `الطوابق (${floors.length})` : `Étages (${floors.length})`}</span>
+              </button>
 
-            {/* ⚡ Sync with Timetable */}
-            <button
-              type="button"
-              onClick={handleSyncWithTimetable}
-              disabled={isSyncing}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-md shadow-amber-500/25 transition-all cursor-pointer whitespace-nowrap"
-              title="Distribue les gardes (Sous-sol strictement réservé aux enseignants Maternelle)"
-            >
-              <Zap className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-              <span>{isSyncing ? (dir === 'rtl' ? 'تحليل وتوزيع الحصص...' : 'Analyse & Remplissage...') : (dir === 'rtl' ? '⚡ توزيع ذكي وتلقائي 100%' : '⚡ Synchroniser & Remplir 100%')}</span>
-            </button>
+              {/* 🖨️ Print */}
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700 transition-all cursor-pointer shadow-xs whitespace-nowrap"
+              >
+                <Printer className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                <span>{dir === 'rtl' ? 'طباعة' : 'Imprimer'}</span>
+              </button>
 
-            {/* 🧹 Clear Gardes Button */}
-            <button
-              type="button"
-              onClick={handleClearGardes}
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-bold bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 transition-all cursor-pointer whitespace-nowrap shadow-xs"
-              title="Vider et réinitialiser toutes les affectations de garde de la semaine"
-            >
-              <Trash2 className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-              <span>{dir === 'rtl' ? 'إفراغ الجدول' : 'Vider le Planning'}</span>
-            </button>
+              {/* 📥 CSV Export */}
+              <button
+                type="button"
+                onClick={handleExportCSV}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700 transition-all cursor-pointer shadow-xs whitespace-nowrap"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>{dir === 'rtl' ? 'CSV' : 'CSV'}</span>
+              </button>
 
-            {/* 🖨️ Print */}
-            <button
-              type="button"
-              onClick={handlePrint}
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer whitespace-nowrap shadow-xs"
-            >
-              <Printer className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-              <span>{dir === 'rtl' ? 'طباعة' : 'Imprimer'}</span>
-            </button>
+              {/* 🧹 Clear Gardes */}
+              <button
+                type="button"
+                onClick={handleClearGardes}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800 transition-all cursor-pointer shadow-xs whitespace-nowrap"
+                title="Vider et réinitialiser les affectations"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                <span>{dir === 'rtl' ? 'إفراغ' : 'Vider'}</span>
+              </button>
 
-            {/* 📥 CSV Export */}
-            <button
-              type="button"
-              onClick={handleExportCSV}
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer whitespace-nowrap shadow-xs"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span>{dir === 'rtl' ? 'تصدير CSV' : 'CSV'}</span>
-            </button>
+              {/* ⚡ Sync with Timetable */}
+              <button
+                type="button"
+                onClick={handleSyncWithTimetable}
+                disabled={isSyncing}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-md shadow-amber-500/25 transition-all cursor-pointer whitespace-nowrap hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+              >
+                <Zap className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                <span>{isSyncing ? (dir === 'rtl' ? 'توزيع...' : 'Remplissage...') : (dir === 'rtl' ? '⚡ توزيع ذكي 100%' : '⚡ Remplir 100%')}</span>
+              </button>
 
-            {/* 💾 Save */}
-            <button
-              type="button"
-              onClick={handleSave}
-              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold text-white transition-all shadow-md cursor-pointer whitespace-nowrap ${
-                isSavedFeedback
-                  ? 'bg-emerald-600 shadow-emerald-600/30 ring-2 ring-emerald-400'
-                  : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-purple-600/25'
-              }`}
-            >
-              {isSavedFeedback ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4 text-white" />
-                  <span>{dir === 'rtl' ? 'تم الحفظ ✅' : 'Enregistré ✅'}</span>
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4 text-white" />
-                  <span>{dir === 'rtl' ? 'حفظ الجدول' : 'Enregistrer'}</span>
-                </>
-              )}
-            </button>
+              {/* 💾 Save */}
+              <button
+                type="button"
+                onClick={handleSave}
+                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-white transition-all shadow-md cursor-pointer whitespace-nowrap hover:scale-[1.02] active:scale-[0.98] ${
+                  isSavedFeedback
+                    ? 'bg-emerald-600 shadow-emerald-600/30 ring-2 ring-emerald-400'
+                    : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-purple-600/25'
+                }`}
+              >
+                {isSavedFeedback ? (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                    <span>{dir === 'rtl' ? 'تم الحفظ ✅' : 'Enregistré ✅'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-3.5 h-3.5 text-white" />
+                    <span>{dir === 'rtl' ? 'حفظ' : 'Enregistrer'}</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -2168,22 +2191,19 @@ export default function GardesPlanningPage() {
           </div>
         )}
 
-        {/* 6. Printable Official Planning Document (Visible only when Printing - 1 Single Full-Height Landscape Page) */}
-        <div className="hidden print:block print-container text-slate-900 bg-white p-1 w-full">
+        {/* 6. Printable Official Planning Document (Visible only when Printing - Full Weekly Schedule for All Staff) */}
+        <div className="hidden print:block print-container text-slate-900 bg-white p-2 w-full">
           <style dangerouslySetInnerHTML={{ __html: `
             @page {
               size: landscape;
-              margin: 5mm;
+              margin: 6mm 8mm;
             }
             @media print {
               html, body {
                 width: 100% !important;
-                height: 100% !important;
-                max-height: 100% !important;
                 margin: 0 !important;
                 padding: 0 !important;
-                overflow: hidden !important;
-                font-size: 11px !important;
+                font-size: 10px !important;
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
                 background: white !important;
@@ -2193,45 +2213,39 @@ export default function GardesPlanningPage() {
                 visibility: hidden !important;
               }
               .print-container {
-                display: flex !important;
-                flex-direction: column !important;
-                justify-content: space-between !important;
-                height: 95vh !important;
-                max-height: 95vh !important;
+                display: block !important;
                 width: 100% !important;
                 box-sizing: border-box !important;
-                page-break-after: avoid !important;
-                page-break-inside: avoid !important;
-                overflow: hidden !important;
+                background: white !important;
               }
               .print-header {
-                flex-shrink: 0 !important;
+                margin-bottom: 8px !important;
               }
               .print-table-wrapper {
-                flex: 1 1 auto !important;
-                display: flex !important;
-                flex-direction: column !important;
-                margin: 6px 0 !important;
+                width: 100% !important;
+                margin: 6px 0 12px 0 !important;
               }
               .print-table {
                 width: 100% !important;
-                height: 100% !important;
                 table-layout: fixed !important;
                 border-collapse: collapse !important;
               }
-              .print-table thead {
-                height: 32px !important;
+              .print-table thead tr {
+                background-color: #f1f5f9 !important;
+                -webkit-print-color-adjust: exact !important;
               }
-              .print-table tbody tr {
-                height: calc(100% / ${Math.max(1, filteredTeachers.length)}) !important;
+              .print-table tr {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
               }
-              .print-table td {
-                padding: 6px 4px !important;
+              .print-table td, .print-table th {
+                padding: 4px 5px !important;
                 vertical-align: middle !important;
               }
               .print-footer {
-                flex-shrink: 0 !important;
-                margin-top: auto !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                margin-top: 14px !important;
               }
             }
           `}} />
@@ -2263,7 +2277,7 @@ export default function GardesPlanningPage() {
             </div>
           </div>
 
-          {/* Stretched 100% Width & Height Table Wrapper */}
+          {/* Full Width Planning Table */}
           <div className="print-table-wrapper">
             <table className="print-table w-full table-fixed border-collapse text-[10px]">
               <thead>
@@ -2278,7 +2292,7 @@ export default function GardesPlanningPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredTeachers.map((t) => {
+                {printableTeachers.map((t) => {
                   const shift = staffShifts[t.id] || { expectedEntry: '08:15', expectedExit: '16:15' };
                   const totalCount = (shift.gardeEntryDays?.length || 0) + (shift.gardeLunchDays?.length || 0) + (shift.gardeDays?.length || 0);
 
@@ -2293,7 +2307,7 @@ export default function GardesPlanningPage() {
                         const l = shift.gardeLunchDays?.includes(d);
                         const e = shift.gardeDays?.includes(d);
                         const floorId = shift.assignedFloors?.[d];
-                        const floorName = floors.find((f) => f.id === floorId)?.name || 'RDC';
+                        const floorName = floors.find((f) => f.id === floorId)?.name || 'Rez-de-chaussée & Cour';
 
                         return (
                           <td key={d} className="p-1.5 border border-slate-300 text-[9.5px] leading-snug">
