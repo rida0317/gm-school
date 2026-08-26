@@ -2993,14 +2993,11 @@ export default function TimetablePage() {
                                   {tSlot ? (
                                     <div
                                       onClick={() => openSlotEditor(day.id, period, tSlot)}
-                                      className="p-1.5 rounded-xl text-white shadow-2xs flex flex-col items-center justify-center text-center transition-transform hover:scale-105 cursor-pointer hover:ring-2 hover:ring-white/80"
+                                      className="py-2 px-1.5 rounded-xl text-white shadow-2xs flex items-center justify-center text-center transition-transform hover:scale-105 cursor-pointer hover:ring-2 hover:ring-white/80"
                                       style={{ backgroundColor: tSlot.subject?.color_code || '#0284c7' }}
                                       title={`${tSlot.class?.name || ''} - ${tSlot.subject?.name || ''} (Salle: ${tSlot.room?.name || tSlot.room?.room_number || 'N/A'}) - Cliquer pour modifier`}
                                     >
-                                      <span className="text-[11px] font-black leading-tight">{tSlot.class?.name}</span>
-                                      <span className="text-[9.5px] font-black opacity-95 uppercase tracking-wide">
-                                        {getSubjectAbbreviation(tSlot.subject)}
-                                      </span>
+                                      <span className="text-xs font-black leading-none tracking-wide">{tSlot.class?.name}</span>
                                     </div>
                                   ) : canManageTimetable ? (
                                     <div
@@ -3696,10 +3693,10 @@ export default function TimetablePage() {
                                 <td key={tch.id} className="p-0.5 border-r border-slate-300 last:border-r-0 align-middle">
                                   {tSlot ? (
                                     <div
-                                      className="print-master-badge text-white"
+                                      className="print-master-badge text-white font-black"
                                       style={{ backgroundColor: tSlot.subject?.color_code || '#0f172a' }}
                                     >
-                                      <span><strong>{tSlot.class?.name || 'Cls'}</strong> ({getSubjectAbbreviation(tSlot.subject)})</span>
+                                      <span className="font-black text-[6.8pt]">{tSlot.class?.name || 'Cls'}</span>
                                     </div>
                                   ) : (
                                     <span className="text-slate-300 font-bold">—</span>
