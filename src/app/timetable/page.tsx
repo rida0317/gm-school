@@ -1074,6 +1074,136 @@ export default function TimetablePage() {
         }
 
         // =========================================================================
+        // PASS VACATAIRE: RESOLVE VACATAIRE OUTSIDE AVAILABILITY CONFLICTS
+        // =========================================================================
+        const vacataireConflicts = activeConflicts.filter((c) => c.type === 'VACATAIRE_UNAVAILABLE_SLOT');
+        for (const conflict of vacataireConflicts) {
+          const slotToFix = currentSlotsState.find((s) => s.id === conflict.conflictingSlotIds[0]);
+          if (!slotToFix) continue;
+
+          const teacher = teachers.find((t) => t.id === slotToFix.teacher_id) || slotToFix.teacher;
+          if (!teacher || teacher.contract_type !== 'VACATAIRE') continue;
+
+          const classId = slotToFix.class_id;
+          let fixed = false;
+
+          // Strategy 1: Find a free slot in the class schedule where the vacataire is AVAILABLE
+          for (const day of MOROCCAN_SCHOOL_DAYS) {
+            if (fixed) break;
+            const periods = day.id === 5 ? MOROCCAN_55MIN_PERIODS.slice(0, 4) : MOROCCAN_55MIN_PERIODS;
+            for (const p of periods) {
+              if (!isVacataireAvailable(teacher, day.id, p.id, p.start)) continue;
+
+              const isClassFree = !currentSlotsState.some(
+                (s) =>
+                  s.id !== slotToFix.id &&
+                  s.class_id === classId &&
+                  s.day_of_week === day.id &&
+                  normalizeTime(s.start_time) === normalizeTime(p.start)
+              );
+
+              const isTeacherFree = !currentSlotsState.some(
+                (s) =>
+                  s.id !== slotToFix.id &&
+                  s.teacher_id === teacher.id &&
+                  s.day_of_week === day.id &&
+                  normalizeTime(s.start_time) === normalizeTime(p.start)
+              );
+
+              if (isClassFree && isTeacherFree) {
+                updatedMap.set(slotToFix.id, {
+                  id: slotToFix.id,
+                  day_of_week: day.id,
+                  start_time: p.start,
+                  end_time: p.end,
+                });
+
+                currentSlotsState = currentSlotsState.map((s) =>
+                  s.id === slotToFix.id
+                    ? { ...s, day_of_week: day.id, start_time: p.start, end_time: p.end }
+                    : s
+                );
+                fixed = true;
+                changesInThisPass++;
+                break;
+              }
+            }
+          }
+
+          // Strategy 2: Swap with a full-time teacher's slot in the same class
+          if (!fixed) {
+            const classSlots = currentSlotsState.filter(
+              (s) =>
+                s.class_id === classId &&
+                s.id !== slotToFix.id &&
+                !pinnedSlotIds.has(s.id) &&
+                !(s.day_of_week === 5 && normalizeTime(s.start_time) >= '13:00')
+            );
+
+            for (const partnerSlot of classSlots) {
+              const partnerTeacher = teachers.find((t) => t.id === partnerSlot.teacher_id) || partnerSlot.teacher;
+              const pDay = partnerSlot.day_of_week;
+              const pStart = partnerSlot.start_time;
+              const pEnd = partnerSlot.end_time;
+              const origDay = slotToFix.day_of_week;
+              const origStart = slotToFix.start_time;
+              const origEnd = slotToFix.end_time;
+
+              // Check if vacataire is available in partnerSlot's time
+              const isVacOkAtPartner = isVacataireAvailable(teacher, pDay, '', pStart);
+              if (!isVacOkAtPartner) continue;
+
+              // Check if vacataire is free at partner time
+              const isVacFreeAtPartner = !currentSlotsState.some(
+                (s) =>
+                  s.id !== slotToFix.id &&
+                  s.id !== partnerSlot.id &&
+                  s.teacher_id === teacher.id &&
+                  s.day_of_week === pDay &&
+                  normalizeTime(s.start_time) === normalizeTime(pStart)
+              );
+
+              // Check if partner teacher is free at orig time
+              const isPartnerFreeAtOrig = !currentSlotsState.some(
+                (s) =>
+                  s.id !== slotToFix.id &&
+                  s.id !== partnerSlot.id &&
+                  s.teacher_id === partnerSlot.teacher_id &&
+                  s.day_of_week === origDay &&
+                  normalizeTime(s.start_time) === normalizeTime(origStart)
+              );
+
+              const isPartnerVacOk = partnerTeacher ? isVacataireAvailable(partnerTeacher, origDay, '', origStart) : true;
+
+              if (isVacFreeAtPartner && isPartnerFreeAtOrig && isPartnerVacOk) {
+                updatedMap.set(slotToFix.id, {
+                  id: slotToFix.id,
+                  day_of_week: pDay,
+                  start_time: pStart,
+                  end_time: pEnd,
+                });
+                updatedMap.set(partnerSlot.id, {
+                  id: partnerSlot.id,
+                  day_of_week: origDay,
+                  start_time: origStart,
+                  end_time: origEnd,
+                });
+
+                currentSlotsState = currentSlotsState.map((s) => {
+                  if (s.id === slotToFix.id) return { ...s, day_of_week: pDay, start_time: pStart, end_time: pEnd };
+                  if (s.id === partnerSlot.id) return { ...s, day_of_week: origDay, start_time: origStart, end_time: origEnd };
+                  return s;
+                });
+
+                fixed = true;
+                changesInThisPass++;
+                break;
+              }
+            }
+          }
+        }
+
+        // =========================================================================
         // PASS 1: RESOLVE TEACHER DOUBLE BOOKINGS
         // =========================================================================
         const doubleBookingConflicts = activeConflicts.filter((c) => c.type === 'TEACHER_DOUBLE_BOOKING');

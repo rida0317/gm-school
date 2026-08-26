@@ -941,6 +941,83 @@ export default function TimetableGeneratorPage() {
         classDemandsMap.set(cls.id, interleaved);
       });
 
+      // =========================================================================
+      // PASS 0: ABSOLUTE PRIORITY FOR VACATAIRES (Les Vacataires D'ABORD !)
+      // Schedule ALL vacataire sessions FIRST inside their declared active slots
+      // =========================================================================
+      targetClasses.forEach((cls) => {
+        const demands = classDemandsMap.get(cls.id) || [];
+        const vacataireDemands = demands.filter((d) => d.isVacataire);
+
+        vacataireDemands.forEach((demand) => {
+          const subj = demand.subject;
+          const clsCycle = getClassCycle(cls);
+          const maxAllowedPerDay = (clsCycle === 'COLLEGE' || clsCycle === 'LYCEE') ? 2 : 4;
+
+          // Candidate slots: only periods where teacher is STRICTLY declared active
+          const validSlots: { slot: WeeklyTimeSlot; teacher: Teacher; currentDaySessions: number }[] = [];
+
+          for (const slot of allWeeklyPeriods) {
+            const classKey = `${slot.dayId}_${slot.start}_${cls.id}`;
+            if (classOccupied.has(classKey)) continue;
+
+            const daySubjKey = `${slot.dayId}_${cls.id}_${subj.id}`;
+            const currentDayCount = classDaySubjectCount.get(daySubjKey) || 0;
+            if (currentDayCount >= maxAllowedPerDay) continue;
+
+            for (const t of demand.qualifiedTeachers) {
+              if (t.contract_type === 'VACATAIRE') {
+                if (!isTeacherAvailableForSlot(t, slot.dayId, slot.periodId, slot.start)) continue;
+              }
+              const teacherKey = `${slot.dayId}_${slot.start}_${t.id}`;
+              if (teacherOccupied.has(teacherKey)) continue;
+
+              validSlots.push({ slot, teacher: t, currentDaySessions: currentDayCount });
+              break;
+            }
+          }
+
+          // Sort valid slots to prioritize days with fewer sessions of this subject
+          validSlots.sort((a, b) => a.currentDaySessions - b.currentDaySessions);
+
+          if (validSlots.length > 0) {
+            const chosen = validSlots[0];
+            const slot = chosen.slot;
+            const assignedTeacher = chosen.teacher;
+
+            const classKey = `${slot.dayId}_${slot.start}_${cls.id}`;
+            const teacherKey = `${slot.dayId}_${slot.start}_${assignedTeacher.id}`;
+            const daySubjKey = `${slot.dayId}_${cls.id}_${subj.id}`;
+
+            teacherOccupied.add(teacherKey);
+            classOccupied.add(classKey);
+            classDaySubjectCount.set(daySubjKey, (classDaySubjectCount.get(daySubjKey) || 0) + 1);
+
+            generated.push({
+              class_id: cls.id,
+              className: cls.name,
+              teacher_id: assignedTeacher.id,
+              teacherName: `${assignedTeacher.first_name} ${assignedTeacher.last_name}`,
+              subject_id: subj.id,
+              subjectName: subj.name,
+              color_code: subj.color_code,
+              room_id: demand.targetRoom.id,
+              roomName: demand.targetRoom.name,
+              day_of_week: slot.dayId,
+              dayName: slot.dayName,
+              start_time: slot.start,
+              end_time: slot.end,
+            });
+
+            // Remove this demand from class demands
+            const idxInDemands = demands.indexOf(demand);
+            if (idxInDemands !== -1) {
+              demands.splice(idxInDemands, 1);
+            }
+          }
+        });
+      });
+
       // PASS 1: BALANCED ROUND-ROBIN SCHEDULER (Target 1 session per day per subject)
       allWeeklyPeriods.forEach((slot) => {
         targetClasses.forEach((cls) => {
@@ -1072,11 +1149,20 @@ export default function TimetableGeneratorPage() {
           let openSlot = allWeeklyPeriods.find((slot) => {
             const classKey = `${slot.dayId}_${slot.start}_${cls.id}`;
             const countOnDay = classDaySubjectCount.get(`${slot.dayId}_${cls.id}_${subj.id}`) || 0;
-            return !classOccupied.has(classKey) && countOnDay < maxAllowedPerDay;
+            if (classOccupied.has(classKey) || countOnDay >= maxAllowedPerDay) return false;
+
+            // If vacataire, MUST be available on this slot
+            if (demand.isVacataire) {
+              const hasAvail = demand.qualifiedTeachers.some(
+                (t) => isTeacherAvailableForSlot(t, slot.dayId, slot.periodId, slot.start) && !teacherOccupied.has(`${slot.dayId}_${slot.start}_${t.id}`)
+              );
+              return hasAvail;
+            }
+            return true;
           });
 
-          // If no slot with count < 2 found, try to find any slot on a day with least sessions of this subject
-          if (!openSlot) {
+          // If no slot with count < max found, find any open slot for non-vacataires
+          if (!openSlot && !demand.isVacataire) {
             const candidateSlots = allWeeklyPeriods.filter((slot) => {
               const classKey = `${slot.dayId}_${slot.start}_${cls.id}`;
               return !classOccupied.has(classKey);
@@ -1093,7 +1179,9 @@ export default function TimetableGeneratorPage() {
             let assignedTeacher: Teacher | null = null;
 
             for (const t of demand.qualifiedTeachers) {
-              if (!isTeacherAvailableForSlot(t, openSlot.dayId, openSlot.periodId, openSlot.start)) continue;
+              if (t.contract_type === 'VACATAIRE') {
+                if (!isTeacherAvailableForSlot(t, openSlot.dayId, openSlot.periodId, openSlot.start)) continue;
+              }
               const tKey = `${openSlot.dayId}_${openSlot.start}_${t.id}`;
               if (!teacherOccupied.has(tKey)) {
                 assignedTeacher = t;
@@ -1101,8 +1189,9 @@ export default function TimetableGeneratorPage() {
               }
             }
 
-            if (!assignedTeacher && demand.qualifiedTeachers.length > 0) {
-              assignedTeacher = demand.qualifiedTeachers[0];
+            if (!assignedTeacher && !demand.isVacataire && demand.qualifiedTeachers.length > 0) {
+              const fallbackNonVac = demand.qualifiedTeachers.find((t) => t.contract_type !== 'VACATAIRE');
+              if (fallbackNonVac) assignedTeacher = fallbackNonVac;
             }
 
             if (assignedTeacher) {
