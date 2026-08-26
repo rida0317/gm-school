@@ -548,8 +548,22 @@ export default function TimetablePage() {
       });
     });
 
-    // 3. EXCEEDING DAILY SUBJECT HOURS (Strict Hard Cap: Max 2 hours per subject per day for any class)
+    // 3. EXCEEDING DAILY SUBJECT HOURS (Strict Hard Cap: Max 2 hours per subject per day for Collège & Lycée ONLY)
     classesList.forEach((cls) => {
+      const clsName = (cls.name || '').toUpperCase().trim();
+      const clsLevel = (cls.level || '').toUpperCase().trim();
+      const isPrimaireOrMaternelle =
+        ['CP', 'CE1', 'CE2', 'CM1', 'CM2', 'CE6', '6AP', 'TPS', 'PS', 'MS', 'GS'].some(
+          (k) => clsLevel.includes(k) || clsName.startsWith(k)
+        ) ||
+        clsLevel.includes('PRIM') ||
+        clsName.includes('PRIM') ||
+        clsLevel.includes('MAT') ||
+        clsName.includes('MAT');
+
+      // Skip daily quota limit for Primaire and Maternelle (French/Arabic need 3h-4h/day)
+      if (isPrimaireOrMaternelle) return;
+
       MOROCCAN_SCHOOL_DAYS.forEach((day) => {
         const classDaySlots = slotsList.filter((s) => s.class_id === cls.id && s.day_of_week === day.id);
         const subjectCountMap = new Map<string, TimetableSlot[]>();
@@ -568,11 +582,11 @@ export default function TimetablePage() {
               id: `excess_daily_${cls.id}_${day.id}_${subjId}`,
               type: 'EXCESS_DAILY_SUBJECT_HOURS',
               title: `Dépassement Quota Journalier : ${subjName}`,
-              description: `La classe ${cls.name} a ${slotsForSubject.length} heures de ${subjName} le ${day.name}. Le maximum pédagogique autorisé est de 2 heures par jour.`,
+              description: `La classe ${cls.name} (${cls.level || ''}) a ${slotsForSubject.length} heures de ${subjName} le ${day.name}. Pour le Collège et Lycée, le maximum pédagogique autorisé est de 2 heures par jour.`,
               day_of_week: day.id,
               dayName: day.name,
               start_time: slotsForSubject[slotsForSubject.length - 1].start_time,
-              timeLabel: `${slotsForSubject.length}h / jour (Max: 2h)`,
+              timeLabel: `${slotsForSubject.length}h / jour (Max: 2h en Collège/Lycée)`,
               classes: [cls.name],
               conflictingSlotIds: slotsForSubject.map((s) => s.id),
             });

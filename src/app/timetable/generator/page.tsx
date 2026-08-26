@@ -763,14 +763,18 @@ export default function TimetableGeneratorPage() {
       }
     });
 
-    // 3. Audit Max 2h per day per subject rule
+    // 3. Audit Max 2h per day per subject rule (Applies ONLY to Collège & Lycée)
     let maxDailyCompliant = true;
     const classDaySubjMap = new Map<string, number>();
     generatedSchedule.forEach((s) => {
-      const key = `${s.day_of_week}_${s.class_id}_${s.subject_id}`;
-      const count = (classDaySubjMap.get(key) || 0) + 1;
-      classDaySubjMap.set(key, count);
-      if (count > 2) maxDailyCompliant = false;
+      const cls = classes.find((c) => c.id === s.class_id);
+      const cycle = cls ? getClassCycle(cls) : 'PRIMAIRE';
+      if (cycle === 'COLLEGE' || cycle === 'LYCEE') {
+        const key = `${s.day_of_week}_${s.class_id}_${s.subject_id}`;
+        const count = (classDaySubjMap.get(key) || 0) + 1;
+        classDaySubjMap.set(key, count);
+        if (count > 2) maxDailyCompliant = false;
+      }
     });
 
     // 4. Audit Overlaps / Conflicts
@@ -1007,9 +1011,12 @@ export default function TimetableGeneratorPage() {
             const demand = demands[dIdx];
             const subj = demand.subject;
 
+            const clsCycle = getClassCycle(cls);
+            const maxAllowedPerDay = (clsCycle === 'COLLEGE' || clsCycle === 'LYCEE') ? 2 : 4;
+
             const daySubjKey = `${slot.dayId}_${cls.id}_${subj.id}`;
             const currentDayCount = classDaySubjectCount.get(daySubjKey) || 0;
-            if (currentDayCount >= 2) continue; // STRICT HARD CAP: Max 2 hours per subject per day!
+            if (currentDayCount >= maxAllowedPerDay) continue; // Max 2h for Collège/Lycée, up to 4h for Primaire
 
             let assignedTeacher: Teacher | null = null;
             for (const t of demand.qualifiedTeachers) {
@@ -1051,19 +1058,21 @@ export default function TimetableGeneratorPage() {
         });
       });
 
-      // PASS 3: FAIL-SAFE GUARANTEE PASS (Strictly respecting max 2h/day per subject)
+      // PASS 3: FAIL-SAFE GUARANTEE PASS (Strictly respecting max daily cap: 2h for Collège/Lycée, 4h for Primaire)
       targetClasses.forEach((cls) => {
         const demands = classDemandsMap.get(cls.id) || [];
+        const clsCycle = getClassCycle(cls);
+        const maxAllowedPerDay = (clsCycle === 'COLLEGE' || clsCycle === 'LYCEE') ? 2 : 4;
 
         while (demands.length > 0) {
           const demand = demands.shift()!;
           const subj = demand.subject;
 
-          // Find an open slot in the week where this day does not exceed 2 hours for this subject
+          // Find an open slot in the week where this day does not exceed maxAllowedPerDay for this subject
           let openSlot = allWeeklyPeriods.find((slot) => {
             const classKey = `${slot.dayId}_${slot.start}_${cls.id}`;
             const countOnDay = classDaySubjectCount.get(`${slot.dayId}_${cls.id}_${subj.id}`) || 0;
-            return !classOccupied.has(classKey) && countOnDay < 2;
+            return !classOccupied.has(classKey) && countOnDay < maxAllowedPerDay;
           });
 
           // If no slot with count < 2 found, try to find any slot on a day with least sessions of this subject
