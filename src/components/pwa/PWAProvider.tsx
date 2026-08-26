@@ -148,43 +148,7 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
     >
       {children}
 
-      {/* Floating Bottom Install Banner */}
-      {showInstallBanner && !isInstalled && (
-        <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-50 animate-in slide-in-from-bottom-5 duration-300">
-          <div className="p-4 rounded-3xl bg-slate-950/95 backdrop-blur-xl border border-sky-500/30 text-white shadow-2xl shadow-sky-950/60 flex items-center justify-between gap-3.5">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-12 h-12 rounded-2xl bg-white p-1 shadow-lg shrink-0 flex items-center justify-center ring-2 ring-sky-400/50">
-                <img src="/logo.png" alt="GM School" className="w-full h-full object-contain" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-xs font-black truncate text-sky-300">
-                  {dir === 'rtl' ? 'تطبيق GM School 📲' : 'Application GM School 📲'}
-                </div>
-                <div className="text-[11px] text-slate-300 line-clamp-1">
-                  {dir === 'rtl' ? 'ثبّت التطبيق على هاتفك لسرعة وسهولة الوصول' : 'Installez l\'app sur votre écran d\'accueil'}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                onClick={installPWA}
-                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-black text-xs shadow-md shadow-sky-500/30 transition-all cursor-pointer flex items-center gap-1.5"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>{dir === 'rtl' ? 'تثبيت' : 'Installer'}</span>
-              </button>
-              <button
-                onClick={dismissInstallBanner}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-                title="Fermer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Floating Bottom Install Banner removed */}
 
       {/* iOS & Manual Installation Guide Modal */}
       {showIOSModal && (
