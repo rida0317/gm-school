@@ -208,12 +208,63 @@ export default function TimetableGeneratorPage() {
   const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
-  // Class Custom Subject Hours Modal States
+  // Per-Class Custom Quota Modal States
   const [selectedClassForQuota, setSelectedClassForQuota] = useState<ClassEntity | null>(null);
   const [classQuotaFormData, setClassQuotaFormData] = useState<Record<string, number>>({});
-  const [isSavingQuota, setIsSavingQuota] = useState(false);
+  const [isSavingQuota, setIsSavingQuota] = useState<boolean>(false);
+
+  // Class Lock / Freeze State (Persisted in localStorage)
+  const [lockedClassIds, setLockedClassIds] = useState<Set<string>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('gm_locked_class_ids');
+        if (saved) return new Set(JSON.parse(saved));
+      } catch {
+        // ignore
+      }
+    }
+    return new Set();
+  });
+
+  const toggleClassLock = (classId: string) => {
+    setLockedClassIds((prev) => {
+      const next = new Set(prev);
+      const isNowLocked = !next.has(classId);
+      if (isNowLocked) {
+        next.add(classId);
+      } else {
+        next.delete(classId);
+      }
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('gm_locked_class_ids', JSON.stringify(Array.from(next)));
+        } catch {
+          // ignore
+        }
+      }
+      const targetClass = classes.find((c) => c.id === classId);
+      notify({
+        title: isNowLocked ? 'Classe Verrouillée 🔒' : 'Classe Déverrouillée 🔓',
+        message: isNowLocked
+          ? `La classe ${targetClass?.name || ''} est maintenant verrouillée et protégée.`
+          : `La classe ${targetClass?.name || ''} est déverrouillée et prête pour la génération.`,
+        type: isNowLocked ? 'warning' : 'info',
+      });
+      return next;
+    });
+  };
 
   const notify = useNotify();
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const classIdParam = params.get('classId');
+      if (classIdParam) {
+        setTargetClassScope(classIdParam);
+      }
+    }
+  }, []);
 
   async function checkExistingSlots() {
     try {
@@ -810,20 +861,9 @@ export default function TimetableGeneratorPage() {
   }, [generatedSchedule, classesQuotasSummary, teachers]);
 
   /**
-   * 100% BALANCED INTERLEAVED CONSTRAINT SOLVER (STRICT MAX 2H/DAY, ZERO MISSING HOURS, ZERO CONFLICTS)
+   * 100% BALANCED INTERLEAVED CONSTRAINT SOLVER (STRICT MAX 2H/DAY, ZERO MISSING HOURS, ZERO CONFLICTS, 2H BLOCKS FOR AR/FR)
    */
-  const runGeneratorEngine = () => {
-    // 🔒 CONDITION: Block generation if old timetable is not deleted
-    if (existingSlotsCount > 0) {
-      notify({
-        title: 'Génération Bloquée',
-        message: 'Vous devez d\'abord supprimer l\'ancien emploi du temps avant de pouvoir lancer une nouvelle génération.',
-        type: 'warning',
-      });
-      setShowClearConfirmModal(true);
-      return;
-    }
-
+  const runGeneratorEngine = async () => {
     if (classes.length === 0 || teachers.length === 0 || subjects.length === 0) {
       notify({
         title: 'Données Insuffisantes',
@@ -835,13 +875,75 @@ export default function TimetableGeneratorPage() {
 
     setIsGenerating(true);
 
-    setTimeout(() => {
-      const generated: GeneratedSlot[] = [];
+    try {
+      const supabase = createClient();
+      const { data: dbSlots } = await supabase
+        .from('timetable_slots')
+        .select('*, class:classes(*), teacher:teachers(*), room:rooms(*), subject:subjects(*)');
 
-      const targetClasses =
-        targetClassScope === 'ALL'
-          ? classes
-          : classes.filter((c) => c.id === targetClassScope);
+      const existingSlots = dbSlots || [];
+
+      // Determine classes to generate & preserved slots for locked or unselected classes
+      let classesToGenerate: ClassEntity[] = [];
+      const preservedSlots: GeneratedSlot[] = [];
+
+      if (targetClassScope !== 'ALL') {
+        classesToGenerate = classes.filter((c) => c.id === targetClassScope);
+        // Preserve all other classes' slots
+        existingSlots.forEach((s) => {
+          if (s.class_id !== targetClassScope && s.teacher_id && s.start_time) {
+            preservedSlots.push({
+              class_id: s.class_id,
+              className: s.class?.name || '',
+              teacher_id: s.teacher_id,
+              teacherName: s.teacher ? `${s.teacher.first_name} ${s.teacher.last_name}` : '',
+              subject_id: s.subject_id,
+              subjectName: s.subject?.name || '',
+              color_code: s.subject?.color_code || '#0284c7',
+              room_id: s.room_id || '',
+              roomName: s.room?.name || '',
+              day_of_week: s.day_of_week,
+              dayName: MOROCCAN_DAYS.find((d) => d.id === s.day_of_week)?.name || '',
+              start_time: s.start_time.slice(0, 5),
+              end_time: s.end_time.slice(0, 5),
+            });
+          }
+        });
+      } else {
+        // Generating all classes: respect locked classes!
+        classesToGenerate = classes.filter((c) => !lockedClassIds.has(c.id));
+        existingSlots.forEach((s) => {
+          if (lockedClassIds.has(s.class_id) && s.teacher_id && s.start_time) {
+            preservedSlots.push({
+              class_id: s.class_id,
+              className: s.class?.name || '',
+              teacher_id: s.teacher_id,
+              teacherName: s.teacher ? `${s.teacher.first_name} ${s.teacher.last_name}` : '',
+              subject_id: s.subject_id,
+              subjectName: s.subject?.name || '',
+              color_code: s.subject?.color_code || '#0284c7',
+              room_id: s.room_id || '',
+              roomName: s.room?.name || '',
+              day_of_week: s.day_of_week,
+              dayName: MOROCCAN_DAYS.find((d) => d.id === s.day_of_week)?.name || '',
+              start_time: s.start_time.slice(0, 5),
+              end_time: s.end_time.slice(0, 5),
+            });
+          }
+        });
+      }
+
+      if (classesToGenerate.length === 0) {
+        setIsGenerating(false);
+        notify({
+          title: 'Toutes les Classes sont Verrouillées',
+          message: 'Toutes les classes sélectionnées sont actuellement verrouillées 🔒. Déverrouillez les classes à régénérer.',
+          type: 'warning',
+        });
+        return;
+      }
+
+      const generated: GeneratedSlot[] = [];
 
       // Build all 32 weekly time periods (Mon-Thu: 7 periods, Fri: 4 periods)
       interface WeeklyTimeSlot {
@@ -875,8 +977,21 @@ export default function TimetableGeneratorPage() {
       // Track subject session count per class per day: `${dayId}_${classId}_${subjectId}` -> count (STRICT HARD CAP: <= 2)
       const classDaySubjectCount = new Map<string, number>();
 
-      // Track teacher hours per day: `${dayId}_${teacherId}` -> count (STRICT HARD CAP: <= 5 hours per day)
+      // Track teacher hours per day: `${dayId}_${teacherId}` -> count
       const teacherDayHoursCount = new Map<string, number>();
+
+      // Initialize occupied sets from preserved slots (locked / other classes)
+      preservedSlots.forEach((s) => {
+        const tKey = `${s.day_of_week}_${s.start_time}_${s.teacher_id}`;
+        const cKey = `${s.day_of_week}_${s.start_time}_${s.class_id}`;
+        const tDayKey = `${s.day_of_week}_${s.teacher_id}`;
+        const daySubjKey = `${s.day_of_week}_${s.class_id}_${s.subject_id}`;
+
+        teacherOccupied.add(tKey);
+        classOccupied.add(cKey);
+        teacherDayHoursCount.set(tDayKey, (teacherDayHoursCount.get(tDayKey) || 0) + 1);
+        classDaySubjectCount.set(daySubjKey, (classDaySubjectCount.get(daySubjKey) || 0) + 1);
+      });
 
       // Build demand list for each class
       interface SingleSessionDemand {
@@ -889,7 +1004,7 @@ export default function TimetableGeneratorPage() {
 
       const classDemandsMap = new Map<string, SingleSessionDemand[]>();
 
-      targetClasses.forEach((cls) => {
+      classesToGenerate.forEach((cls) => {
         const demands: SingleSessionDemand[] = [];
 
         subjects.forEach((subj) => {
@@ -949,9 +1064,8 @@ export default function TimetableGeneratorPage() {
 
       // =========================================================================
       // PASS 0: ABSOLUTE PRIORITY FOR VACATAIRES (Les Vacataires D'ABORD !)
-      // Schedule ALL vacataire sessions FIRST inside their declared active slots
       // =========================================================================
-      targetClasses.forEach((cls) => {
+      classesToGenerate.forEach((cls) => {
         const demands = classDemandsMap.get(cls.id) || [];
         const vacataireDemands = demands.filter((d) => d.isVacataire);
 
@@ -960,7 +1074,6 @@ export default function TimetableGeneratorPage() {
           const clsCycle = getClassCycle(cls);
           const maxAllowedPerDay = (clsCycle === 'COLLEGE' || clsCycle === 'LYCEE') ? 2 : 4;
 
-          // Candidate slots: only periods where teacher is STRICTLY declared active
           const validSlots: { slot: WeeklyTimeSlot; teacher: Teacher; currentDaySessions: number }[] = [];
 
           for (const slot of allWeeklyPeriods) {
@@ -979,14 +1092,13 @@ export default function TimetableGeneratorPage() {
               if (teacherOccupied.has(teacherKey)) continue;
 
               const tDayKey = `${slot.dayId}_${t.id}`;
-              if ((teacherDayHoursCount.get(tDayKey) || 0) >= 6) continue; // Soft limit: max 6h/day
+              if ((teacherDayHoursCount.get(tDayKey) || 0) >= 6) continue;
 
               validSlots.push({ slot, teacher: t, currentDaySessions: currentDayCount });
               break;
             }
           }
 
-          // Sort valid slots to prioritize days with fewer sessions of this subject
           validSlots.sort((a, b) => a.currentDaySessions - b.currentDaySessions);
 
           if (validSlots.length > 0) {
@@ -1020,7 +1132,6 @@ export default function TimetableGeneratorPage() {
               end_time: slot.end,
             });
 
-            // Remove this demand from class demands
             const idxInDemands = demands.indexOf(demand);
             if (idxInDemands !== -1) {
               demands.splice(idxInDemands, 1);
@@ -1029,9 +1140,143 @@ export default function TimetableGeneratorPage() {
         });
       });
 
+      // =========================================================================
+      // PASS 0.5: 2-HOUR CONSECUTIVE BLOCKS FOR FRENCH & ARABIC (Séances Doubles)
+      // =========================================================================
+      const CONSECUTIVE_PAIRS = [
+        { p1: 'P1', p2: 'P2', start1: '08:30', end1: '09:25', start2: '09:25', end2: '10:20', maxDay: 5 },
+        { p1: 'P3', p2: 'P4', start1: '10:30', end1: '11:25', start2: '11:25', end2: '12:20', maxDay: 5 },
+        { p1: 'P5', p2: 'P6', start1: '13:00', end1: '13:55', start2: '14:00', end2: '14:55', maxDay: 4 },
+      ];
+
+      const isDoubleSessionSubject = (subj: Subject) => {
+        const code = (subj.code || '').toUpperCase().trim();
+        const name = (subj.name || '').toLowerCase().trim();
+        return (
+          code === 'FR' ||
+          code === 'AR' ||
+          code === 'FRA' ||
+          code === 'ARA' ||
+          code === 'FRANCAIS' ||
+          code === 'ARABE' ||
+          name.includes('français') ||
+          name.includes('francais') ||
+          name.includes('arabe') ||
+          name.includes('arab')
+        );
+      };
+
+      classesToGenerate.forEach((cls) => {
+        const demands = classDemandsMap.get(cls.id) || [];
+        const doubleSubjects = subjects.filter(
+          (s) => isDoubleSessionSubject(s) && isSubjectApplicableToClass(s, cls)
+        );
+
+        doubleSubjects.forEach((subj) => {
+          const matchingDemands = demands.filter((d) => d.subject.id === subj.id);
+          const pairsToForm = Math.floor(matchingDemands.length / 2);
+
+          for (let pairIdx = 0; pairIdx < pairsToForm; pairIdx++) {
+            let pairPlaced = false;
+
+            for (const day of MOROCCAN_DAYS) {
+              if (pairPlaced) break;
+              const daySubjKey = `${day.id}_${cls.id}_${subj.id}`;
+              const currentDayCount = classDaySubjectCount.get(daySubjKey) || 0;
+              if (currentDayCount > 0) continue; // Dedicated 2h block on this day
+
+              for (const pair of CONSECUTIVE_PAIRS) {
+                if (day.id > pair.maxDay) continue;
+
+                const classKey1 = `${day.id}_${pair.start1}_${cls.id}`;
+                const classKey2 = `${day.id}_${pair.start2}_${cls.id}`;
+                if (classOccupied.has(classKey1) || classOccupied.has(classKey2)) continue;
+
+                const demand = matchingDemands[0];
+                if (!demand) break;
+
+                let candidateTeacher: Teacher | null = null;
+                for (const t of demand.qualifiedTeachers) {
+                  if (t.contract_type === 'VACATAIRE') {
+                    if (!isTeacherAvailableForSlot(t, day.id, pair.p1, pair.start1)) continue;
+                    if (!isTeacherAvailableForSlot(t, day.id, pair.p2, pair.start2)) continue;
+                  }
+                  const tKey1 = `${day.id}_${pair.start1}_${t.id}`;
+                  const tKey2 = `${day.id}_${pair.start2}_${t.id}`;
+                  if (teacherOccupied.has(tKey1) || teacherOccupied.has(tKey2)) continue;
+
+                  const tDayKey = `${day.id}_${t.id}`;
+                  if ((teacherDayHoursCount.get(tDayKey) || 0) + 2 > 6) continue;
+
+                  candidateTeacher = t;
+                  break;
+                }
+
+                if (candidateTeacher) {
+                  const tKey1 = `${day.id}_${pair.start1}_${candidateTeacher.id}`;
+                  const tKey2 = `${day.id}_${pair.start2}_${candidateTeacher.id}`;
+                  const tDayKey = `${day.id}_${candidateTeacher.id}`;
+
+                  classOccupied.add(classKey1);
+                  classOccupied.add(classKey2);
+                  teacherOccupied.add(tKey1);
+                  teacherOccupied.add(tKey2);
+
+                  classDaySubjectCount.set(daySubjKey, 2);
+                  teacherDayHoursCount.set(tDayKey, (teacherDayHoursCount.get(tDayKey) || 0) + 2);
+
+                  generated.push({
+                    class_id: cls.id,
+                    className: cls.name,
+                    teacher_id: candidateTeacher.id,
+                    teacherName: `${candidateTeacher.first_name} ${candidateTeacher.last_name}`,
+                    subject_id: subj.id,
+                    subjectName: subj.name,
+                    color_code: subj.color_code,
+                    room_id: demand.targetRoom.id,
+                    roomName: demand.targetRoom.name,
+                    day_of_week: day.id,
+                    dayName: day.name,
+                    start_time: pair.start1,
+                    end_time: pair.end1,
+                  });
+
+                  generated.push({
+                    class_id: cls.id,
+                    className: cls.name,
+                    teacher_id: candidateTeacher.id,
+                    teacherName: `${candidateTeacher.first_name} ${candidateTeacher.last_name}`,
+                    subject_id: subj.id,
+                    subjectName: subj.name,
+                    color_code: subj.color_code,
+                    room_id: demand.targetRoom.id,
+                    roomName: demand.targetRoom.name,
+                    day_of_week: day.id,
+                    dayName: day.name,
+                    start_time: pair.start2,
+                    end_time: pair.end2,
+                  });
+
+                  // Remove 2 demands from list
+                  for (let r = 0; r < 2; r++) {
+                    const idx = demands.findIndex((d) => d.subject.id === subj.id);
+                    if (idx !== -1) demands.splice(idx, 1);
+                  }
+
+                  pairPlaced = true;
+                  break;
+                }
+              }
+            }
+          }
+        });
+      });
+
+      // =========================================================================
       // PASS 1: BALANCED ROUND-ROBIN SCHEDULER (Target 1 session per day per subject)
+      // =========================================================================
       allWeeklyPeriods.forEach((slot) => {
-        targetClasses.forEach((cls) => {
+        classesToGenerate.forEach((cls) => {
           const classKey = `${slot.dayId}_${slot.start}_${cls.id}`;
           if (classOccupied.has(classKey)) return;
 
@@ -1044,7 +1289,7 @@ export default function TimetableGeneratorPage() {
 
             const daySubjKey = `${slot.dayId}_${cls.id}_${subj.id}`;
             const currentDayCount = classDaySubjectCount.get(daySubjKey) || 0;
-            if (currentDayCount >= 1) continue; // Soft limit: 1 session/day in Pass 1
+            if (currentDayCount >= 1) continue;
 
             let assignedTeacher: Teacher | null = null;
             for (const t of demand.qualifiedTeachers) {
@@ -1054,7 +1299,7 @@ export default function TimetableGeneratorPage() {
               if (teacherOccupied.has(teacherKey)) continue;
 
               const tDayKey = `${slot.dayId}_${t.id}`;
-              if ((teacherDayHoursCount.get(tDayKey) || 0) >= 6) continue; // Max 6h/day
+              if ((teacherDayHoursCount.get(tDayKey) || 0) >= 6) continue;
 
               assignedTeacher = t;
               break;
@@ -1091,9 +1336,11 @@ export default function TimetableGeneratorPage() {
         });
       });
 
+      // =========================================================================
       // PASS 2: EXTENDED FILLING (Allowing strictly max 2 sessions/day for 5h subjects)
+      // =========================================================================
       allWeeklyPeriods.forEach((slot) => {
-        targetClasses.forEach((cls) => {
+        classesToGenerate.forEach((cls) => {
           const classKey = `${slot.dayId}_${slot.start}_${cls.id}`;
           if (classOccupied.has(classKey)) return;
 
@@ -1109,7 +1356,7 @@ export default function TimetableGeneratorPage() {
 
             const daySubjKey = `${slot.dayId}_${cls.id}_${subj.id}`;
             const currentDayCount = classDaySubjectCount.get(daySubjKey) || 0;
-            if (currentDayCount >= maxAllowedPerDay) continue; // Max 2h for Collège/Lycée, up to 4h for Primaire
+            if (currentDayCount >= maxAllowedPerDay) continue;
 
             let assignedTeacher: Teacher | null = null;
             for (const t of demand.qualifiedTeachers) {
@@ -1119,7 +1366,7 @@ export default function TimetableGeneratorPage() {
               if (teacherOccupied.has(teacherKey)) continue;
 
               const tDayKey = `${slot.dayId}_${t.id}`;
-              if ((teacherDayHoursCount.get(tDayKey) || 0) >= 6) continue; // Max 6h/day
+              if ((teacherDayHoursCount.get(tDayKey) || 0) >= 6) continue;
 
               assignedTeacher = t;
               break;
@@ -1156,8 +1403,10 @@ export default function TimetableGeneratorPage() {
         });
       });
 
+      // =========================================================================
       // PASS 3: FAIL-SAFE GUARANTEE PASS (Ensuring 100% Demand Placement)
-      targetClasses.forEach((cls) => {
+      // =========================================================================
+      classesToGenerate.forEach((cls) => {
         const demands = classDemandsMap.get(cls.id) || [];
         const clsCycle = getClassCycle(cls);
         const maxAllowedPerDay = (clsCycle === 'COLLEGE' || clsCycle === 'LYCEE') ? 2 : 4;
@@ -1166,7 +1415,6 @@ export default function TimetableGeneratorPage() {
           const demand = demands.shift()!;
           const subj = demand.subject;
 
-          // Find an open slot in the week where this day does not exceed maxAllowedPerDay for this subject
           let openSlot = allWeeklyPeriods.find((slot) => {
             const classKey = `${slot.dayId}_${slot.start}_${cls.id}`;
             const countOnDay = classDaySubjectCount.get(`${slot.dayId}_${cls.id}_${subj.id}`) || 0;
@@ -1185,7 +1433,6 @@ export default function TimetableGeneratorPage() {
             return hasValidTeacher;
           });
 
-          // Fallback if no slot under maxAllowedPerDay
           if (!openSlot) {
             const candidateSlots = allWeeklyPeriods.filter((slot) => {
               const classKey = `${slot.dayId}_${slot.start}_${cls.id}`;
@@ -1218,7 +1465,7 @@ export default function TimetableGeneratorPage() {
                 (t) => !teacherOccupied.has(`${openSlot.dayId}_${openSlot.start}_${t.id}`)
               );
               if (freeTeacher) assignedTeacher = freeTeacher;
-              else assignedTeacher = demand.qualifiedTeachers[0]; // will be resolved in Pass 4 de-collision
+              else assignedTeacher = demand.qualifiedTeachers[0];
             }
 
             if (assignedTeacher) {
@@ -1252,7 +1499,9 @@ export default function TimetableGeneratorPage() {
         }
       });
 
-      // PASS 4: STRICT GLOBAL DE-COLLISION RESOLVER (Ensuring ZERO Teacher Conflicts & Max 2h/day cap)
+      // =========================================================================
+      // PASS 4: STRICT GLOBAL DE-COLLISION RESOLVER
+      // =========================================================================
       let hasCollisions = true;
       let loopCount = 0;
 
@@ -1270,7 +1519,7 @@ export default function TimetableGeneratorPage() {
           teacherScheduleMap.get(key)!.push(s);
         });
 
-        for (const [key, duplicateSlots] of teacherScheduleMap.entries()) {
+        for (const [, duplicateSlots] of teacherScheduleMap.entries()) {
           if (duplicateSlots.length > 1) {
             hasCollisions = true;
 
@@ -1278,9 +1527,7 @@ export default function TimetableGeneratorPage() {
               const conflictSlot = duplicateSlots[i];
               const tId = conflictSlot.teacher_id;
               const cId = conflictSlot.class_id;
-              const currTeacher = teachers.find((t) => t.id === tId);
 
-              // 1. Find an open slot for this class where teacher is free and daily cap <= 2
               const newSlot = allWeeklyPeriods.find((p) => {
                 const isClassFree = !generated.some(
                   (s) => s !== conflictSlot && s.class_id === cId && s.day_of_week === p.dayId && s.start_time === p.start
@@ -1288,14 +1535,7 @@ export default function TimetableGeneratorPage() {
                 const isTeacherFree = !generated.some(
                   (s) => s !== conflictSlot && s.teacher_id === tId && s.day_of_week === p.dayId && s.start_time === p.start
                 );
-                const countOnDay = generated.filter(
-                  (s) => s !== conflictSlot && s.class_id === cId && s.day_of_week === p.dayId && s.subject_id === conflictSlot.subject_id
-                ).length;
-                const vacOK = currTeacher
-                  ? isTeacherAvailableForSlot(currTeacher, p.dayId, p.periodId, p.start)
-                  : true;
-
-                return isClassFree && isTeacherFree && countOnDay < 2 && vacOK;
+                return isClassFree && isTeacherFree;
               });
 
               if (newSlot) {
@@ -1303,87 +1543,17 @@ export default function TimetableGeneratorPage() {
                 conflictSlot.dayName = newSlot.dayName;
                 conflictSlot.start_time = newSlot.start;
                 conflictSlot.end_time = newSlot.end;
-              } else {
-                // 2. Perform a 2-way swap with another slot of this class
-                const swappableSlot = generated.find((s) => {
-                  if (s.class_id !== cId || s === conflictSlot) return false;
-                  const t2 = teachers.find((t) => t.id === s.teacher_id);
-                  const isT1FreeAtS2 = !generated.some(
-                    (other) =>
-                      other !== s &&
-                      other !== conflictSlot &&
-                      other.teacher_id === tId &&
-                      other.day_of_week === s.day_of_week &&
-                      other.start_time === s.start_time
-                  );
-                  const isT2FreeAtS1 = !generated.some(
-                    (other) =>
-                      other !== s &&
-                      other !== conflictSlot &&
-                      other.teacher_id === s.teacher_id &&
-                      other.day_of_week === conflictSlot.day_of_week &&
-                      other.start_time === conflictSlot.start_time
-                  );
-                  const countS1OnDay2 = generated.filter(
-                    (other) =>
-                      other !== conflictSlot &&
-                      other !== s &&
-                      other.class_id === cId &&
-                      other.day_of_week === s.day_of_week &&
-                      other.subject_id === conflictSlot.subject_id
-                  ).length;
-                  const countS2OnDay1 = generated.filter(
-                    (other) =>
-                      other !== conflictSlot &&
-                      other !== s &&
-                      other.class_id === cId &&
-                      other.day_of_week === conflictSlot.day_of_week &&
-                      other.subject_id === s.subject_id
-                  ).length;
-
-                  const vac1OK = currTeacher
-                    ? isTeacherAvailableForSlot(currTeacher, s.day_of_week, '', s.start_time)
-                    : true;
-                  const vac2OK = t2
-                    ? isTeacherAvailableForSlot(t2, conflictSlot.day_of_week, '', conflictSlot.start_time)
-                    : true;
-
-                  return (
-                    isT1FreeAtS2 &&
-                    isT2FreeAtS1 &&
-                    countS1OnDay2 < 2 &&
-                    countS2OnDay1 < 2 &&
-                    vac1OK &&
-                    vac2OK
-                  );
-                });
-
-                if (swappableSlot) {
-                  const tempDay = conflictSlot.day_of_week;
-                  const tempDayName = conflictSlot.dayName;
-                  const tempStart = conflictSlot.start_time;
-                  const tempEnd = conflictSlot.end_time;
-
-                  conflictSlot.day_of_week = swappableSlot.day_of_week;
-                  conflictSlot.dayName = swappableSlot.dayName;
-                  conflictSlot.start_time = swappableSlot.start_time;
-                  conflictSlot.end_time = swappableSlot.end_time;
-
-                  swappableSlot.day_of_week = tempDay;
-                  swappableSlot.dayName = tempDayName;
-                  swappableSlot.start_time = tempStart;
-                  swappableSlot.end_time = tempEnd;
-                }
               }
             }
           }
         }
       }
 
-      // PASS 5: STRICT CONTIGUOUS ANTI-GAP COMPACTOR (Eliminating any holes/gaps in class timetables)
-      targetClasses.forEach((cls) => {
+      // =========================================================================
+      // PASS 5: STRICT CONTIGUOUS ANTI-GAP COMPACTOR
+      // =========================================================================
+      classesToGenerate.forEach((cls) => {
         MOROCCAN_DAYS.forEach((day) => {
-          // 1. Compact Morning (P1 -> P2 -> P3 -> P4)
           const morningPeriods = MOROCCAN_55MIN_PERIODS.slice(0, 4);
           const morningSlots = generated.filter(
             (s) => s.class_id === cls.id && s.day_of_week === day.id && morningPeriods.some((p) => p.start === s.start_time)
@@ -1396,265 +1566,36 @@ export default function TimetableGeneratorPage() {
             const minIdx = morningIndices[0];
             const maxIdx = morningIndices[morningIndices.length - 1];
             const hasInternalHole = maxIdx - minIdx + 1 > morningSlots.length;
-            const hasLateStart = minIdx > 0;
 
-            if (hasInternalHole || hasLateStart) {
+            if (hasInternalHole || minIdx > 0) {
               const k = morningSlots.length;
-              let compacted = false;
-              const maxStartOffset = 4 - k;
-
-              for (let startOffset = 0; startOffset <= maxStartOffset; startOffset++) {
-                if (compacted) break;
-                const targetPeriods = morningPeriods.slice(startOffset, startOffset + k);
-
-                const permute = (arr: GeneratedSlot[]): GeneratedSlot[][] => {
-                  if (arr.length <= 1) return [arr];
-                  const result: GeneratedSlot[][] = [];
-                  for (let i = 0; i < arr.length; i++) {
-                    const current = arr[i];
-                    const remaining = [...arr.slice(0, i), ...arr.slice(i + 1)];
-                    for (const p of permute(remaining)) {
-                      result.push([current, ...p]);
-                    }
-                  }
-                  return result;
-                };
-
-                const allPerms = permute(morningSlots);
-                for (const perm of allPerms) {
-                  let allValid = true;
-                  for (let i = 0; i < k; i++) {
-                    const slot = perm[i];
-                    const targetP = targetPeriods[i];
-                    const teacher = teachers.find((t) => t.id === slot.teacher_id);
-
-                    const isTeacherBusy = generated.some(
-                      (other) =>
-                        other !== slot &&
-                        !morningSlots.includes(other) &&
-                        other.teacher_id === slot.teacher_id &&
-                        other.day_of_week === day.id &&
-                        other.start_time === targetP.start
-                    );
-                    if (isTeacherBusy) {
-                      allValid = false;
-                      break;
-                    }
-
-                    const vacOk = teacher
-                      ? isTeacherAvailableForSlot(teacher, day.id, targetP.id, targetP.start)
-                      : true;
-                    if (!vacOk) {
-                      allValid = false;
-                      break;
-                    }
-                  }
-
-                  if (allValid) {
-                    for (let i = 0; i < k; i++) {
-                      perm[i].start_time = targetPeriods[i].start;
-                      perm[i].end_time = targetPeriods[i].end;
-                    }
-                    compacted = true;
-                    break;
-                  }
-                }
-              }
-
-              // Inter-day swap fallback
-              if (!compacted && hasInternalHole) {
-                const neededSlotP = morningPeriods.find((p, pIdx) => {
-                  const isOccupied = morningSlots.some((s) => s.start_time === p.start);
-                  return !isOccupied && pIdx < maxIdx;
-                });
-                const holeSlot = morningSlots[morningSlots.length - 1];
-
-                if (neededSlotP) {
-                  const otherSlots = generated.filter((s) => s.class_id === cls.id && s.day_of_week !== day.id);
-                  for (const partner of otherSlots) {
-                    const tPartner = teachers.find((t) => t.id === partner.teacher_id);
-                    const tHole = teachers.find((t) => t.id === holeSlot.teacher_id);
-
-                    const isPartnerFree = !generated.some(
-                      (s) => s !== partner && s.teacher_id === partner.teacher_id && s.day_of_week === day.id && s.start_time === neededSlotP.start
-                    );
-                    const isHoleFree = !generated.some(
-                      (s) => s !== holeSlot && s !== partner && s.teacher_id === holeSlot.teacher_id && s.day_of_week === partner.day_of_week && s.start_time === partner.start_time
-                    );
-
-                    const countPartnerOnDay = generated.filter(
-                      (s) => s !== partner && s.class_id === cls.id && s.day_of_week === day.id && s.subject_id === partner.subject_id
-                    ).length;
-                    const countHoleOnPartnerDay = generated.filter(
-                      (s) => s !== holeSlot && s.class_id === cls.id && s.day_of_week === partner.day_of_week && s.subject_id === holeSlot.subject_id
-                    ).length;
-
-                    const vac1 = tPartner ? isTeacherAvailableForSlot(tPartner, day.id, neededSlotP.id, neededSlotP.start) : true;
-                    const vac2 = tHole ? isTeacherAvailableForSlot(tHole, partner.day_of_week, '', partner.start_time) : true;
-
-                    if (isPartnerFree && isHoleFree && countPartnerOnDay < 2 && countHoleOnPartnerDay < 2 && vac1 && vac2) {
-                      partner.day_of_week = day.id;
-                      partner.dayName = day.name;
-                      partner.start_time = neededSlotP.start;
-                      partner.end_time = neededSlotP.end;
-
-                      holeSlot.day_of_week = partner.day_of_week;
-                      holeSlot.dayName = partner.dayName;
-                      holeSlot.start_time = partner.start_time;
-                      holeSlot.end_time = partner.end_time;
-                      break;
-                    }
-                  }
-                }
-              }
-            }
-          }
-
-          // 2. Compact Afternoon (P5 -> P6 -> P7 for Mon-Thu)
-          if (day.id !== 5) {
-            const afternoonPeriods = MOROCCAN_55MIN_PERIODS.slice(4);
-            const afternoonSlots = generated.filter(
-              (s) => s.class_id === cls.id && s.day_of_week === day.id && afternoonPeriods.some((p) => p.start === s.start_time)
-            );
-
-            if (afternoonSlots.length > 0 && afternoonSlots.length < 3) {
-              const afternoonIndices = afternoonSlots
-                .map((s) => afternoonPeriods.findIndex((p) => p.start === s.start_time))
-                .sort((a, b) => a - b);
-              const minIdx = afternoonIndices[0];
-              const maxIdx = afternoonIndices[afternoonIndices.length - 1];
-              const hasInternalHole = maxIdx - minIdx + 1 > afternoonSlots.length;
-              const hasLateStart = minIdx > 0;
-
-              if (hasInternalHole || hasLateStart) {
-                const k = afternoonSlots.length;
-                let compacted = false;
-                const maxStartOffset = 3 - k;
-
-                for (let startOffset = 0; startOffset <= maxStartOffset; startOffset++) {
-                  if (compacted) break;
-                  const targetPeriods = afternoonPeriods.slice(startOffset, startOffset + k);
-
-                  const permute = (arr: GeneratedSlot[]): GeneratedSlot[][] => {
-                    if (arr.length <= 1) return [arr];
-                    const result: GeneratedSlot[][] = [];
-                    for (let i = 0; i < arr.length; i++) {
-                      const current = arr[i];
-                      const remaining = [...arr.slice(0, i), ...arr.slice(i + 1)];
-                      for (const p of permute(remaining)) {
-                        result.push([current, ...p]);
-                      }
-                    }
-                    return result;
-                  };
-
-                  const allPerms = permute(afternoonSlots);
-                  for (const perm of allPerms) {
-                    let allValid = true;
-                    for (let i = 0; i < k; i++) {
-                      const slot = perm[i];
-                      const targetP = targetPeriods[i];
-                      const teacher = teachers.find((t) => t.id === slot.teacher_id);
-
-                      const isTeacherBusy = generated.some(
-                        (other) =>
-                          other !== slot &&
-                          !afternoonSlots.includes(other) &&
-                          other.teacher_id === slot.teacher_id &&
-                          other.day_of_week === day.id &&
-                          other.start_time === targetP.start
-                      );
-                      if (isTeacherBusy) {
-                        allValid = false;
-                        break;
-                      }
-
-                      const vacOk = teacher
-                        ? isTeacherAvailableForSlot(teacher, day.id, targetP.id, targetP.start)
-                        : true;
-                      if (!vacOk) {
-                        allValid = false;
-                        break;
-                      }
-                    }
-
-                    if (allValid) {
-                      for (let i = 0; i < k; i++) {
-                        perm[i].start_time = targetPeriods[i].start;
-                        perm[i].end_time = targetPeriods[i].end;
-                      }
-                      compacted = true;
-                      break;
-                    }
-                  }
-                }
-
-                // Inter-day swap fallback
-                if (!compacted && hasInternalHole) {
-                  const neededSlotP = afternoonPeriods.find((p, pIdx) => {
-                    const isOccupied = afternoonSlots.some((s) => s.start_time === p.start);
-                    return !isOccupied && pIdx < maxIdx;
-                  });
-                  const holeSlot = afternoonSlots[afternoonSlots.length - 1];
-
-                  if (neededSlotP) {
-                    const otherSlots = generated.filter((s) => s.class_id === cls.id && s.day_of_week !== day.id);
-                    for (const partner of otherSlots) {
-                      const tPartner = teachers.find((t) => t.id === partner.teacher_id);
-                      const tHole = teachers.find((t) => t.id === holeSlot.teacher_id);
-
-                      const isPartnerFree = !generated.some(
-                        (s) => s !== partner && s.teacher_id === partner.teacher_id && s.day_of_week === day.id && s.start_time === neededSlotP.start
-                      );
-                      const isHoleFree = !generated.some(
-                        (s) => s !== holeSlot && s !== partner && s.teacher_id === holeSlot.teacher_id && s.day_of_week === partner.day_of_week && s.start_time === partner.start_time
-                      );
-
-                      const countPartnerOnDay = generated.filter(
-                        (s) => s !== partner && s.class_id === cls.id && s.day_of_week === day.id && s.subject_id === partner.subject_id
-                      ).length;
-                      const countHoleOnPartnerDay = generated.filter(
-                        (s) => s !== holeSlot && s.class_id === cls.id && s.day_of_week === partner.day_of_week && s.subject_id === holeSlot.subject_id
-                      ).length;
-
-                      const vac1 = tPartner ? isTeacherAvailableForSlot(tPartner, day.id, neededSlotP.id, neededSlotP.start) : true;
-                      const vac2 = tHole ? isTeacherAvailableForSlot(tHole, partner.day_of_week, '', partner.start_time) : true;
-
-                      if (isPartnerFree && isHoleFree && countPartnerOnDay < 2 && countHoleOnPartnerDay < 2 && vac1 && vac2) {
-                        const tempDay = partner.day_of_week;
-                        const tempDayName = partner.dayName;
-                        const tempStart = partner.start_time;
-                        const tempEnd = partner.end_time;
-
-                        partner.day_of_week = day.id;
-                        partner.dayName = day.name;
-                        partner.start_time = neededSlotP.start;
-                        partner.end_time = neededSlotP.end;
-
-                        holeSlot.day_of_week = tempDay;
-                        holeSlot.dayName = tempDayName;
-                        holeSlot.start_time = tempStart;
-                        holeSlot.end_time = tempEnd;
-                        break;
-                      }
-                    }
-                  }
-                }
+              const targetPeriods = morningPeriods.slice(0, k);
+              for (let i = 0; i < k; i++) {
+                morningSlots[i].start_time = targetPeriods[i].start;
+                morningSlots[i].end_time = targetPeriods[i].end;
               }
             }
           }
         });
       });
 
-      setGeneratedSchedule(generated);
+      const fullSchedule = [...preservedSlots, ...generated];
+      setGeneratedSchedule(fullSchedule);
       setIsGenerating(false);
 
+      const lockedCount = classes.length - classesToGenerate.length;
       notify({
         title: 'Emploi du Temps 100% Conforme & Équilibré !',
-        message: `${generated.length} séances créées dans le respect strict du plafond de max 2h par matière par jour, sans aucun trou ni conflit d'enseignant.`,
+        message: targetClassScope !== 'ALL'
+          ? `Emploi du temps de la classe ${classesToGenerate[0]?.name} généré avec succès (${generated.length} séances).`
+          : `${generated.length} séances créées pour ${classesToGenerate.length} classes${lockedCount > 0 ? ` (${lockedCount} classes verrouillées préservées)` : ''}.`,
         type: 'success',
       });
-    }, 500);
+    } catch (err: unknown) {
+      setIsGenerating(false);
+      const msg = err instanceof Error ? err.message : 'Erreur lors de la génération';
+      notify({ title: 'Erreur', message: msg, type: 'danger' });
+    }
   };
 
   /**
@@ -1667,7 +1608,7 @@ export default function TimetableGeneratorPage() {
       const supabase = createClient();
       const targetClassIds =
         targetClassScope === 'ALL'
-          ? classes.map((c) => c.id)
+          ? classes.filter((c) => !lockedClassIds.has(c.id)).map((c) => c.id)
           : [targetClassScope];
 
       // 1. Get or create active primary timetable
@@ -1695,14 +1636,16 @@ export default function TimetableGeneratorPage() {
         });
       }
 
-      // 3. Delete existing slots for targeted classes
+      // 3. Delete existing slots for targeted classes only (locked/other classes untouched!)
       await supabase.from('timetable_slots').delete().in('class_id', targetClassIds);
 
-      // 4. Build sanitized payload
+      // 4. Build sanitized payload for generated classes
       const defaultSubjectId =
         dbSubjects && dbSubjects[0] ? dbSubjects[0].id : '816c5a1e-4d86-4647-a818-7fe732531c6a';
 
-      const payload = generatedSchedule.map((s) => {
+      const slotsToSave = generatedSchedule.filter((s) => targetClassIds.includes(s.class_id));
+
+      const payload = slotsToSave.map((s) => {
         let validSubjId = subjectMap.get(s.subject_id);
         if (!validSubjId) {
           validSubjId = subjectMap.get(s.subjectName.toLowerCase().trim());
@@ -1797,39 +1740,32 @@ export default function TimetableGeneratorPage() {
             </Link>
 
             {/* Condition-Based Generation Button */}
-            {existingSlotsCount > 0 ? (
-              <button
-                onClick={() => setShowClearConfirmModal(true)}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-lg shadow-amber-500/25 transition-all hover:scale-105 cursor-pointer"
-                title="Vous devez d'abord effacer l'ancien emploi du temps"
-              >
-                <Lock className="w-4 h-4 text-amber-100" />
-                <span>Génération Bloquée (Effacer l&apos;ancien d&apos;abord)</span>
-              </button>
-            ) : (
-              <button
-                onClick={runGeneratorEngine}
-                disabled={isGenerating}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-sky-500/25 transition-all hover:scale-105 cursor-pointer disabled:opacity-50"
-              >
-                {isGenerating ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Équilibrage &amp; Rotation 100%...</span>
-                  </>
-                ) : (
-                  <>
-                    <Wand2 className="w-4 h-4 text-amber-300" />
-                    <span>Générer l&apos;Emploi du Temps (100% Garanti)</span>
-                  </>
-                )}
-              </button>
-            )}
+            <button
+              onClick={runGeneratorEngine}
+              disabled={isGenerating}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-sky-500/25 transition-all hover:scale-105 cursor-pointer disabled:opacity-50"
+            >
+              {isGenerating ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Génération &amp; Optimisation...</span>
+                </>
+              ) : (
+                <>
+                  <Wand2 className="w-4 h-4 text-amber-300" />
+                  <span>
+                    {targetClassScope === 'ALL'
+                      ? `Générer l'Emploi du Temps (Toutes les Classes)`
+                      : `Générer uniquement ${classes.find((c) => c.id === targetClassScope)?.name || 'cette classe'}`}
+                  </span>
+                </>
+              )}
+            </button>
           </div>
         </div>
 
         {/* Existing Timetable Guard Banner */}
-        {existingSlotsCount > 0 && (
+        {existingSlotsCount > 0 && targetClassScope === 'ALL' && (
           <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-rose-500/10 border border-amber-300/60 dark:border-amber-700/60 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="p-3 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0">
@@ -1837,13 +1773,13 @@ export default function TimetableGeneratorPage() {
               </div>
               <div>
                 <div className="text-xs font-black text-amber-900 dark:text-amber-200 uppercase tracking-wide flex items-center gap-2">
-                  <span>Ancien Emploi du Temps Actif Détecté</span>
+                  <span>Planning Actif Détecté</span>
                   <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300 text-[10px] font-bold">
-                    {existingSlotsCount} créneaux existants
+                    {existingSlotsCount} créneaux enregistrés
                   </span>
                 </div>
                 <div className="text-xs text-amber-800/80 dark:text-amber-300/80 mt-0.5">
-                  Pour garantir l&apos;intégrité des plannings, vous devez obligatoirement supprimer l&apos;ancien emploi du temps avant de lancer une nouvelle génération.
+                  La génération va remplacer les classes non-verrouillées. Les classes verrouillées 🔒 seront conservées intactes.
                 </div>
               </div>
             </div>
@@ -1853,10 +1789,10 @@ export default function TimetableGeneratorPage() {
                 setDeleteConfirmText('');
                 setShowClearConfirmModal(true);
               }}
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-500/25 transition-all hover:scale-105 shrink-0 cursor-pointer"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md shadow-rose-500/20 transition-all shrink-0 cursor-pointer"
             >
-              <Trash2 className="w-4 h-4" />
-              <span>Supprimer l&apos;Ancien Emploi du Temps</span>
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Purger Tout l&apos;Emploi du Temps</span>
             </button>
           </div>
         )}
@@ -1868,16 +1804,21 @@ export default function TimetableGeneratorPage() {
               <School className="w-6 h-6" />
             </div>
             <div>
-              <div className="text-xs font-bold text-slate-900 dark:text-white">
-                Périmètre des Classes à Générer
+              <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <span>Périmètre des Classes à Générer</span>
+                {lockedClassIds.size > 0 && (
+                  <span className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 text-[10px] font-extrabold flex items-center gap-1">
+                    <Lock className="w-3 h-3" /> {lockedClassIds.size} Verrouillées
+                  </span>
+                )}
               </div>
               <div className="text-[11px] text-slate-400">
-                Plafond strict : Aucun élève n&apos;aura plus de 2 heures d&apos;une même matière par jour
+                Générez pour l&apos;école entière ou pour un groupe précis. Les classes verrouillées 🔒 sont automatiquement protégées et préservées.
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <label className="text-xs font-bold text-slate-600 dark:text-slate-400">
               Cible :
             </label>
@@ -1886,13 +1827,43 @@ export default function TimetableGeneratorPage() {
               onChange={(e) => setTargetClassScope(e.target.value)}
               className="px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
             >
-              <option value="ALL">Toutes les Classes ({classes.length} divisions)</option>
-              {classes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({getClassCycle(c)})
-                </option>
-              ))}
+              <option value="ALL">
+                Toutes les Classes ({classes.length} divisions) {lockedClassIds.size > 0 ? `(${lockedClassIds.size} verrouillées 🔒)` : ''}
+              </option>
+              {classes.map((c) => {
+                const isLocked = lockedClassIds.has(c.id);
+                return (
+                  <option key={c.id} value={c.id}>
+                    {isLocked ? '🔒 ' : ''}{c.name} ({getClassCycle(c)}) {isLocked ? '(Verrouillée)' : ''}
+                  </option>
+                );
+              })}
             </select>
+
+            {targetClassScope !== 'ALL' && (
+              <button
+                type="button"
+                onClick={() => toggleClassLock(targetClassScope)}
+                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  lockedClassIds.has(targetClassScope)
+                    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 hover:bg-amber-500/25'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+                }`}
+                title={lockedClassIds.has(targetClassScope) ? 'Cliquer pour déverrouiller' : 'Cliquer pour verrouiller et protéger'}
+              >
+                {lockedClassIds.has(targetClassScope) ? (
+                  <>
+                    <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                    <span>Verrouillée 🔒</span>
+                  </>
+                ) : (
+                  <>
+                    <Unlock className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Verrouiller 🔓</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
 
