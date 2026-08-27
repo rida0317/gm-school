@@ -608,40 +608,78 @@ export default function TimetablePage() {
       });
     });
 
-    // 4. CLASS SCHEDULE HOLES / GAPS ACROSS FULL DAY (Heures Creuses Isolées dans la journée)
+    // 4. CLASS SCHEDULE HOLES / GAPS (Heures Creuses Isolées dans la demi-journée)
     classesList.forEach((cls) => {
       MOROCCAN_SCHOOL_DAYS.forEach((day) => {
         const classDaySlots = slotsList.filter((s) => s.class_id === cls.id && s.day_of_week === day.id);
         if (classDaySlots.length === 0) return;
 
-        const dayPeriods = day.id === 5 ? MOROCCAN_55MIN_PERIODS.slice(0, 4) : MOROCCAN_55MIN_PERIODS;
-        const periodOccupied = dayPeriods.map((p) =>
+        // 4a. Matinée (P1..P4: 08h30 - 12h20)
+        const morningPeriods = MOROCCAN_55MIN_PERIODS.slice(0, 4);
+        const morningOccupied = morningPeriods.map((p) =>
           classDaySlots.find((s) => normalizeTime(s.start_time) === normalizeTime(p.start))
         );
-
-        const occupiedIndices = periodOccupied
+        const morningOccIndices = morningOccupied
           .map((s, idx) => (s ? idx : -1))
           .filter((idx) => idx !== -1);
 
-        if (occupiedIndices.length > 0) {
-          const minIdx = Math.min(...occupiedIndices);
-          const maxIdx = Math.max(...occupiedIndices);
+        if (morningOccIndices.length > 0) {
+          const minM = Math.min(...morningOccIndices);
+          const maxM = Math.max(...morningOccIndices);
 
-          for (let idx = minIdx; idx <= maxIdx; idx++) {
-            if (!periodOccupied[idx]) {
-              const emptyPeriod = dayPeriods[idx];
+          for (let idx = minM; idx <= maxM; idx++) {
+            if (!morningOccupied[idx]) {
+              const emptyPeriod = morningPeriods[idx];
               reports.push({
-                id: `gap_fullday_${cls.id}_${day.id}_${emptyPeriod.id}`,
+                id: `gap_morning_${cls.id}_${day.id}_${emptyPeriod.id}`,
                 type: 'CLASS_SCHEDULE_HOLE',
                 title: `Heure Creuse Isolée : ${cls.name}`,
-                description: `La classe ${cls.name} a un créneau vide (${emptyPeriod.label}) le ${day.name} alors que des cours sont dispensés avant et après.`,
+                description: `La classe ${cls.name} a un créneau vide (${emptyPeriod.label}) le ${day.name} en matinée alors que des cours sont dispensés avant et après.`,
                 day_of_week: day.id,
                 dayName: day.name,
                 start_time: emptyPeriod.start,
                 timeLabel: emptyPeriod.label,
                 classes: [cls.name],
-                conflictingSlotIds: classDaySlots.map((s) => s.id),
+                conflictingSlotIds: classDaySlots
+                  .filter((s) => morningPeriods.some((p) => normalizeTime(p.start) === normalizeTime(s.start_time)))
+                  .map((s) => s.id),
               });
+            }
+          }
+        }
+
+        // 4b. Après-midi (P5..P7: 13h00 - 16h00) (Lundi à Jeudi)
+        if (day.id !== 5) {
+          const afternoonPeriods = MOROCCAN_55MIN_PERIODS.slice(4);
+          const afternoonOccupied = afternoonPeriods.map((p) =>
+            classDaySlots.find((s) => normalizeTime(s.start_time) === normalizeTime(p.start))
+          );
+          const afternoonOccIndices = afternoonOccupied
+            .map((s, idx) => (s ? idx : -1))
+            .filter((idx) => idx !== -1);
+
+          if (afternoonOccIndices.length > 0) {
+            const minA = Math.min(...afternoonOccIndices);
+            const maxA = Math.max(...afternoonOccIndices);
+
+            for (let idx = minA; idx <= maxA; idx++) {
+              if (!afternoonOccupied[idx]) {
+                const emptyPeriod = afternoonPeriods[idx];
+                reports.push({
+                  id: `gap_afternoon_${cls.id}_${day.id}_${emptyPeriod.id}`,
+                  type: 'CLASS_SCHEDULE_HOLE',
+                  title: `Heure Creuse Isolée : ${cls.name}`,
+                  description: `La classe ${cls.name} a un créneau vide (${emptyPeriod.label}) le ${day.name} en après-midi alors que des cours sont dispensés avant et après.`,
+                  day_of_week: day.id,
+                  dayName: day.name,
+                  start_time: emptyPeriod.start,
+                  timeLabel: emptyPeriod.label,
+                  classes: [cls.name],
+                  conflictingSlotIds: classDaySlots
+                    .filter((s) => afternoonPeriods.some((p) => normalizeTime(p.start) === normalizeTime(s.start_time)))
+                    .map((s) => s.id),
+                });
+              }
             }
           }
         }
@@ -858,7 +896,6 @@ export default function TimetablePage() {
       }
 
       // Strategy 4: Global Free Slot Cascade Relocation
-      // Find ANY day & period across the entire week where targetTeacher is completely free
       for (const day of MOROCCAN_SCHOOL_DAYS) {
         const periods = day.id === 5 ? MOROCCAN_55MIN_PERIODS.slice(0, 4) : MOROCCAN_55MIN_PERIODS;
         for (const p of periods) {
@@ -920,16 +957,16 @@ export default function TimetablePage() {
     return null;
   };
 
-  // Iterative Auto-Conflict Solver (Runs in a loop up to 10 attempts until 0 conflicts remain!)
+  // Iterative Auto-Conflict Solver (Runs in a loop up to 25 attempts until 0 conflicts remain!)
   const handleAutoFixAllConflicts = async () => {
     if (detectedConflicts.length === 0) return;
     setIsAutoFixing(true);
     try {
       const supabase = createClient();
       let currentSlotsState = [...slots];
-      const updatedMap = new Map<string, { id: string; day_of_week: number; start_time: string; end_time: string }>();
+      const updatedMap = new Map<string, { id: string; day_of_week: number; start_time: string; end_time: string; room_id?: string | null }>();
 
-      const MAX_ATTEMPTS = 10;
+      const MAX_ATTEMPTS = 25;
       let attempt = 0;
       let resolvedCleanly = false;
 
@@ -974,7 +1011,7 @@ export default function TimetablePage() {
               if (resolved) break;
               const candTeacher = teachers.find((t) => t.id === cand.teacher_id) || cand.teacher;
 
-              // Strategy A: Move into an empty slot (or an existing schedule hole in this class!)
+              // Strategy A: Move into an empty slot in this class
               for (const day of MOROCCAN_SCHOOL_DAYS) {
                 if (resolved) break;
                 const periods = day.id === 5 ? MOROCCAN_55MIN_PERIODS.slice(0, 4) : MOROCCAN_55MIN_PERIODS;
@@ -1081,136 +1118,6 @@ export default function TimetablePage() {
                     break;
                   }
                 }
-              }
-            }
-          }
-        }
-
-        // =========================================================================
-        // PASS VACATAIRE: RESOLVE VACATAIRE OUTSIDE AVAILABILITY CONFLICTS
-        // =========================================================================
-        const vacataireConflicts = activeConflicts.filter((c) => c.type === 'VACATAIRE_UNAVAILABLE_SLOT');
-        for (const conflict of vacataireConflicts) {
-          const slotToFix = currentSlotsState.find((s) => s.id === conflict.conflictingSlotIds[0]);
-          if (!slotToFix) continue;
-
-          const teacher = teachers.find((t) => t.id === slotToFix.teacher_id) || slotToFix.teacher;
-          if (!teacher || teacher.contract_type !== 'VACATAIRE') continue;
-
-          const classId = slotToFix.class_id;
-          let fixed = false;
-
-          // Strategy 1: Find a free slot in the class schedule where the vacataire is AVAILABLE
-          for (const day of MOROCCAN_SCHOOL_DAYS) {
-            if (fixed) break;
-            const periods = day.id === 5 ? MOROCCAN_55MIN_PERIODS.slice(0, 4) : MOROCCAN_55MIN_PERIODS;
-            for (const p of periods) {
-              if (!isVacataireAvailable(teacher, day.id, p.id, p.start)) continue;
-
-              const isClassFree = !currentSlotsState.some(
-                (s) =>
-                  s.id !== slotToFix.id &&
-                  s.class_id === classId &&
-                  s.day_of_week === day.id &&
-                  normalizeTime(s.start_time) === normalizeTime(p.start)
-              );
-
-              const isTeacherFree = !currentSlotsState.some(
-                (s) =>
-                  s.id !== slotToFix.id &&
-                  s.teacher_id === teacher.id &&
-                  s.day_of_week === day.id &&
-                  normalizeTime(s.start_time) === normalizeTime(p.start)
-              );
-
-              if (isClassFree && isTeacherFree) {
-                updatedMap.set(slotToFix.id, {
-                  id: slotToFix.id,
-                  day_of_week: day.id,
-                  start_time: p.start,
-                  end_time: p.end,
-                });
-
-                currentSlotsState = currentSlotsState.map((s) =>
-                  s.id === slotToFix.id
-                    ? { ...s, day_of_week: day.id, start_time: p.start, end_time: p.end }
-                    : s
-                );
-                fixed = true;
-                changesInThisPass++;
-                break;
-              }
-            }
-          }
-
-          // Strategy 2: Swap with a full-time teacher's slot in the same class
-          if (!fixed) {
-            const classSlots = currentSlotsState.filter(
-              (s) =>
-                s.class_id === classId &&
-                s.id !== slotToFix.id &&
-                !pinnedSlotIds.has(s.id) &&
-                !(s.day_of_week === 5 && normalizeTime(s.start_time) >= '13:00')
-            );
-
-            for (const partnerSlot of classSlots) {
-              const partnerTeacher = teachers.find((t) => t.id === partnerSlot.teacher_id) || partnerSlot.teacher;
-              const pDay = partnerSlot.day_of_week;
-              const pStart = partnerSlot.start_time;
-              const pEnd = partnerSlot.end_time;
-              const origDay = slotToFix.day_of_week;
-              const origStart = slotToFix.start_time;
-              const origEnd = slotToFix.end_time;
-
-              // Check if vacataire is available in partnerSlot's time
-              const isVacOkAtPartner = isVacataireAvailable(teacher, pDay, '', pStart);
-              if (!isVacOkAtPartner) continue;
-
-              // Check if vacataire is free at partner time
-              const isVacFreeAtPartner = !currentSlotsState.some(
-                (s) =>
-                  s.id !== slotToFix.id &&
-                  s.id !== partnerSlot.id &&
-                  s.teacher_id === teacher.id &&
-                  s.day_of_week === pDay &&
-                  normalizeTime(s.start_time) === normalizeTime(pStart)
-              );
-
-              // Check if partner teacher is free at orig time
-              const isPartnerFreeAtOrig = !currentSlotsState.some(
-                (s) =>
-                  s.id !== slotToFix.id &&
-                  s.id !== partnerSlot.id &&
-                  s.teacher_id === partnerSlot.teacher_id &&
-                  s.day_of_week === origDay &&
-                  normalizeTime(s.start_time) === normalizeTime(origStart)
-              );
-
-              const isPartnerVacOk = partnerTeacher ? isVacataireAvailable(partnerTeacher, origDay, '', origStart) : true;
-
-              if (isVacFreeAtPartner && isPartnerFreeAtOrig && isPartnerVacOk) {
-                updatedMap.set(slotToFix.id, {
-                  id: slotToFix.id,
-                  day_of_week: pDay,
-                  start_time: pStart,
-                  end_time: pEnd,
-                });
-                updatedMap.set(partnerSlot.id, {
-                  id: partnerSlot.id,
-                  day_of_week: origDay,
-                  start_time: origStart,
-                  end_time: origEnd,
-                });
-
-                currentSlotsState = currentSlotsState.map((s) => {
-                  if (s.id === slotToFix.id) return { ...s, day_of_week: pDay, start_time: pStart, end_time: pEnd };
-                  if (s.id === partnerSlot.id) return { ...s, day_of_week: origDay, start_time: origStart, end_time: origEnd };
-                  return s;
-                });
-
-                fixed = true;
-                changesInThisPass++;
-                break;
               }
             }
           }
@@ -1392,7 +1299,174 @@ export default function TimetablePage() {
         }
 
         // =========================================================================
-        // PASS 1.5: RESOLVE EXCESS DAILY SUBJECT HOURS (>2h/day for a single subject)
+        // PASS 1.2: RESOLVE ROOM DOUBLE BOOKINGS (Room occupied by multiple classes)
+        // =========================================================================
+        const roomConflicts = activeConflicts.filter((c) => c.type === 'ROOM_DOUBLE_BOOKING');
+        for (const conflict of roomConflicts) {
+          if (conflict.conflictingSlotIds.length >= 2) {
+            const slotA = currentSlotsState.find((s) => s.id === conflict.conflictingSlotIds[0]);
+            const slotB = currentSlotsState.find((s) => s.id === conflict.conflictingSlotIds[1]);
+            if (!slotA || !slotB) continue;
+
+            const slotToReassign = pinnedSlotIds.has(slotA.id) ? slotB : slotA;
+            // Try finding an unoccupied room
+            const busyRoomIds = new Set(
+              currentSlotsState
+                .filter(
+                  (s) =>
+                    s.id !== slotToReassign.id &&
+                    s.day_of_week === slotToReassign.day_of_week &&
+                    normalizeTime(s.start_time) === normalizeTime(slotToReassign.start_time) &&
+                    s.room_id
+                )
+                .map((s) => s.room_id)
+            );
+            const freeRoom = rooms.find((r) => !busyRoomIds.has(r.id));
+            if (freeRoom) {
+              updatedMap.set(slotToReassign.id, {
+                id: slotToReassign.id,
+                day_of_week: slotToReassign.day_of_week,
+                start_time: slotToReassign.start_time,
+                end_time: slotToReassign.end_time,
+                room_id: freeRoom.id,
+              });
+              currentSlotsState = currentSlotsState.map((s) =>
+                s.id === slotToReassign.id ? { ...s, room_id: freeRoom.id, room: freeRoom } : s
+              );
+              changesInThisPass++;
+            }
+          }
+        }
+
+        // =========================================================================
+        // PASS 1.5: RESOLVE VACATAIRE OUTSIDE AVAILABILITY CONFLICTS
+        // =========================================================================
+        const vacataireConflicts = activeConflicts.filter((c) => c.type === 'VACATAIRE_UNAVAILABLE_SLOT');
+        for (const conflict of vacataireConflicts) {
+          const slotToFix = currentSlotsState.find((s) => s.id === conflict.conflictingSlotIds[0]);
+          if (!slotToFix) continue;
+
+          const teacher = teachers.find((t) => t.id === slotToFix.teacher_id) || slotToFix.teacher;
+          if (!teacher || teacher.contract_type !== 'VACATAIRE') continue;
+
+          const classId = slotToFix.class_id;
+          let fixed = false;
+
+          // Strategy 1: Find a free slot in the class schedule where the vacataire is AVAILABLE
+          for (const day of MOROCCAN_SCHOOL_DAYS) {
+            if (fixed) break;
+            const periods = day.id === 5 ? MOROCCAN_55MIN_PERIODS.slice(0, 4) : MOROCCAN_55MIN_PERIODS;
+            for (const p of periods) {
+              if (!isVacataireAvailable(teacher, day.id, p.id, p.start)) continue;
+
+              const isClassFree = !currentSlotsState.some(
+                (s) =>
+                  s.id !== slotToFix.id &&
+                  s.class_id === classId &&
+                  s.day_of_week === day.id &&
+                  normalizeTime(s.start_time) === normalizeTime(p.start)
+              );
+
+              const isTeacherFree = !currentSlotsState.some(
+                (s) =>
+                  s.id !== slotToFix.id &&
+                  s.teacher_id === teacher.id &&
+                  s.day_of_week === day.id &&
+                  normalizeTime(s.start_time) === normalizeTime(p.start)
+              );
+
+              if (isClassFree && isTeacherFree) {
+                updatedMap.set(slotToFix.id, {
+                  id: slotToFix.id,
+                  day_of_week: day.id,
+                  start_time: p.start,
+                  end_time: p.end,
+                });
+
+                currentSlotsState = currentSlotsState.map((s) =>
+                  s.id === slotToFix.id
+                    ? { ...s, day_of_week: day.id, start_time: p.start, end_time: p.end }
+                    : s
+                );
+                fixed = true;
+                changesInThisPass++;
+                break;
+              }
+            }
+          }
+
+          // Strategy 2: Swap with another teacher's slot in the same class
+          if (!fixed) {
+            const classSlots = currentSlotsState.filter(
+              (s) =>
+                s.class_id === classId &&
+                s.id !== slotToFix.id &&
+                !pinnedSlotIds.has(s.id) &&
+                !(s.day_of_week === 5 && normalizeTime(s.start_time) >= '13:00')
+            );
+
+            for (const partnerSlot of classSlots) {
+              const partnerTeacher = teachers.find((t) => t.id === partnerSlot.teacher_id) || partnerSlot.teacher;
+              const pDay = partnerSlot.day_of_week;
+              const pStart = partnerSlot.start_time;
+              const pEnd = partnerSlot.end_time;
+              const origDay = slotToFix.day_of_week;
+              const origStart = slotToFix.start_time;
+              const origEnd = slotToFix.end_time;
+
+              const isVacOkAtPartner = isVacataireAvailable(teacher, pDay, '', pStart);
+              if (!isVacOkAtPartner) continue;
+
+              const isVacFreeAtPartner = !currentSlotsState.some(
+                (s) =>
+                  s.id !== slotToFix.id &&
+                  s.id !== partnerSlot.id &&
+                  s.teacher_id === teacher.id &&
+                  s.day_of_week === pDay &&
+                  normalizeTime(s.start_time) === normalizeTime(pStart)
+              );
+
+              const isPartnerFreeAtOrig = !currentSlotsState.some(
+                (s) =>
+                  s.id !== slotToFix.id &&
+                  s.id !== partnerSlot.id &&
+                  s.teacher_id === partnerSlot.teacher_id &&
+                  s.day_of_week === origDay &&
+                  normalizeTime(s.start_time) === normalizeTime(origStart)
+              );
+
+              const isPartnerVacOk = partnerTeacher ? isVacataireAvailable(partnerTeacher, origDay, '', origStart) : true;
+
+              if (isVacFreeAtPartner && isPartnerFreeAtOrig && isPartnerVacOk) {
+                updatedMap.set(slotToFix.id, {
+                  id: slotToFix.id,
+                  day_of_week: pDay,
+                  start_time: pStart,
+                  end_time: pEnd,
+                });
+                updatedMap.set(partnerSlot.id, {
+                  id: partnerSlot.id,
+                  day_of_week: origDay,
+                  start_time: origStart,
+                  end_time: origEnd,
+                });
+
+                currentSlotsState = currentSlotsState.map((s) => {
+                  if (s.id === slotToFix.id) return { ...s, day_of_week: pDay, start_time: pStart, end_time: pEnd };
+                  if (s.id === partnerSlot.id) return { ...s, day_of_week: origDay, start_time: origStart, end_time: origEnd };
+                  return s;
+                });
+
+                fixed = true;
+                changesInThisPass++;
+                break;
+              }
+            }
+          }
+        }
+
+        // =========================================================================
+        // PASS 1.8: RESOLVE EXCESS DAILY SUBJECT HOURS (>2h/day for a single subject)
         // =========================================================================
         const excessDailyConflicts = activeConflicts.filter((c) => c.type === 'EXCESS_DAILY_SUBJECT_HOURS');
         for (const conflict of excessDailyConflicts) {
@@ -1451,202 +1525,244 @@ export default function TimetablePage() {
         }
 
         // =========================================================================
-        // PASS 2: COMPACT & ELIMINATE ALL CLASS SCHEDULE GAPS (Trous / Sawaye3 Khawyin)
+        // PASS 2: COMPACT & ELIMINATE ALL CLASS SCHEDULE GAPS (Heures Creuses Isolées)
         // =========================================================================
-        classes.forEach((cls) => {
-          MOROCCAN_SCHOOL_DAYS.forEach((day) => {
-            // 1. Compact Morning (P1 -> P2 -> P3 -> P4)
+        for (const cls of classes) {
+          for (const day of MOROCCAN_SCHOOL_DAYS) {
+            // --- 2A. Morning Compaction (P1..P4) ---
             const morningPeriods = MOROCCAN_55MIN_PERIODS.slice(0, 4);
-            for (let pIdx = 0; pIdx < morningPeriods.length; pIdx++) {
-              const expectedPeriod = morningPeriods[pIdx];
-              const slotAtExpected = currentSlotsState.find(
+            const morningSlots = currentSlotsState.filter(
+              (s) =>
+                s.class_id === cls.id &&
+                s.day_of_week === day.id &&
+                morningPeriods.some((p) => normalizeTime(p.start) === normalizeTime(s.start_time))
+            );
+
+            if (morningSlots.length > 0 && morningSlots.length < 4) {
+              const morningIndices = morningSlots
+                .map((s) => morningPeriods.findIndex((p) => normalizeTime(p.start) === normalizeTime(s.start_time)))
+                .sort((a, b) => a - b);
+              const minIdx = morningIndices[0];
+              const maxIdx = morningIndices[morningIndices.length - 1];
+              const hasInternalHole = maxIdx - minIdx + 1 > morningSlots.length;
+              const hasLateStart = minIdx > 0;
+
+              // If there's an internal hole, or a late morning start that can be compacted
+              if (hasInternalHole || hasLateStart) {
+                const k = morningSlots.length;
+                let compacted = false;
+
+                // Try contiguous target windows: [0..k-1], [1..k], etc.
+                const maxStartOffset = 4 - k;
+                for (let startOffset = 0; startOffset <= maxStartOffset; startOffset++) {
+                  if (compacted) break;
+                  const targetPeriods = morningPeriods.slice(startOffset, startOffset + k);
+
+                  // Check if any slot permutation into targetPeriods is valid
+                  // Simple permutation search for k <= 4
+                  const permute = (arr: TimetableSlot[]): TimetableSlot[][] => {
+                    if (arr.length <= 1) return [arr];
+                    const result: TimetableSlot[][] = [];
+                    for (let i = 0; i < arr.length; i++) {
+                      const current = arr[i];
+                      const remaining = [...arr.slice(0, i), ...arr.slice(i + 1)];
+                      for (const p of permute(remaining)) {
+                        result.push([current, ...p]);
+                      }
+                    }
+                    return result;
+                  };
+
+                  const allPerms = permute(morningSlots);
+                  for (const perm of allPerms) {
+                    // Check if all slots in this permutation have their teachers free at the assigned period
+                    let allValid = true;
+                    for (let i = 0; i < k; i++) {
+                      const slot = perm[i];
+                      const targetP = targetPeriods[i];
+                      const teacher = teachers.find((t) => t.id === slot.teacher_id) || slot.teacher;
+
+                      if (pinnedSlotIds.has(slot.id)) {
+                        // If slot is pinned, it must already be at targetP
+                        if (normalizeTime(slot.start_time) !== normalizeTime(targetP.start)) {
+                          allValid = false;
+                          break;
+                        }
+                      }
+
+                      const isTeacherBusy = currentSlotsState.some(
+                        (other) =>
+                          other.id !== slot.id &&
+                          !morningSlots.some((ms) => ms.id === other.id) &&
+                          other.teacher_id === slot.teacher_id &&
+                          other.day_of_week === day.id &&
+                          normalizeTime(other.start_time) === normalizeTime(targetP.start)
+                      );
+                      if (isTeacherBusy) {
+                        allValid = false;
+                        break;
+                      }
+
+                      const vacOk = teacher ? isVacataireAvailable(teacher, day.id, targetP.id, targetP.start) : true;
+                      if (!vacOk) {
+                        allValid = false;
+                        break;
+                      }
+                    }
+
+                    if (allValid) {
+                      // Check if this actually changes anything
+                      let hasChange = false;
+                      for (let i = 0; i < k; i++) {
+                        if (normalizeTime(perm[i].start_time) !== normalizeTime(targetPeriods[i].start)) {
+                          hasChange = true;
+                          break;
+                        }
+                      }
+
+                      if (hasChange) {
+                        for (let i = 0; i < k; i++) {
+                          const slot = perm[i];
+                          const targetP = targetPeriods[i];
+                          if (normalizeTime(slot.start_time) !== normalizeTime(targetP.start)) {
+                            updatedMap.set(slot.id, {
+                              id: slot.id,
+                              day_of_week: day.id,
+                              start_time: targetP.start,
+                              end_time: targetP.end,
+                            });
+                            currentSlotsState = currentSlotsState.map((s) =>
+                              s.id === slot.id
+                                ? { ...s, day_of_week: day.id, start_time: targetP.start, end_time: targetP.end }
+                                : s
+                            );
+                            changesInThisPass++;
+                          }
+                        }
+                        compacted = true;
+                        break;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+
+            // --- 2B. Afternoon Compaction (P5..P7) (Mon-Thu) ---
+            if (day.id !== 5) {
+              const afternoonPeriods = MOROCCAN_55MIN_PERIODS.slice(4);
+              const afternoonSlots = currentSlotsState.filter(
                 (s) =>
                   s.class_id === cls.id &&
                   s.day_of_week === day.id &&
-                  normalizeTime(s.start_time) === normalizeTime(expectedPeriod.start)
+                  afternoonPeriods.some((p) => normalizeTime(p.start) === normalizeTime(s.start_time))
               );
 
-              if (!slotAtExpected) {
-                const laterSlot = currentSlotsState.find((s) => {
-                  if (s.class_id !== cls.id || s.day_of_week !== day.id) return false;
-                  if (pinnedSlotIds.has(s.id)) return false; // Never move a user-pinned slot away!
-                  const sIdx = morningPeriods.findIndex(
-                    (p) => normalizeTime(p.start) === normalizeTime(s.start_time)
-                  );
-                  return sIdx > pIdx;
-                });
+              if (afternoonSlots.length > 0 && afternoonSlots.length < 3) {
+                const afternoonIndices = afternoonSlots
+                  .map((s) => afternoonPeriods.findIndex((p) => normalizeTime(p.start) === normalizeTime(s.start_time)))
+                  .sort((a, b) => a - b);
+                const minIdx = afternoonIndices[0];
+                const maxIdx = afternoonIndices[afternoonIndices.length - 1];
+                const hasInternalHole = maxIdx - minIdx + 1 > afternoonSlots.length;
+                const hasLateStart = minIdx > 0;
 
-                if (laterSlot) {
-                  const teacher = teachers.find((t) => t.id === laterSlot.teacher_id) || laterSlot.teacher;
-                  const isTeacherBusyAtExpected = currentSlotsState.some(
-                    (s) =>
-                      s.id !== laterSlot.id &&
-                      s.teacher_id === laterSlot.teacher_id &&
-                      s.day_of_week === day.id &&
-                      normalizeTime(s.start_time) === normalizeTime(expectedPeriod.start)
-                  );
-                  const isVacOk = teacher
-                    ? isVacataireAvailable(teacher, day.id, expectedPeriod.id, expectedPeriod.start)
-                    : true;
+                if (hasInternalHole || hasLateStart) {
+                  const k = afternoonSlots.length;
+                  let compacted = false;
+                  const maxStartOffset = 3 - k;
 
-                  if (!isTeacherBusyAtExpected && isVacOk) {
-                    updatedMap.set(laterSlot.id, {
-                      id: laterSlot.id,
-                      day_of_week: day.id,
-                      start_time: expectedPeriod.start,
-                      end_time: expectedPeriod.end,
-                    });
+                  for (let startOffset = 0; startOffset <= maxStartOffset; startOffset++) {
+                    if (compacted) break;
+                    const targetPeriods = afternoonPeriods.slice(startOffset, startOffset + k);
 
-                    currentSlotsState = currentSlotsState.map((s) =>
-                      s.id === laterSlot.id
-                        ? {
-                            ...s,
-                            day_of_week: day.id,
-                            start_time: expectedPeriod.start,
-                            end_time: expectedPeriod.end,
-                          }
-                        : s
-                    );
-
-                    changesInThisPass++;
-                    continue;
-                  }
-                }
-
-                const anySwappableSlot = currentSlotsState.find((s) => {
-                  if (s.class_id !== cls.id) return false;
-                  if (pinnedSlotIds.has(s.id)) return false; // Protect pinned slot
-                  const sTeacher = teachers.find((t) => t.id === s.teacher_id) || s.teacher;
-                  const isTeacherBusyAtExpected = currentSlotsState.some(
-                    (other) =>
-                      other.id !== s.id &&
-                      other.teacher_id === s.teacher_id &&
-                      other.day_of_week === day.id &&
-                      normalizeTime(other.start_time) === normalizeTime(expectedPeriod.start)
-                  );
-                  const isVacOk = sTeacher ? isVacataireAvailable(sTeacher, day.id, expectedPeriod.id, expectedPeriod.start) : true;
-                  return !isTeacherBusyAtExpected && isVacOk;
-                });
-
-                if (anySwappableSlot && (anySwappableSlot.day_of_week !== day.id || normalizeTime(anySwappableSlot.start_time) !== normalizeTime(expectedPeriod.start))) {
-                  updatedMap.set(anySwappableSlot.id, {
-                    id: anySwappableSlot.id,
-                    day_of_week: day.id,
-                    start_time: expectedPeriod.start,
-                    end_time: expectedPeriod.end,
-                  });
-
-                  currentSlotsState = currentSlotsState.map((s) =>
-                    s.id === anySwappableSlot.id
-                      ? {
-                          ...s,
-                          day_of_week: day.id,
-                          start_time: expectedPeriod.start,
-                          end_time: expectedPeriod.end,
+                    const permute = (arr: TimetableSlot[]): TimetableSlot[][] => {
+                      if (arr.length <= 1) return [arr];
+                      const result: TimetableSlot[][] = [];
+                      for (let i = 0; i < arr.length; i++) {
+                        const current = arr[i];
+                        const remaining = [...arr.slice(0, i), ...arr.slice(i + 1)];
+                        for (const p of permute(remaining)) {
+                          result.push([current, ...p]);
                         }
-                      : s
-                  );
+                      }
+                      return result;
+                    };
 
-                  changesInThisPass++;
-                }
-              }
-            }
+                    const allPerms = permute(afternoonSlots);
+                    for (const perm of allPerms) {
+                      let allValid = true;
+                      for (let i = 0; i < k; i++) {
+                        const slot = perm[i];
+                        const targetP = targetPeriods[i];
+                        const teacher = teachers.find((t) => t.id === slot.teacher_id) || slot.teacher;
 
-            // 2. Compact Afternoon (P5 -> P6 -> P7 for Mon-Thu)
-            if (day.id !== 5) {
-              const afternoonPeriods = MOROCCAN_55MIN_PERIODS.slice(4);
-              for (let pIdx = 0; pIdx < afternoonPeriods.length; pIdx++) {
-                const expectedPeriod = afternoonPeriods[pIdx];
-                const slotAtExpected = currentSlotsState.find(
-                  (s) =>
-                    s.class_id === cls.id &&
-                    s.day_of_week === day.id &&
-                    normalizeTime(s.start_time) === normalizeTime(expectedPeriod.start)
-                );
+                        if (pinnedSlotIds.has(slot.id)) {
+                          if (normalizeTime(slot.start_time) !== normalizeTime(targetP.start)) {
+                            allValid = false;
+                            break;
+                          }
+                        }
 
-                if (!slotAtExpected) {
-                  const laterSlot = currentSlotsState.find((s) => {
-                    if (s.class_id !== cls.id || s.day_of_week !== day.id) return false;
-                    if (pinnedSlotIds.has(s.id)) return false; // Protect pinned slot
-                    const sIdx = afternoonPeriods.findIndex(
-                      (p) => normalizeTime(p.start) === normalizeTime(s.start_time)
-                    );
-                    return sIdx > pIdx;
-                  });
+                        const isTeacherBusy = currentSlotsState.some(
+                          (other) =>
+                            other.id !== slot.id &&
+                            !afternoonSlots.some((as) => as.id === other.id) &&
+                            other.teacher_id === slot.teacher_id &&
+                            other.day_of_week === day.id &&
+                            normalizeTime(other.start_time) === normalizeTime(targetP.start)
+                        );
+                        if (isTeacherBusy) {
+                          allValid = false;
+                          break;
+                        }
 
-                  if (laterSlot) {
-                    const teacher = teachers.find((t) => t.id === laterSlot.teacher_id) || laterSlot.teacher;
-                    const isTeacherBusyAtExpected = currentSlotsState.some(
-                      (s) =>
-                        s.id !== laterSlot.id &&
-                        s.teacher_id === laterSlot.teacher_id &&
-                        s.day_of_week === day.id &&
-                        normalizeTime(s.start_time) === normalizeTime(expectedPeriod.start)
-                    );
-                    const isVacOk = teacher
-                      ? isVacataireAvailable(teacher, day.id, expectedPeriod.id, expectedPeriod.start)
-                      : true;
+                        const vacOk = teacher ? isVacataireAvailable(teacher, day.id, targetP.id, targetP.start) : true;
+                        if (!vacOk) {
+                          allValid = false;
+                          break;
+                        }
+                      }
 
-                    if (!isTeacherBusyAtExpected && isVacOk) {
-                      updatedMap.set(laterSlot.id, {
-                        id: laterSlot.id,
-                        day_of_week: day.id,
-                        start_time: expectedPeriod.start,
-                        end_time: expectedPeriod.end,
-                      });
+                      if (allValid) {
+                        let hasChange = false;
+                        for (let i = 0; i < k; i++) {
+                          if (normalizeTime(perm[i].start_time) !== normalizeTime(targetPeriods[i].start)) {
+                            hasChange = true;
+                            break;
+                          }
+                        }
 
-                      currentSlotsState = currentSlotsState.map((s) =>
-                        s.id === laterSlot.id
-                          ? {
-                              ...s,
-                              day_of_week: day.id,
-                              start_time: expectedPeriod.start,
-                              end_time: expectedPeriod.end,
+                        if (hasChange) {
+                          for (let i = 0; i < k; i++) {
+                            const slot = perm[i];
+                            const targetP = targetPeriods[i];
+                            if (normalizeTime(slot.start_time) !== normalizeTime(targetP.start)) {
+                              updatedMap.set(slot.id, {
+                                id: slot.id,
+                                day_of_week: day.id,
+                                start_time: targetP.start,
+                                end_time: targetP.end,
+                              });
+                              currentSlotsState = currentSlotsState.map((s) =>
+                                s.id === slot.id
+                                  ? { ...s, day_of_week: day.id, start_time: targetP.start, end_time: targetP.end }
+                                  : s
+                              );
+                              changesInThisPass++;
                             }
-                          : s
-                      );
-
-                      changesInThisPass++;
-                      continue;
+                          }
+                          compacted = true;
+                          break;
+                        }
+                      }
                     }
                   }
-
-                  const anyOtherSlot = currentSlotsState.find((s) => {
-                    if (s.class_id !== cls.id) return false;
-                    if (pinnedSlotIds.has(s.id)) return false; // Protect pinned slot
-                    const sTeacher = teachers.find((t) => t.id === s.teacher_id) || s.teacher;
-                    const isTeacherBusyAtExpected = currentSlotsState.some(
-                      (other) =>
-                        other.id !== s.id &&
-                        other.teacher_id === s.teacher_id &&
-                        other.day_of_week === day.id &&
-                        normalizeTime(other.start_time) === normalizeTime(expectedPeriod.start)
-                    );
-                    const isVacOk = sTeacher ? isVacataireAvailable(sTeacher, day.id, expectedPeriod.id, expectedPeriod.start) : true;
-                    return !isTeacherBusyAtExpected && isVacOk;
-                  });
-
-                  if (anyOtherSlot && (anyOtherSlot.day_of_week !== day.id || normalizeTime(anyOtherSlot.start_time) !== normalizeTime(expectedPeriod.start))) {
-                    updatedMap.set(anyOtherSlot.id, {
-                      id: anyOtherSlot.id,
-                      day_of_week: day.id,
-                      start_time: expectedPeriod.start,
-                      end_time: expectedPeriod.end,
-                    });
-
-                    currentSlotsState = currentSlotsState.map((s) =>
-                      s.id === anyOtherSlot.id
-                        ? { ...s, day_of_week: day.id, start_time: expectedPeriod.start, end_time: expectedPeriod.end }
-                        : s
-                    );
-
-                    changesInThisPass++;
-                  }
                 }
               }
             }
-          });
-        });
+          }
+        }
 
         // If no changes occurred in this pass and conflicts remain, break to avoid infinite loop
         if (changesInThisPass === 0) {
@@ -1664,16 +1780,20 @@ export default function TimetablePage() {
 
         // Batch Persist to Supabase Database
         const results = await Promise.all(
-          updatesToPersist.map((u) =>
-            supabase
+          updatesToPersist.map((u) => {
+            const payload: { day_of_week: number; start_time: string; end_time: string; room_id?: string | null } = {
+              day_of_week: u.day_of_week,
+              start_time: u.start_time,
+              end_time: u.end_time,
+            };
+            if (u.room_id !== undefined) {
+              payload.room_id = u.room_id;
+            }
+            return supabase
               .from('timetable_slots')
-              .update({
-                day_of_week: u.day_of_week,
-                start_time: u.start_time,
-                end_time: u.end_time,
-              })
-              .eq('id', u.id)
-          )
+              .update(payload)
+              .eq('id', u.id);
+          })
         );
 
         const hasDbErrors = results.some((r) => r.error);
