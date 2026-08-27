@@ -27,6 +27,9 @@ import {
   BookOpen,
   FileSpreadsheet,
   Sparkles,
+  Printer,
+  Users,
+  CheckCircle2,
 } from 'lucide-react';
 import { StudentsImportModal } from '@/components/students/StudentsImportModal';
 import { StudentsPromotionModal } from '@/components/students/StudentsPromotionModal';
@@ -369,37 +372,92 @@ export default function StudentsPage() {
             </p>
           </div>
 
-          {!isTeacher && (
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <button
-                type="button"
-                onClick={() => setShowPromotionModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition-all cursor-pointer hover:scale-105"
-                title="Transférer les élèves admis vers le niveau supérieur et équilibrer les groupes"
-              >
-                <GraduationCap className="w-4 h-4 text-yellow-300" />
-                <span>{dir === 'rtl' ? 'الترقية والأفواج' : 'Promotion & Répartition'}</span>
-              </button>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-xs shadow-md transition-all cursor-pointer hover:scale-105"
+              title="Imprimer ou exporter la fiche officielle de la classe en PDF"
+            >
+              <Printer className="w-4 h-4 text-emerald-400 dark:text-emerald-600" />
+              <span>{dir === 'rtl' ? 'تصدير / طباعة PDF' : 'Imprimer / Export PDF'}</span>
+            </button>
 
-              <button
-                type="button"
-                onClick={() => setShowImportModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer hover:scale-105"
-                title="Importer la liste des élèves depuis un fichier Excel (.xlsx)"
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                <span>{dir === 'rtl' ? 'استيراد من Excel' : 'Importer Excel (.xlsx)'}</span>
-              </button>
+            {!isTeacher && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowPromotionModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition-all cursor-pointer hover:scale-105"
+                  title="Transférer les élèves admis vers le niveau supérieur et équilibrer les groupes"
+                >
+                  <GraduationCap className="w-4 h-4 text-yellow-300" />
+                  <span>{dir === 'rtl' ? 'الترقية والأفواج' : 'Promotion & Répartition'}</span>
+                </button>
 
-              <button
-                onClick={handleOpenCreateModal}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs shadow-md shadow-blue-600/20 hover:from-blue-700 hover:to-indigo-700 transition-all cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>{t('add_student')}</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setShowImportModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer hover:scale-105"
+                  title="Importer la liste des élèves depuis un fichier Excel (.xlsx)"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>{dir === 'rtl' ? 'استيراد من Excel' : 'Importer Excel (.xlsx)'}</span>
+                </button>
+
+                <button
+                  onClick={handleOpenCreateModal}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs shadow-md shadow-blue-600/20 hover:from-blue-700 hover:to-indigo-700 transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>{t('add_student')}</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Real-time KPI Stats Counters */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 print:hidden">
+          <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+              <Users className="w-4 h-4 text-blue-500" />
+              <span>{dir === 'rtl' ? 'مجموع التلاميذ بالمؤسسة' : 'Total Global Élèves'}</span>
             </div>
-          )}
+            <div className="text-xl font-black text-slate-900 dark:text-white mt-1 font-mono">
+              {students.length} <span className="text-xs font-semibold text-slate-400">élèves</span>
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+              <GraduationCap className="w-4 h-4 text-indigo-500" />
+              <span>{dir === 'rtl' ? 'تلاميذ القسم المحدد' : 'Classe Sélectionnée'}</span>
+            </div>
+            <div className="text-xl font-black text-indigo-600 dark:text-indigo-400 mt-1 font-mono">
+              {filteredStudents.length} <span className="text-xs font-semibold text-slate-400">élèves</span>
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+              <span className="w-2.5 h-2.5 rounded-full bg-pink-500"></span>
+              <span>{dir === 'rtl' ? 'عدد الإناث' : 'Élèves Féminin (Filles)'}</span>
+            </div>
+            <div className="text-xl font-black text-pink-600 dark:text-pink-400 mt-1 font-mono">
+              {filteredStudents.filter((s) => s.gender === 'F').length} <span className="text-xs font-semibold text-slate-400">filles</span>
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+              <span>{dir === 'rtl' ? 'عدد الذكور' : 'Élèves Masculin (Garçons)'}</span>
+            </div>
+            <div className="text-xl font-black text-blue-600 dark:text-blue-400 mt-1 font-mono">
+              {filteredStudents.filter((s) => s.gender !== 'F').length} <span className="text-xs font-semibold text-slate-400">garçons</span>
+            </div>
+          </div>
         </div>
 
         {/* Filter and Search Bar */}
@@ -422,12 +480,17 @@ export default function StudentsPage() {
               onChange={(e) => setSelectedClass(e.target.value)}
               className="px-3.5 py-2 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
             >
-              <option value="ALL">{dir === 'rtl' ? 'جميع الأقسام' : 'Toutes les classes'}</option>
-              {classes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.level})
-                </option>
-              ))}
+              <option value="ALL">
+                {dir === 'rtl' ? `جميع الأقسام (${students.length} تلميذ)` : `Toutes les classes (${students.length} élèves)`}
+              </option>
+              {classes.map((c) => {
+                const count = students.filter((s) => s.class_id === c.id).length;
+                return (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.level}) &bull; {count} élèves
+                  </option>
+                );
+              })}
             </select>
           </div>
         </div>
@@ -831,6 +894,64 @@ export default function StudentsPage() {
             </div>
           </div>
         )}
+
+        {/* Official Moroccan Print Sheet (Visible only when Printing / Saving as PDF) */}
+        <div className="hidden print:block font-sans text-black p-4 bg-white">
+          <div className="border-b-2 border-slate-900 pb-3 mb-4 flex items-center justify-between">
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-wider">Royaume du Maroc</div>
+              <div className="text-[10px] font-bold uppercase">Ministère de l&apos;Éducation Nationale, du Préscolaire et des Sports</div>
+              <h1 className="text-sm font-black uppercase text-slate-900 mt-1">
+                {settings.school_name || 'GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES'}
+              </h1>
+            </div>
+            <div className="text-right">
+              <div className="text-xs font-black uppercase px-3 py-1 bg-slate-900 text-white rounded inline-block">
+                {selectedClass === 'ALL'
+                  ? 'LISTE GÉNÉRALE DES ÉLÈVES'
+                  : `LISTE OFFICIELLE — CLASSE : ${classes.find((c) => c.id === selectedClass)?.name || ''}`}
+              </div>
+              <div className="text-[9px] text-slate-600 font-bold mt-1">
+                Année Scolaire : {settings.academic_year || '2025-2026'} &bull; Effectif : {filteredStudents.length} élèves ({filteredStudents.filter((s) => s.gender === 'F').length} Filles, {filteredStudents.filter((s) => s.gender !== 'F').length} Garçons)
+              </div>
+            </div>
+          </div>
+
+          <table className="w-full text-left text-[9pt] border-collapse border border-slate-300">
+            <thead>
+              <tr className="bg-slate-100 font-bold uppercase text-[8pt] border-b border-slate-300">
+                <th className="p-1.5 border-r border-slate-300 w-8 text-center">N°</th>
+                <th className="p-1.5 border-r border-slate-300">Nom &amp; Prénom de l&apos;Élève</th>
+                <th className="p-1.5 border-r border-slate-300 w-28">Code Massar</th>
+                <th className="p-1.5 border-r border-slate-300 w-24">Classe</th>
+                <th className="p-1.5 border-r border-slate-300 w-16 text-center">Genre</th>
+                <th className="p-1.5 border-r border-slate-300 w-36">Téléphone(s)</th>
+                <th className="p-1.5 w-28 text-center">Observation</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {filteredStudents.map((s, idx) => (
+                <tr key={s.id}>
+                  <td className="p-1.5 border-r border-slate-300 font-mono text-center">{idx + 1}</td>
+                  <td className="p-1.5 border-r border-slate-300 font-bold">{s.first_name} {s.last_name}</td>
+                  <td className="p-1.5 border-r border-slate-300 font-mono text-[8pt]">{s.student_code}</td>
+                  <td className="p-1.5 border-r border-slate-300 font-semibold">{s.class?.name || '-'}</td>
+                  <td className="p-1.5 border-r border-slate-300 text-center font-bold text-[8pt]">{s.gender === 'F' ? 'F' : 'G'}</td>
+                  <td className="p-1.5 border-r border-slate-300 font-mono text-[8pt]">{s.phone || s.guardian_phone || '-'}</td>
+                  <td className="p-1.5 border-r-0"></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div className="mt-8 pt-4 flex justify-between text-[9pt] font-bold">
+            <div>Fait à Marrakech, le {new Date().toLocaleDateString('fr-FR')}</div>
+            <div className="text-center">
+              <div>Cachet et Signature de la Direction</div>
+              <div className="h-16 w-40 border border-dashed border-slate-400 mt-2 rounded"></div>
+            </div>
+          </div>
+        </div>
 
         {/* Students Excel Import Modal */}
         <StudentsImportModal

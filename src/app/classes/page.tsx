@@ -100,6 +100,7 @@ function ClassesContent() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCycle, setSelectedCycle] = useState<string>('ALL');
+  const [studentsCountMap, setStudentsCountMap] = useState<Record<string, number>>({});
   const [showModal, setShowModal] = useState(false);
   const [showPromotionModal, setShowPromotionModal] = useState(false);
   const [promotionSourceClassId, setPromotionSourceClassId] = useState<string | undefined>(undefined);
@@ -145,12 +146,20 @@ function ClassesContent() {
     setLoading(true);
     try {
       const supabase = createClient();
-      const [{ data: cls }, { data: tch }] = await Promise.all([
+      const [{ data: cls }, { data: tch }, { data: stds }] = await Promise.all([
         supabase.from('classes').select('*, main_teacher:teachers(*)').order('name'),
         supabase.from('teachers').select('*').order('last_name'),
+        supabase.from('students').select('class_id'),
       ]);
       if (cls) setClasses(cls);
       if (tch) setTeachers(tch);
+      if (stds) {
+        const counts: Record<string, number> = {};
+        stds.forEach((s) => {
+          if (s.class_id) counts[s.class_id] = (counts[s.class_id] || 0) + 1;
+        });
+        setStudentsCountMap(counts);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -337,11 +346,16 @@ function ClassesContent() {
               <Building2 className="w-4 h-4" />
               {t('classes')}
             </div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-              {t('classes_page_title')}
-            </h1>
+            <div className="flex items-center gap-3 mt-0.5">
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                {t('classes_page_title')}
+              </h1>
+              <span className="px-2.5 py-1 rounded-xl text-xs font-black bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                {Object.values(studentsCountMap).reduce((a, b) => a + b, 0)} {dir === 'rtl' ? 'تلميذ مسجل' : 'Élèves inscrits'}
+              </span>
+            </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              {dir === 'rtl' ? 'تدبير المستويات الدراسية، الشعب والأقسام (فوج أ، فوج ب، إلخ).' : "Administrez les niveaux scolaires et les divisions par groupes (Groupe A, Groupe B, etc.)."}
+              {dir === 'rtl' ? 'تدبير المستويات الدراسية، الشعب والأقسام وتوزيع التلاميذ.' : "Administrez les niveaux scolaires et les divisions par groupes (Groupe A, Groupe B, etc.)."}
             </p>
           </div>
 
@@ -466,10 +480,20 @@ function ClassesContent() {
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span>{dir === 'rtl' ? 'الطاقة الاستيعابية :' : 'Capacité maximale :'}</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">
-                        {c.capacity} {dir === 'rtl' ? 'تلميذ' : 'Élèves'}
+                      <span>{dir === 'rtl' ? 'العدد الفعلي للتلاميذ :' : 'Effectif actuel :'}</span>
+                      <span className={`font-black px-2 py-0.5 rounded-lg text-xs ${
+                        (studentsCountMap[c.id] || 0) > 0
+                          ? 'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800'
+                          : 'text-slate-400 bg-slate-100 dark:bg-slate-800'
+                      }`}>
+                        {studentsCountMap[c.id] || 0} / {c.capacity} {dir === 'rtl' ? 'تلميذ' : 'élèves'}
                       </span>
+                    </div>
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                      <div
+                        className="bg-gradient-to-r from-orange-500 to-indigo-600 h-full rounded-full transition-all"
+                        style={{ width: `${Math.min(100, (((studentsCountMap[c.id] || 0) / (c.capacity || 30)) * 100))}%` }}
+                      />
                     </div>
                   </div>
                 </div>
