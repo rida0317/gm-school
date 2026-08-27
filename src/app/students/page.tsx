@@ -550,18 +550,12 @@ export default function StudentsPage() {
               text-align: center;
             }
             .col-gender {
-              width: 45px;
+              width: 50px;
               text-align: center;
               font-weight: 800;
             }
-            .col-phone {
-              font-family: monospace;
-              font-size: 9.5px;
-              font-weight: 600;
-              width: 165px;
-            }
             .col-obs {
-              width: 80px;
+              width: 160px;
             }
             .footer-container {
               margin-top: 25px;
@@ -612,26 +606,23 @@ export default function StudentsPage() {
                 <th class="col-massar">Code Massar</th>
                 <th class="col-class">Classe</th>
                 <th class="col-gender">Genre</th>
-                <th class="col-phone">Téléphone(s) Parent</th>
-                <th class="col-obs">Observation</th>
+                <th class="col-obs">Observation / Émargement</th>
               </tr>
             </thead>
             <tbody>
               ${filteredStudents
-                .map((s, idx) => {
-                  const phones = [s.phone, s.guardian_phone].filter(Boolean).join(' / ') || '-';
-                  return `
+                .map(
+                  (s, idx) => `
                   <tr>
                     <td class="col-num">${idx + 1}</td>
                     <td class="col-name">${s.first_name} ${s.last_name}</td>
                     <td class="col-massar">${s.student_code || '-'}</td>
                     <td class="col-class">${s.class?.name || '-'}</td>
                     <td class="col-gender">${s.gender === 'F' ? 'F' : 'G'}</td>
-                    <td class="col-phone">${phones}</td>
                     <td class="col-obs"></td>
                   </tr>
-                `;
-                })
+                `
+                )
                 .join('')}
             </tbody>
           </table>
