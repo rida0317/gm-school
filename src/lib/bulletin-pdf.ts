@@ -71,6 +71,66 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
       }
     }
 
+    // Format Moroccan Primary Subject Names with official components
+    const formatSubjectDisplayName = (name: string) => {
+      const lower = name.toLowerCase();
+      if (lower.includes('arabe') || lower.includes('عربية')) {
+        return `
+          <div class="subj-main-title">اللغة العربية (8 مكونات رسمية)</div>
+          <div class="subj-components-list">الاستماع والتحدث &bull; القراءة &bull; التراكيب &bull; الصرف والتحويل &bull; الإملاء &bull; التطبيقات الكتابية &bull; التعبير الكتابي والإنشاء &bull; مشروع الوحدة</div>
+        `;
+      }
+      if (lower.includes('français') || lower.includes('francais')) {
+        return `
+          <div class="subj-main-title">Langue Française (Composantes officielles)</div>
+          <div class="subj-components-list">Compréhension de l'écrit &bull; Activités de langue &bull; Production écrite &bull; Communication orale &bull; Écriture</div>
+        `;
+      }
+      if (lower.includes('math') || lower.includes('رياضيات')) {
+        return `
+          <div class="subj-main-title">الرياضيات / Mathématiques</div>
+          <div class="subj-components-list">الأعداد والحساب &bull; الهندسة والقياس &bull; تنظيم ومعالجة البيانات</div>
+        `;
+      }
+      if (lower.includes('éveil') || lower.includes('eveil') || lower.includes('scientifique') || lower.includes('نشاط')) {
+        return `
+          <div class="subj-main-title">النشاط العلمي / Éveil Scientifique</div>
+          <div class="subj-components-list">العلوم الفيزيائية والبيولوجية والتكنولوجية</div>
+        `;
+      }
+      if (lower.includes('islam') || lower.includes('إسلامية') || lower.includes('اسلامية')) {
+        return `
+          <div class="subj-main-title">التربية الإسلامية / Éducation Islamique</div>
+          <div class="subj-components-list">التزكية (القرآن والعقيدة) &bull; الاقتداء &bull; الاستجابة &bull; القسط &bull; الحكمة</div>
+        `;
+      }
+      if (lower.includes('art') || lower.includes('فنية') || lower.includes('تشكيل')) {
+        return `
+          <div class="subj-main-title">التربية الفنية / Éducation Artistique</div>
+          <div class="subj-components-list">الفنون التشكيلية والرسم &bull; الموسيقى والأناشيد &bull; المسرح</div>
+        `;
+      }
+      if (lower.includes('physique') || lower.includes('sport') || lower.includes('بدنية')) {
+        return `
+          <div class="subj-main-title">التربية البدنية / Éducation Physique</div>
+          <div class="subj-components-list">الأنشطة الحركية والرياضية المدرسية</div>
+        `;
+      }
+      if (lower.includes('anglais') || lower.includes('إنجليزية') || lower.includes('انجليزية')) {
+        return `
+          <div class="subj-main-title">Langue Anglaise / اللغة الإنجليزية</div>
+          <div class="subj-components-list">Oral communication &bull; Reading &bull; Writing activities</div>
+        `;
+      }
+      if (lower.includes('amazigh') || lower.includes('أمازيغية')) {
+        return `
+          <div class="subj-main-title">اللغة الأمازيغية / Langue Amazighe</div>
+          <div class="subj-components-list">تيفيناغ &bull; التواصل الشفهي &bull; القراءة والكتابة</div>
+        `;
+      }
+      return `<div class="subj-main-title">${name}</div>`;
+    };
+
     const rowsHtml = rc.subjects.map((sub, idx) => {
       const cc1Val = sub.scores.cc1 !== null && sub.scores.cc1 !== undefined ? sub.scores.cc1.toFixed(2) : '—';
       const cc2Val = sub.scores.cc2 !== null && sub.scores.cc2 !== undefined ? sub.scores.cc2.toFixed(2) : '—';
@@ -90,20 +150,20 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
       const appreciation = sub.appreciation || (
         sub.average !== null && sub.average !== undefined
           ? sub.average >= veryGoodThreshold
-            ? 'Excellent travail, continuez ainsi'
+            ? (isPrimary ? 'ممتاز، واصل تألقك 🌟 / Excellent' : 'Excellent travail, continuez ainsi')
             : sub.average >= goodThreshold
-            ? 'Bon travail, résultats satisfaisants'
+            ? (isPrimary ? 'عمل جيد جداً 🎖️ / Très Bon' : 'Bon travail, résultats satisfaisants')
             : sub.average >= passThreshold
-            ? 'Résultats convenables, peut mieux faire'
-            : 'Des difficultés, un travail régulier est nécessaire'
+            ? (isPrimary ? 'مستحسن، يمكن تحسين الأداء 👏 / Convenable' : 'Résultats convenables, peut mieux faire')
+            : (isPrimary ? 'تعثر في بعض المكونات، يحتاج لدعم ⚠️ / Soutien requis' : 'Des difficultés, un travail régulier est nécessaire')
           : '—'
       );
 
       return `
         <tr class="${idx % 2 === 1 ? 'even-row' : ''}">
           <td class="col-subj">
-            <div class="subj-name">${sub.subject_name}</div>
-            ${sub.teacher_name ? `<div class="subj-teacher">Prof: ${sub.teacher_name}</div>` : ''}
+            ${formatSubjectDisplayName(sub.subject_name)}
+            ${sub.teacher_name ? `<div class="subj-teacher">الأستاذ(ة): ${sub.teacher_name}</div>` : ''}
           </td>
           <td class="col-score text-center">${cc1Val}</td>
           <td class="col-score text-center">${cc2Val}</td>
@@ -127,35 +187,35 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
           <div class="header-left">
             <img src="${fullLogoSrc}" alt="Logo" class="logo-img" />
             <div class="school-titles">
-              <div class="gov-text">ROYAUME DU MAROC &bull; MINISTÈRE DE L'ÉDUCATION NATIONALE</div>
+              <div class="gov-text">المملكة المغربية &bull; وزارة التربية الوطنية والتعليم الأولي والرياضة</div>
               <div class="school-name">${schoolName}</div>
-              <div class="sub-text">Enseignement Privé &bull; Maternelle - Primaire - Collège - Lycée</div>
+              <div class="sub-text">${isPrimary ? 'سلك التعليم الابتدائي المعتمد &bull; Cycle Primaire MEN' : 'Enseignement Privé &bull; Maternelle - Primaire - Collège - Lycée'}</div>
             </div>
           </div>
           <div class="header-right">
-            <div class="badge-bulletin">BULLETIN SCOLAIRE OFFICIEL</div>
-            <div class="meta-row"><strong>Semestre :</strong> ${rc.semester === 'S1' ? 'Semestre 1 (S1)' : 'Semestre 2 (S2)'}</div>
-            <div class="meta-row"><strong>Année Scolaire :</strong> ${rc.academic_year || academicYear}</div>
+            <div class="badge-bulletin">${isPrimary ? 'كشف نقط سلك الابتدائي (10/10)' : 'BULLETIN SCOLAIRE OFFICIEL'}</div>
+            <div class="meta-row"><strong>الدورة / Semestre :</strong> ${rc.semester === 'S1' ? 'الدورة الأولى (S1)' : 'الدورة الثانية (S2)'}</div>
+            <div class="meta-row"><strong>الموسم الدراسي :</strong> ${rc.academic_year || academicYear}</div>
           </div>
         </div>
 
         <!-- Student ID Card -->
         <div class="student-id-grid">
           <div class="id-item">
-            <span class="id-label">Nom &amp; Prénom :</span>
+            <span class="id-label">${isPrimary ? 'اسم التلميذ(ة) / Nom & Prénom :' : 'Nom & Prénom :'}</span>
             <span class="id-value text-highlight">${rc.student_name}</span>
           </div>
           <div class="id-item">
-            <span class="id-label">Code Massar :</span>
+            <span class="id-label">${isPrimary ? 'رمز مسار / Code Massar :' : 'Code Massar :'}</span>
             <span class="id-value massar-font">${rc.massar_code || '—'}</span>
           </div>
           <div class="id-item">
-            <span class="id-label">Classe :</span>
+            <span class="id-label">${isPrimary ? 'المستوى والقسم / Classe :' : 'Classe :'}</span>
             <span class="id-value">${rc.class_name} (${rc.level})</span>
           </div>
           <div class="id-item">
-            <span class="id-label">Effectif de la classe :</span>
-            <span class="id-value">${rc.total_students} élèves</span>
+            <span class="id-label">${isPrimary ? 'العدد الإجمالي / Effectif :' : 'Effectif :'}</span>
+            <span class="id-value">${rc.total_students} تلميذاً</span>
           </div>
         </div>
 
@@ -164,16 +224,16 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
           <table class="grades-table">
             <thead>
               <tr>
-                <th class="col-subj">Matière / Discipline</th>
-                <th class="col-score">C.C 1</th>
-                <th class="col-score">C.C 2</th>
-                <th class="col-score">C.C 3</th>
-                <th class="col-score">Activités</th>
-                <th class="col-avg">Moyenne</th>
-                <th class="col-coeff">Coeff</th>
-                <th class="col-pts">Points</th>
-                <th class="col-stat">Min / Max</th>
-                <th class="col-apprec">Appréciations des Enseignants</th>
+                <th class="col-subj">${isPrimary ? 'المواد الدراسية والمكونات (Discipline & Composantes)' : 'Matière / Discipline'}</th>
+                <th class="col-score">${isPrimary ? 'الفرض 1' : 'C.C 1'}</th>
+                <th class="col-score">${isPrimary ? 'الفرض 2' : 'C.C 2'}</th>
+                <th class="col-score">${isPrimary ? 'الفرض 3' : 'C.C 3'}</th>
+                <th class="col-score">${isPrimary ? 'الأنشطة' : 'Activités'}</th>
+                <th class="col-avg">${isPrimary ? 'معدل المادة' : 'Moyenne'}</th>
+                <th class="col-coeff">المعامل</th>
+                <th class="col-pts">النقطة</th>
+                <th class="col-stat">أدنى / أعلى</th>
+                <th class="col-apprec">${isPrimary ? 'ملاحظات الأستاذ(ة) والتقويم' : 'Appréciations des Enseignants'}</th>
               </tr>
             </thead>
             <tbody>
@@ -185,38 +245,44 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
         <!-- Summary KPI & Honors Section -->
         <div class="summary-container">
           <div class="kpi-box">
-            <div class="kpi-title">RÉSULTATS GLOBAUX DU SEMESTRE</div>
+            <div class="kpi-title">${isPrimary ? 'النتائج الإجمالية للدورة / RÉSULTATS DU SEMESTRE' : 'RÉSULTATS GLOBAUX DU SEMESTRE'}</div>
             <div class="kpi-grid">
               <div class="kpi-cell">
-                <div class="cell-label">Total des Points</div>
+                <div class="cell-label">مجموع النقط</div>
                 <div class="cell-val">${rc.total_points.toFixed(2)}</div>
               </div>
               <div class="kpi-cell">
-                <div class="cell-label">Total Coefficients</div>
+                <div class="cell-label">مجموع المعاملات</div>
                 <div class="cell-val">${rc.total_coefficients}</div>
               </div>
               <div class="kpi-cell highlight-avg">
-                <div class="cell-label">MOYENNE GÉNÉRALE</div>
+                <div class="cell-label">المعدل العام</div>
                 <div class="cell-val-lg">${rc.general_average.toFixed(2)} / ${maxScale}</div>
               </div>
               <div class="kpi-cell highlight-rank">
-                <div class="cell-label">RANG / CLASSEMENT</div>
-                <div class="cell-val-lg">${rc.rank}${rc.rank === 1 ? 'er' : 'ème'} <span class="rank-total">/ ${rc.total_students}</span></div>
+                <div class="cell-label">الرتبة في القسم</div>
+                <div class="cell-val-lg">${rc.rank}${rc.rank === 1 ? 'er' : 'e'} <span class="rank-total">/ ${rc.total_students}</span></div>
               </div>
             </div>
 
             <!-- Assiduity & Discipline -->
             <div class="assiduity-strip">
-              <span><strong>Assiduité &amp; Présence :</strong> ${rc.total_absences_hours}h d'absence (${rc.unexcused_absences_hours}h non justifiées)</span>
-              <span><strong>Conduite :</strong> ${rc.conduct_mention || 'Très Bonne'}</span>
+              <span><strong>${isPrimary ? 'المواظبة والغياب :' : 'Assiduité :'}</strong> ${rc.total_absences_hours}h (${rc.unexcused_absences_hours}h غير مبررة)</span>
+              <span><strong>${isPrimary ? 'السلوك والانضباط :' : 'Conduite :'}</strong> ${rc.conduct_mention || (isPrimary ? 'حسن جداً / Exemplaire' : 'Très Bonne')}</span>
             </div>
           </div>
 
           <div class="decision-box">
-            <div class="decision-title">DÉCISION DU CONSEIL DE CLASSE</div>
+            <div class="decision-title">${isPrimary ? 'قرار وملاحظة مجلس القسم / CONSEIL DE CLASSE' : 'DÉCISION DU CONSEIL DE CLASSE'}</div>
             <div class="mention-pill ${mentionBadgeClass}">${mentionText}</div>
             <div class="council-text">
-              ${rc.general_average >= goodThreshold
+              ${isPrimary
+                ? rc.general_average >= goodThreshold
+                  ? 'يُشيد مجلس القسم بالنتائج الممتازة والانضباط النموذجي للتلميذ(ة) ويهنئه على هذا التألق والاجتهاد المستمر.'
+                  : rc.general_average >= passThreshold
+                  ? 'نتائج طيبة ومجهود مشجع، مع دعوة التلميذ(ة) لمزيد من التركيز ومراجعة بعض المكونات لتحقيق نتائج أعلى.'
+                  : 'مستوى دون العتبة، يُوصى بمواكبة مستمرة وانخراط فعال في حصص الدعم والتقوية لتجاوز الصعوبات.'
+                : rc.general_average >= goodThreshold
                 ? 'Le Conseil de classe félicite l’élève pour son engagement, son travail exemplaire et son assiduité constante.'
                 : rc.general_average >= passThreshold
                 ? 'Résultats satisfaisants. Un effort supplémentaire dans les matières principales permettra de progresser.'
@@ -228,17 +294,17 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
         <!-- Official Signatures Footer -->
         <div class="signatures-footer">
           <div class="sig-box">
-            <div class="sig-title">Le Professeur Principal</div>
-            <div class="stamp-space"></div>
+            <div class="sig-title">${isPrimary ? 'أستاذ(ة) القسم / Professeur' : 'Le Professeur Principal'}</div>
+            <div class="sig-space">توقيع وملاحظة الأستاذ</div>
           </div>
           <div class="sig-box">
-            <div class="sig-title">Signature des Parents / Tuteur</div>
-            <div class="stamp-space"></div>
+            <div class="sig-title">${isPrimary ? 'توقيع ولي الأمر / Signature Parents' : 'Signature des Parents / Tuteur'}</div>
+            <div class="sig-space">توقيع واطلاع الولي</div>
           </div>
           <div class="sig-box">
-            <div class="sig-title">Le Directeur Pédagogique &bull; Cachet</div>
-            <div class="stamp-space">
-              <div class="official-seal">VISA &bull; GM SCHOOL</div>
+            <div class="sig-title">${isPrimary ? 'مدير المؤسسة والخاتم / Direction' : 'Le Directeur Pédagogique &bull; Cachet'}</div>
+            <div class="sig-space">
+              <div class="official-seal">خاتم وتأشيرة الإدارة</div>
             </div>
           </div>
         </div>
@@ -419,17 +485,25 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             width: 27%;
             padding-left: 8px !important;
           }
-          .subj-name {
+          .subj-main-title {
             font-weight: 900;
             color: #0f172a;
-            font-size: 11.5px;
+            font-size: 11px;
             letter-spacing: 0.1px;
             line-height: 1.15;
           }
-          .subj-teacher {
-            font-size: 8px;
+          .subj-components-list {
+            font-size: 7.5px;
             font-weight: 600;
             color: #475569;
+            margin-top: 1px;
+            line-height: 1.2;
+          }
+          .subj-teacher {
+            font-size: 7.5px;
+            font-weight: 600;
+            color: #64748b;
+            margin-top: 1px;
           }
           .col-score {
             width: 6.5%;
