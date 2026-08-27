@@ -102,6 +102,7 @@ export interface ClassEntity {
   id: string;
   name: string;
   level: string;
+  cycle?: EducationCycle | string;
   group_name?: string;
   academic_year_id?: string;
   main_teacher_id?: string;
@@ -522,7 +523,8 @@ export interface StudentReportCard {
   subjects: SubjectGradeSummary[];
   total_points: number;
   total_coefficients: number;
-  general_average: number; // Moyenne Générale /20
+  general_average: number; // Moyenne Générale (/10 ou /20)
+  max_scale?: 10 | 20;
   rank: number; // Rang (1er, 2ème...)
   total_students: number;
   total_absences_hours: number;

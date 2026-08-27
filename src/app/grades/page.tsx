@@ -366,6 +366,27 @@ export default function GradesPage() {
     }
   };
 
+  // Primary vs Collège/Lycée scale detector (Primary = /10, Collège/Lycée = /20)
+  const isPrimaryClass = useMemo(() => {
+    if (!activeClass) return false;
+    const lvl = (activeClass.level || '').toLowerCase();
+    const name = (activeClass.name || '').toLowerCase();
+    const cyc = (String(activeClass.cycle || '')).toLowerCase();
+    return (
+      cyc.includes('primaire') ||
+      lvl.includes('ap') ||
+      lvl.includes('primaire') ||
+      lvl.includes('ce') ||
+      lvl.includes('cm') ||
+      lvl.includes('cp') ||
+      lvl.includes('ابتدائي') ||
+      name.includes('ap')
+    );
+  }, [activeClass]);
+
+  const maxScale = isPrimaryClass ? 10 : 20;
+  const passThreshold = isPrimaryClass ? 5 : 10;
+
   // -------------------------------------------------------------
   // CALCULATE CONSOLIDATED REPORT CARDS (BULLETINS)
   // -------------------------------------------------------------
@@ -399,7 +420,7 @@ export default function GradesPage() {
           }
         });
 
-        // Compute Subject Average /20 based on available evaluations (2 or 3 controls + activities)
+        // Compute Subject Average based on available evaluations (2 or 3 controls + activities)
         const validScores: number[] = [];
         if (cc1 !== null) validScores.push(cc1);
         if (cc2 !== null) validScores.push(cc2);
@@ -425,9 +446,9 @@ export default function GradesPage() {
           coefficient: coeff,
           scores: { cc1, cc2, cc3, activities },
           average: subjectAvg,
-          class_min: 8.5,
-          class_max: 18.5,
-          class_avg: 13.2,
+          class_min: isPrimaryClass ? 4.5 : 8.5,
+          class_max: isPrimaryClass ? 9.5 : 18.5,
+          class_avg: isPrimaryClass ? 7.2 : 13.2,
         };
       });
 
@@ -446,6 +467,7 @@ export default function GradesPage() {
         total_points: totalWeightedPoints,
         total_coefficients: totalCoeffs,
         general_average: genAvg,
+        max_scale: isPrimaryClass ? 10 : 20,
         rank: 1, // dynamically computed next
         total_students: classStudents.length,
         total_absences_hours: 4,
@@ -455,13 +477,35 @@ export default function GradesPage() {
     });
 
     // Sort by general average descending to compute rank
-    reportCardsList.sort((a, b) => b.general_average - a.general_average);
-    reportCardsList.forEach((rc, idx) => {
-      rc.rank = idx + 1;
-    });
+    const sorted = [...reportCardsList].sort((a, b) => b.general_average - a.general_average);
+    return sorted.map((rc, idx) => ({
+      ...rc,
+      rank: idx + 1,
+    }));
+  }, [
+    selectedClassId,
+    classStudents,
+    evaluations,
+    selectedSemester,
+    subjects,
+    grades,
+    activeClass,
+    settings.academic_year,
+    isPrimaryClass,
+  ]);
 
-    return reportCardsList;
-  }, [selectedClassId, classStudents, evaluations, selectedSemester, subjects, grades, activeClass, settings]);
+  // Overall Class Performance Stats
+  const classAverage = useMemo(() => {
+    if (classReportCards.length === 0) return 0;
+    const total = classReportCards.reduce((acc, rc) => acc + rc.general_average, 0);
+    return total / classReportCards.length;
+  }, [classReportCards]);
+
+  const classPassRate = useMemo(() => {
+    if (classReportCards.length === 0) return 0;
+    const passed = classReportCards.filter((c) => c.general_average >= passThreshold).length;
+    return Math.round((passed / classReportCards.length) * 100);
+  }, [classReportCards, passThreshold]);
 
   // -------------------------------------------------------------
   // PRINT HANDLERS
@@ -723,7 +767,7 @@ export default function GradesPage() {
                       <th className="p-3.5 text-center">N°</th>
                       <th className="p-3.5">Élève</th>
                       <th className="p-3.5">Code Massar</th>
-                      <th className="p-3.5 text-center">Note / 20</th>
+                      <th className="p-3.5 text-center">Note / {maxScale}</th>
                       <th className="p-3.5 text-center">Présence</th>
                       <th className="p-3.5">Appréciation / Remarque</th>
                     </tr>
@@ -744,9 +788,9 @@ export default function GradesPage() {
                         if (rowData.is_absent) {
                           scoreBg = 'bg-rose-50 text-rose-600 border-rose-300 dark:bg-rose-950/40 dark:border-rose-800';
                         } else if (numScore !== null) {
-                          if (numScore < 10) scoreBg = 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/40 font-black';
-                          else if (numScore >= 16) scoreBg = 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 font-black';
-                          else if (numScore >= 14) scoreBg = 'bg-sky-50 text-sky-700 border-sky-300 dark:bg-sky-950/40 font-bold';
+                          if (numScore < passThreshold) scoreBg = 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/40 font-black';
+                          else if (numScore >= (isPrimaryClass ? 8.5 : 16)) scoreBg = 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 font-black';
+                          else if (numScore >= (isPrimaryClass ? 7 : 14)) scoreBg = 'bg-sky-50 text-sky-700 border-sky-300 dark:bg-sky-950/40 font-bold';
                         }
 
                         return (
@@ -765,10 +809,10 @@ export default function GradesPage() {
                                 <input
                                   type="number"
                                   min="0"
-                                  max="20"
+                                  max={maxScale}
                                   step="0.25"
                                   disabled={rowData.is_absent}
-                                  placeholder={rowData.is_absent ? 'ABS' : '— / 20'}
+                                  placeholder={rowData.is_absent ? 'ABS' : `— / ${maxScale}`}
                                   value={rowData.is_absent ? '' : rowData.score}
                                   onChange={(e) => {
                                     const val = e.target.value;
@@ -893,16 +937,16 @@ export default function GradesPage() {
                     {classReportCards.map((rc) => {
                       let badge = 'bg-slate-100 text-slate-700';
                       let label = 'Passable';
-                      if (rc.general_average >= 16) {
+                      if (rc.general_average >= (isPrimaryClass ? 9.0 : 16)) {
                         badge = 'bg-emerald-100 text-emerald-800 font-black';
                         label = 'Très Bien 🌟';
-                      } else if (rc.general_average >= 14) {
+                      } else if (rc.general_average >= (isPrimaryClass ? 8.0 : 14)) {
                         badge = 'bg-sky-100 text-sky-800 font-bold';
                         label = 'Bien 🎖️';
-                      } else if (rc.general_average >= 12) {
+                      } else if (rc.general_average >= (isPrimaryClass ? 7.0 : 12)) {
                         badge = 'bg-indigo-100 text-indigo-800 font-bold';
                         label = 'Assez Bien 👏';
-                      } else if (rc.general_average < 10) {
+                      } else if (rc.general_average < passThreshold) {
                         badge = 'bg-rose-100 text-rose-800 font-black';
                         label = 'Insuffisant ⚠️';
                       }
@@ -921,8 +965,8 @@ export default function GradesPage() {
                             {rc.massar_code || '—'}
                           </td>
                           <td className="p-3.5 text-center font-black text-sm">
-                            <span className={rc.general_average >= 10 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}>
-                              {rc.general_average.toFixed(2)} / 20
+                            <span className={rc.general_average >= passThreshold ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}>
+                              {rc.general_average.toFixed(2)} / {maxScale}
                             </span>
                           </td>
                           <td className="p-3.5 text-center">
@@ -962,8 +1006,8 @@ export default function GradesPage() {
                   <TrendingUp className="w-6 h-6" />
                 </div>
                 <div>
-                  <div className="text-xs font-bold text-slate-500 uppercase">Taux de Réussite (≥ 10/20)</div>
-                  <div className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">{successRate}%</div>
+                  <div className="text-xs font-bold text-slate-500 uppercase">Taux de Réussite (≥ {passThreshold}/{maxScale})</div>
+                  <div className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">{classPassRate}%</div>
                 </div>
               </div>
 
@@ -973,7 +1017,7 @@ export default function GradesPage() {
                 </div>
                 <div>
                   <div className="text-xs font-bold text-slate-500 uppercase">Moyenne Générale de la Classe</div>
-                  <div className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">{classAvgScore.toFixed(2)} / 20</div>
+                  <div className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">{classAverage.toFixed(2)} / {maxScale}</div>
                 </div>
               </div>
 
@@ -1006,7 +1050,7 @@ export default function GradesPage() {
                         <span className="font-bold text-xs text-slate-900 dark:text-white">{rc.student_name}</span>
                       </div>
                       <span className="font-black text-xs text-emerald-600 dark:text-emerald-400">
-                        {rc.general_average.toFixed(2)} / 20
+                        {rc.general_average.toFixed(2)} / {maxScale}
                       </span>
                     </div>
                   ))}
@@ -1020,18 +1064,18 @@ export default function GradesPage() {
                   <span>{dir === 'rtl' ? 'تلاميذ بحاجة لدعم وتقوية مدرسي ⚠️' : 'Élèves Nécessitant un Soutien Scolaire ⚠️'}</span>
                 </div>
                 <div className="space-y-2">
-                  {classReportCards.filter((rc) => rc.general_average < 10).length === 0 ? (
+                  {classReportCards.filter((rc) => rc.general_average < passThreshold).length === 0 ? (
                     <div className="p-6 text-center text-xs text-emerald-600 font-bold bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl">
                       🎉 Félicitations ! Aucun élève n’est en situation de difficulté majeure dans cette classe.
                     </div>
                   ) : (
                     classReportCards
-                      .filter((rc) => rc.general_average < 10)
+                      .filter((rc) => rc.general_average < passThreshold)
                       .map((rc) => (
                         <div key={rc.student_id} className="flex items-center justify-between p-3 rounded-2xl bg-rose-50/60 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900/50">
                           <span className="font-bold text-xs text-slate-900 dark:text-white">{rc.student_name}</span>
                           <span className="font-black text-xs text-rose-600">
-                            {rc.general_average.toFixed(2)} / 20 (Soutien Recommandé)
+                            {rc.general_average.toFixed(2)} / {maxScale} (Soutien Recommandé)
                           </span>
                         </div>
                       ))

@@ -23,24 +23,52 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
     const isFirst = index === 0;
     const pageBreakClass = isFirst ? '' : 'page-break';
 
+    const lvlLower = (rc.level || '').toLowerCase();
+    const cycleLower = (rc.cycle || '').toLowerCase();
+    const isPrimary = rc.max_scale === 10 || cycleLower.includes('primaire') || lvlLower.includes('ap') || lvlLower.includes('primaire') || lvlLower.includes('ce') || lvlLower.includes('cm') || lvlLower.includes('cp') || lvlLower.includes('ابتدائي');
+    const maxScale = isPrimary ? 10 : 20;
+    const passThreshold = isPrimary ? 5 : 10;
+    const goodThreshold = isPrimary ? 7 : 14;
+    const veryGoodThreshold = isPrimary ? 8 : 16;
+    const excellentThreshold = isPrimary ? 9 : 18;
+
     // Format mentions
     let mentionBadgeClass = 'bg-slate-100 text-slate-800';
     let mentionText = 'Passable';
-    if (rc.general_average >= 16) {
-      mentionBadgeClass = 'mention-tb';
-      mentionText = 'Très Bien — Félicitations 🌟';
-    } else if (rc.general_average >= 14) {
-      mentionBadgeClass = 'mention-b';
-      mentionText = 'Bien — Tableau d’Honneur 🎖️';
-    } else if (rc.general_average >= 12) {
-      mentionBadgeClass = 'mention-ab';
-      mentionText = 'Assez Bien — Encouragements 👏';
-    } else if (rc.general_average >= 10) {
-      mentionBadgeClass = 'mention-p';
-      mentionText = 'Passable';
+    if (isPrimary) {
+      if (rc.general_average >= 9.0) {
+        mentionBadgeClass = 'mention-tb';
+        mentionText = 'Très Bien — Félicitations 🌟';
+      } else if (rc.general_average >= 8.0) {
+        mentionBadgeClass = 'mention-b';
+        mentionText = 'Bien — Tableau d’Honneur 🎖️';
+      } else if (rc.general_average >= 7.0) {
+        mentionBadgeClass = 'mention-ab';
+        mentionText = 'Assez Bien — Encouragements 👏';
+      } else if (rc.general_average >= 5.0) {
+        mentionBadgeClass = 'mention-p';
+        mentionText = 'Passable / Moyen';
+      } else {
+        mentionBadgeClass = 'mention-insuff';
+        mentionText = 'Insuffisant — Soutien Requis ⚠️';
+      }
     } else {
-      mentionBadgeClass = 'mention-insuff';
-      mentionText = 'Insuffisant — Travail & Soutien Requis ⚠️';
+      if (rc.general_average >= 16) {
+        mentionBadgeClass = 'mention-tb';
+        mentionText = 'Très Bien — Félicitations 🌟';
+      } else if (rc.general_average >= 14) {
+        mentionBadgeClass = 'mention-b';
+        mentionText = 'Bien — Tableau d’Honneur 🎖️';
+      } else if (rc.general_average >= 12) {
+        mentionBadgeClass = 'mention-ab';
+        mentionText = 'Assez Bien — Encouragements 👏';
+      } else if (rc.general_average >= 10) {
+        mentionBadgeClass = 'mention-p';
+        mentionText = 'Passable';
+      } else {
+        mentionBadgeClass = 'mention-insuff';
+        mentionText = 'Insuffisant — Travail & Soutien Requis ⚠️';
+      }
     }
 
     const rowsHtml = rc.subjects.map((sub, idx) => {
@@ -52,20 +80,20 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
       
       const weightedPoints = sub.average !== null && sub.average !== undefined ? (sub.average * sub.coefficient).toFixed(2) : '—';
       const scoreColorClass = sub.average !== null && sub.average !== undefined
-        ? sub.average < 10
+        ? sub.average < passThreshold
           ? 'score-danger'
-          : sub.average >= 16
+          : sub.average >= veryGoodThreshold
           ? 'score-success'
           : ''
         : '';
 
       const appreciation = sub.appreciation || (
         sub.average !== null && sub.average !== undefined
-          ? sub.average >= 16
+          ? sub.average >= veryGoodThreshold
             ? 'Excellent travail, continuez ainsi'
-            : sub.average >= 14
-            ? 'Bon trimestre, résultats satisfaisants'
-            : sub.average >= 10
+            : sub.average >= goodThreshold
+            ? 'Bon travail, résultats satisfaisants'
+            : sub.average >= passThreshold
             ? 'Résultats convenables, peut mieux faire'
             : 'Des difficultés, un travail régulier est nécessaire'
           : '—'
@@ -169,7 +197,7 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
               </div>
               <div class="kpi-cell highlight-avg">
                 <div class="cell-label">MOYENNE GÉNÉRALE</div>
-                <div class="cell-val-lg">${rc.general_average.toFixed(2)} / 20</div>
+                <div class="cell-val-lg">${rc.general_average.toFixed(2)} / ${maxScale}</div>
               </div>
               <div class="kpi-cell highlight-rank">
                 <div class="cell-label">RANG / CLASSEMENT</div>
@@ -188,10 +216,10 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             <div class="decision-title">DÉCISION DU CONSEIL DE CLASSE</div>
             <div class="mention-pill ${mentionBadgeClass}">${mentionText}</div>
             <div class="council-text">
-              ${rc.general_average >= 14
+              ${rc.general_average >= goodThreshold
                 ? 'Le Conseil de classe félicite l’élève pour son engagement, son travail exemplaire et son assiduité constante.'
-                : rc.general_average >= 10
-                ? 'Résultats satisfaisants. Un effort supplémentaire dans les matières à fort coefficient permettra de progresser.'
+                : rc.general_average >= passThreshold
+                ? 'Résultats satisfaisants. Un effort supplémentaire dans les matières principales permettra de progresser.'
                 : 'Niveau insuffisant. Un suivi rigoureux et un programme de soutien scolaire sont fortement recommandés.'}
             </div>
           </div>
