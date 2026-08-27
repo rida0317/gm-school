@@ -662,18 +662,23 @@ export default function StudentsPage() {
         ? `Liste_Eleves_${activeClass.name.replace(/\s+/g, '_')}.xlsx`
         : 'Liste_Globale_Eleves.xlsx';
 
-      const dataToExport = filteredStudents.map((s, idx) => ({
-        'N°': idx + 1,
-        'Nom': s.last_name,
-        'Prénom': s.first_name,
-        'Code Massar': s.student_code,
-        'Classe': s.class?.name || '-',
-        'Niveau': s.class?.level || '-',
-        'Genre': s.gender === 'F' ? 'Féminin' : 'Masculin',
-        'Téléphone 1': s.phone || '',
-        'Téléphone 2': s.guardian_phone || '',
-        'Statut': s.status || 'ACTIVE',
-      }));
+      const dataToExport = filteredStudents.map((s, idx) => {
+        const row: Record<string, string | number> = {
+          'N°': idx + 1,
+          'Nom': s.last_name,
+          'Prénom': s.first_name,
+          'Code Massar': s.student_code,
+          'Classe': s.class?.name || '-',
+          'Niveau': s.class?.level || '-',
+          'Genre': s.gender === 'F' ? 'Féminin' : 'Masculin',
+          'Statut': s.status || 'ACTIVE',
+        };
+        if (!isTeacher) {
+          row['Téléphone 1'] = s.phone || '';
+          row['Téléphone 2'] = s.guardian_phone || '';
+        }
+        return row;
+      });
 
       const worksheet = XLSX.utils.json_to_sheet(dataToExport);
       const workbook = XLSX.utils.book_new();
@@ -923,13 +928,13 @@ export default function StudentsPage() {
                       </td>
                       <td className="px-6 py-3.5">
                         <div className="text-xs space-y-1">
-                          {student.phone && (
+                          {!isTeacher && student.phone && (
                             <div className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200 font-bold">
                               <Phone className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                               <span className="font-mono">{student.phone}</span>
                             </div>
                           )}
-                          {student.guardian_phone && student.guardian_phone !== student.phone && (
+                          {!isTeacher && student.guardian_phone && student.guardian_phone !== student.phone && (
                             <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400 font-medium">
                               <Phone className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                               <span className="font-mono text-[11px]">{student.guardian_phone}</span>
@@ -941,7 +946,10 @@ export default function StudentsPage() {
                               <span className="truncate max-w-[160px]">{student.email}</span>
                             </div>
                           )}
-                          {!student.email && !student.phone && !student.guardian_phone && (
+                          {isTeacher && !student.email && (
+                            <span className="text-slate-400 italic text-[11px]">Confidentiel</span>
+                          )}
+                          {!isTeacher && !student.email && !student.phone && !student.guardian_phone && (
                             <span className="text-slate-400 italic">Aucun contact</span>
                           )}
                         </div>
