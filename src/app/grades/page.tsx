@@ -455,21 +455,21 @@ export default function GradesPage() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header Title & Tab Switcher */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center gap-3.5">
-            <div className="p-3.5 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white shadow-lg shadow-orange-500/20 shrink-0">
-              <Award className="w-6 h-6" />
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
+          <div className="flex items-center gap-4 min-w-0 flex-1">
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white shadow-lg shadow-orange-500/25 shrink-0 flex items-center justify-center">
+              <Award className="w-6 h-6 sm:w-7 sm:h-7" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2.5 mb-1">
+                <h1 className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
                   {dir === 'rtl' ? 'النقط والمراقبة المستمرة وكشوف النقط' : 'Gestion des Notes & Bulletins Scolaires'}
                 </h1>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 shrink-0">
                   {isTeacher ? 'Espace Enseignant' : 'Officiel MEN'}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5 font-medium">
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
                 {dir === 'rtl'
                   ? 'إدخال نقط الفروض، المراقبة المستمرة، استخراج كشوف النقط الرسمية A4، وتتبع تطور مستوى التلاميذ.'
                   : 'Saisie des contrôles continus, calcul automatique des moyennes, impression des bulletins officiels et suivi de niveau.'}
@@ -478,43 +478,43 @@ export default function GradesPage() {
           </div>
 
           {/* Navigation Tab Hub */}
-          <div className="flex items-center p-1.5 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shrink-0">
+          <div className="flex items-center gap-1 p-1.5 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 self-start lg:self-center shrink-0 overflow-x-auto max-w-full">
             <button
               type="button"
               onClick={() => setActiveTab('saisie')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'saisie'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs scale-[1.02]'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <Edit2 className="w-4 h-4 text-amber-500" />
+              <Edit2 className="w-4 h-4 text-amber-500 shrink-0" />
               <span>{dir === 'rtl' ? '1. إدخال النقط' : '1. Saisie des Notes'}</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('bulletins')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'bulletins'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs scale-[1.02]'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <Printer className="w-4 h-4 text-sky-500" />
+              <Printer className="w-4 h-4 text-sky-500 shrink-0" />
               <span>{dir === 'rtl' ? '2. كشوف النقط PDF' : '2. Bulletins PDF'}</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('analyse')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'analyse'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs scale-[1.02]'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <TrendingUp className="w-4 h-4 text-emerald-500" />
+              <TrendingUp className="w-4 h-4 text-emerald-500 shrink-0" />
               <span>{dir === 'rtl' ? '3. تحليل المستوى' : '3. Analyse & Bilan'}</span>
             </button>
           </div>
