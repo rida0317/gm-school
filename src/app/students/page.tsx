@@ -330,6 +330,49 @@ export default function StudentsPage() {
     return matchesSearch && matchesClass;
   });
 
+  const handleToggleStatus = async (student: Student) => {
+    if (isTeacher) return;
+    const currentStatus = student.status || 'ACTIVE';
+    const nextStatus = currentStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from('students')
+        .update({ status: nextStatus })
+        .eq('id', student.id);
+
+      if (error) throw error;
+
+      setStudents((prev) =>
+        prev.map((s) => (s.id === student.id ? { ...s, status: nextStatus } : s))
+      );
+
+      logAuditEvent({
+        action: 'STUDENT_STATUS_TOGGLED',
+        entity_type: 'students',
+        entity_id: student.id,
+        details: {
+          name: `${student.first_name} ${student.last_name}`,
+          old_status: currentStatus,
+          new_status: nextStatus,
+        },
+      });
+
+      notify({
+        title: nextStatus === 'ACTIVE' ? 'Élève Réactivé' : 'Élève Désactivé',
+        message: `${student.first_name} ${student.last_name} est désormais ${nextStatus === 'ACTIVE' ? 'Actif' : 'Désactivé (Inactif)'}.`,
+        type: nextStatus === 'ACTIVE' ? 'success' : 'warning',
+      });
+    } catch (err: unknown) {
+      notify({
+        title: 'Erreur',
+        message: err instanceof Error ? err.message : 'Erreur lors du changement de statut',
+        type: 'danger',
+      });
+    }
+  };
+
   const handleExportPDF = () => {
     const activeClass = classes.find((c) => c.id === selectedClass);
     const titleText = activeClass ? `CLASSE : ${activeClass.name} (${activeClass.level})` : 'LISTE GÉNÉRALE DES ÉLÈVES';
@@ -881,10 +924,36 @@ export default function StudentsPage() {
                         </span>
                       </td>
                       <td className="px-6 py-3.5">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                          Actif
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStatus(student)}
+                          disabled={isTeacher}
+                          title={
+                            isTeacher
+                              ? 'Statut géré par l\'administration'
+                              : (student.status || 'ACTIVE') === 'ACTIVE'
+                              ? 'Cliquer pour désactiver cet élève (Désactivé)'
+                              : 'Cliquer pour réactiver cet élève (Actif)'
+                          }
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-2xs cursor-pointer select-none hover:scale-105 active:scale-95 disabled:cursor-default disabled:hover:scale-100 ${
+                            (student.status || 'ACTIVE') === 'ACTIVE'
+                              ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-800'
+                              : 'bg-rose-100 text-rose-800 hover:bg-rose-200 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300/80 dark:border-rose-800'
+                          }`}
+                        >
+                          <span
+                            className={`w-2 h-2 rounded-full transition-all ${
+                              (student.status || 'ACTIVE') === 'ACTIVE'
+                                ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50'
+                                : 'bg-rose-500 shadow-xs shadow-rose-500/50'
+                            }`}
+                          />
+                          <span>
+                            {(student.status || 'ACTIVE') === 'ACTIVE'
+                              ? dir === 'rtl' ? 'نشط' : 'Actif'
+                              : dir === 'rtl' ? 'غير نشط' : 'Désactivé'}
+                          </span>
+                        </button>
                       </td>
                       {!isTeacher && (
                         <td className="px-6 py-3.5 text-right">
