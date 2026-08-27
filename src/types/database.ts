@@ -461,7 +461,7 @@ export interface SystemBackup {
 // -------------------------------------------------------------
 // GRADES, EVALUATIONS & REPORT CARDS (BULLETINS SCOLAIRES)
 // -------------------------------------------------------------
-export type EvaluationType = 'CC1' | 'CC2' | 'CC3' | 'ACTIVITIES' | 'EXAM';
+export type EvaluationType = 'CC1' | 'CC2' | 'CC3' | 'ACTIVITIES';
 export type AcademicSemester = 'S1' | 'S2';
 
 export interface Evaluation {
@@ -501,7 +501,6 @@ export interface SubjectGradeSummary {
     cc2?: number | null;
     cc3?: number | null;
     activities?: number | null;
-    exam?: number | null;
   };
   average: number | null; // Moyenne calculée sur 20
   class_min?: number;

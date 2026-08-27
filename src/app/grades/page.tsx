@@ -48,9 +48,8 @@ import {
 const EVALUATION_TYPES: { type: EvaluationType; labelFr: string; labelAr: string; short: string; defaultCoeff: number }[] = [
   { type: 'CC1', labelFr: 'Contrôle Continu N°1', labelAr: 'الفرض المحروس 1', short: 'CC 1', defaultCoeff: 1 },
   { type: 'CC2', labelFr: 'Contrôle Continu N°2', labelAr: 'الفرض المحروس 2', short: 'CC 2', defaultCoeff: 1 },
-  { type: 'CC3', labelFr: 'Contrôle Continu N°3', labelAr: 'الفرض المحروس 3', short: 'CC 3', defaultCoeff: 1 },
-  { type: 'ACTIVITIES', labelFr: 'Activités / Assiduité', labelAr: 'الأنشطة المندمجة والمواظبة', short: 'Activités', defaultCoeff: 1 },
-  { type: 'EXAM', labelFr: 'Examen de Fin de Semestre', labelAr: 'الامتحان الموحد / النهائي', short: 'Examen', defaultCoeff: 2 },
+  { type: 'CC3', labelFr: 'Contrôle Continu N°3 (Si applicable)', labelAr: 'الفرض المحروس 3 (حسب المادة)', short: 'CC 3', defaultCoeff: 1 },
+  { type: 'ACTIVITIES', labelFr: 'Activités & Assiduité', labelAr: 'الأنشطة المندمجة والمواظبة', short: 'Activités', defaultCoeff: 1 },
 ];
 
 export default function GradesPage() {
@@ -340,7 +339,6 @@ export default function GradesPage() {
         let cc2: number | null = null;
         let cc3: number | null = null;
         let activities: number | null = null;
-        let exam: number | null = null;
 
         subEvals.forEach((ev) => {
           const gr = subGrades.find((g) => g.evaluation_id === ev.id);
@@ -349,17 +347,15 @@ export default function GradesPage() {
             else if (ev.type === 'CC2') cc2 = gr.score;
             else if (ev.type === 'CC3') cc3 = gr.score;
             else if (ev.type === 'ACTIVITIES') activities = gr.score;
-            else if (ev.type === 'EXAM') exam = gr.score;
           }
         });
 
-        // Compute Subject Average /20
+        // Compute Subject Average /20 based on available evaluations (2 or 3 controls + activities)
         const validScores: number[] = [];
         if (cc1 !== null) validScores.push(cc1);
         if (cc2 !== null) validScores.push(cc2);
         if (cc3 !== null) validScores.push(cc3);
         if (activities !== null) validScores.push(activities);
-        if (exam !== null) validScores.push(exam);
 
         let subjectAvg: number | null = null;
         if (validScores.length > 0) {
@@ -378,7 +374,7 @@ export default function GradesPage() {
           subject_name: subject.name,
           subject_code: subject.code,
           coefficient: coeff,
-          scores: { cc1, cc2, cc3, activities, exam },
+          scores: { cc1, cc2, cc3, activities },
           average: subjectAvg,
           class_min: 8.5,
           class_max: 18.5,
