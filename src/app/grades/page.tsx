@@ -450,18 +450,19 @@ export default function GradesPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header Title & Tab Switcher */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center gap-4 min-w-0 flex-1">
+        {/* Header Container: Full Width Responsive Card */}
+        <div className="w-full bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5 transition-all">
+          {/* Top Row: Full-width Title & Subtitle */}
+          <div className="flex items-start sm:items-center gap-4 w-full">
             <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white shadow-lg shadow-orange-500/25 shrink-0 flex items-center justify-center">
               <Award className="w-6 h-6 sm:w-7 sm:h-7" />
             </div>
-            <div className="min-w-0 flex-1">
+            <div className="flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-2.5 mb-1">
-                <h1 className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
                   {dir === 'rtl' ? 'النقط والمراقبة المستمرة وكشوف النقط' : 'Gestion des Notes & Bulletins Scolaires'}
                 </h1>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 shrink-0">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300">
                   {isTeacher ? 'Espace Enseignant' : 'Officiel MEN'}
                 </span>
               </div>
@@ -473,15 +474,15 @@ export default function GradesPage() {
             </div>
           </div>
 
-          {/* Navigation Tab Hub */}
-          <div className="flex items-center gap-1 p-1.5 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 self-start lg:self-center shrink-0 overflow-x-auto max-w-full">
+          {/* Bottom Row: Full-width Tab Switcher Hub */}
+          <div className="w-full flex items-center p-1.5 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-x-auto gap-1.5">
             <button
               type="button"
               onClick={() => setActiveTab('saisie')}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex-1 min-w-[140px] flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'saisie'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs scale-[1.02]'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'
               }`}
             >
               <Edit2 className="w-4 h-4 text-amber-500 shrink-0" />
@@ -491,10 +492,10 @@ export default function GradesPage() {
             <button
               type="button"
               onClick={() => setActiveTab('bulletins')}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex-1 min-w-[140px] flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'bulletins'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs scale-[1.02]'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'
               }`}
             >
               <Printer className="w-4 h-4 text-sky-500 shrink-0" />
@@ -504,10 +505,10 @@ export default function GradesPage() {
             <button
               type="button"
               onClick={() => setActiveTab('analyse')}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex-1 min-w-[140px] flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'analyse'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs scale-[1.02]'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'
               }`}
             >
               <TrendingUp className="w-4 h-4 text-emerald-500 shrink-0" />
