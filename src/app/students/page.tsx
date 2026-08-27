@@ -34,6 +34,8 @@ import {
 import { StudentsImportModal } from '@/components/students/StudentsImportModal';
 import { StudentsPromotionModal } from '@/components/students/StudentsPromotionModal';
 import { resolveTeacherScope } from '@/lib/teacher-resolver';
+import { printIndividualStudentAttendanceReport } from '@/lib/student-attendance-pdf';
+import { StudentAttendance } from '@/types/database';
 
 export default function StudentsPage() {
   const { t, dir } = useI18n();
@@ -387,6 +389,31 @@ export default function StudentsPage() {
       notify({
         title: 'Erreur',
         message: err instanceof Error ? err.message : 'Erreur lors du changement de genre',
+        type: 'danger',
+      });
+    }
+  };
+
+  const handlePrintStudentAttendance = async (student: Student) => {
+    try {
+      const supabase = createClient();
+      const { data: records } = await supabase
+        .from('student_attendance')
+        .select('*')
+        .eq('student_id', student.id)
+        .order('date', { ascending: false });
+
+      printIndividualStudentAttendanceReport({
+        student,
+        attendanceRecords: (records as StudentAttendance[]) || [],
+        settings,
+        periodLabel: 'Année Scolaire en cours',
+        isTeacher,
+      });
+    } catch (err) {
+      notify({
+        title: 'Erreur',
+        message: 'Impossible de générer la fiche d\'assiduité de l\'élève',
         type: 'danger',
       });
     }
@@ -988,32 +1015,45 @@ export default function StudentsPage() {
                           </span>
                         </button>
                       </td>
-                      {!isTeacher && (
-                        <td className="px-6 py-3.5 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {/* Modifier Button */}
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditModal(student)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/60 font-bold text-xs transition-colors cursor-pointer"
-                              title="Modifier les informations de l'élève"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                              <span>Modifier</span>
-                            </button>
+                      <td className="px-6 py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* Individual Attendance Report Button */}
+                          <button
+                            type="button"
+                            onClick={() => handlePrintStudentAttendance(student)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 font-bold text-xs transition-colors cursor-pointer border border-emerald-200/60 dark:border-emerald-800"
+                            title={dir === 'rtl' ? 'طباعة تقرير المواظبة والغياب الفردي PDF' : 'Imprimer la fiche individuelle d\'assiduité & de présence en PDF'}
+                          >
+                            <Printer className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                            <span>{dir === 'rtl' ? 'تقرير الغياب PDF' : 'Bilan PDF'}</span>
+                          </button>
 
-                            {/* Supprimer Button */}
-                            <button
-                              type="button"
-                              onClick={() => handleDelete(student.id, `${student.first_name} ${student.last_name}`)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
-                              title="Archiver / Supprimer l'élève"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      )}
+                          {!isTeacher && (
+                            <>
+                              {/* Modifier Button */}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditModal(student)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/60 font-bold text-xs transition-colors cursor-pointer"
+                                title="Modifier les informations de l'élève"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                                <span>Modifier</span>
+                              </button>
+
+                              {/* Supprimer Button */}
+                              <button
+                                type="button"
+                                onClick={() => handleDelete(student.id, `${student.first_name} ${student.last_name}`)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                                title="Archiver / Supprimer l'élève"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))
                 )}
