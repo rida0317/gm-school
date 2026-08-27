@@ -21,6 +21,8 @@ import {
 } from '@/types/database';
 import { resolveTeacherScope } from '@/lib/teacher-resolver';
 import { printStudentBulletinsPDF } from '@/lib/bulletin-pdf';
+import { MassarGradesImportModal } from '@/components/grades/MassarGradesImportModal';
+import * as XLSX from 'xlsx';
 import {
   Award,
   BookOpen,
@@ -43,6 +45,7 @@ import {
   XCircle,
   AlertCircle,
   FileSpreadsheet,
+  Upload,
 } from 'lucide-react';
 
 const EVALUATION_TYPES: { type: EvaluationType; labelFr: string; labelAr: string; short: string; defaultCoeff: number }[] = [
@@ -82,6 +85,117 @@ export default function GradesPage() {
 
   // Local In-Memory Grade State for active spreadsheet entry: Map<student_id, { score: number | null, is_absent: boolean, comment: string }>
   const [localGradesMap, setLocalGradesMap] = useState<Record<string, { score: string; is_absent: boolean; comment: string }>>({});
+
+  // Massar Import Modal State
+  const [isMassarModalOpen, setIsMassarModalOpen] = useState(false);
+
+  // Export Massar Compatible Template
+  const handleExportMassarTemplate = () => {
+    if (!activeClass || classStudents.length === 0) {
+      notify({
+        title: 'Attention',
+        message: 'Veuillez sélectionner une classe avec des élèves.',
+        type: 'warning',
+      });
+      return;
+    }
+
+    const currentSub = subjects.find((s) => s.id === selectedSubjectId);
+
+    const wsData: any[][] = [
+      ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O'],
+      ['sgs', 'sgs', 'sgs', 'sgs', 'sgs', 'sgs', 10, 'sgs', 'sgs', 'sgs', 'sgs', 'sgs', 'sgs', 'sgs', 'sgs'],
+      [],
+      ['', '', '', '', '', 'نقط المراقبة المستمرة'],
+      ['', '', '55976T', '', '1fcabb4c-45d0-4307-be0c-f7f42a4b34af', '', 2, '', 0, '', '#0030#', '', 18, '', '2A32101110'],
+      [],
+      ['', '', 'أكاديمية :', 'مراكش - آسفي', '', '', 'م.الإقليمية : ', '', 'عمالة: مراكش', '', '', 'مؤسسة', '', '', settings.school_name || 'مجموعة مدارس الأجيال الصاعدة'],
+      [],
+      ['', '', 'المستوى  :  ', activeClass.level, '', '', 'القسم  :', '', activeClass.name, '', '', 'الاستاذ', '', '', ''],
+      [],
+      ['', '', 'الدورة  :', selectedSemester === 'S1' ? 'الدورة الأولى' : 'الدورة الثانية', '', '', 'نقط :', '', '', '', '', 'المادة', '', '', currentSub?.name || ''],
+      [],
+      ['', '', 'السنة الدراسية :', settings.academic_year || '2025/2026'],
+      [],
+      ['', '', '', '', '', '', '#1#', '', '#2#', '', '#3#', '', '#4#', '', '#100#'],
+      ['', 'ID', 'رقم  التلميذ  ', 'إسم التلميذ  ', '', ' تاريخ الإزدياد', 'الفرض الأول', 'الفرض الأول', 'الفرض الثاني', 'الفرض الثاني', 'الفرض الثالث', 'الفرض الثالث', 'الأنشطة المندمجة', 'الأنشطة المندمجة', 'ملاحظات الأستاذ'],
+      ['', '', '', '', '', '', 'النقطة', 'التغيب', 'النقطة', 'التغيب', 'النقطة', 'التغيب', 'النقطة', 'التغيب', '-'],
+    ];
+
+    classStudents.forEach((student, idx) => {
+      wsData.push([
+        '',
+        10000000 + idx + 1,
+        student.massar_code || student.student_code,
+        `${student.last_name} ${student.first_name}`,
+        '',
+        student.date_of_birth || '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+      ]);
+    });
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    XLSX.utils.book_append_sheet(wb, ws, 'NotesCC');
+
+    XLSX.writeFile(wb, `export_notesCC_${activeClass.name}_${selectedSemester}.xlsx`);
+
+    notify({
+      title: 'Modèle Massar Téléchargé 📥',
+      message: `Modèle Excel pour la classe ${activeClass.name} prêt à remplir.`,
+      type: 'success',
+    });
+  };
+
+  const handleMassarImportSuccess = (result: {
+    classId: string;
+    subjectId: string;
+    semester: AcademicSemester;
+    evaluations: Evaluation[];
+    grades: Grade[];
+  }) => {
+    setSelectedClassId(result.classId);
+    setSelectedSubjectId(result.subjectId);
+    setSelectedSemester(result.semester);
+
+    const mergedEvals = [...evaluations];
+    result.evaluations.forEach((ev) => {
+      const idx = mergedEvals.findIndex((e) => e.id === ev.id);
+      if (idx >= 0) mergedEvals[idx] = ev;
+      else mergedEvals.push(ev);
+    });
+
+    const mergedGrades = [...grades];
+    result.grades.forEach((gr) => {
+      const idx = mergedGrades.findIndex((g) => g.id === gr.id);
+      if (idx >= 0) mergedGrades[idx] = gr;
+      else mergedGrades.push(gr);
+    });
+
+    setEvaluations(mergedEvals);
+    setGrades(mergedGrades);
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('gm_evaluations_cache_v1', JSON.stringify(mergedEvals));
+      localStorage.setItem('gm_grades_cache_v1', JSON.stringify(mergedGrades));
+    }
+
+    const supabase = createClient();
+    try {
+      supabase.from('evaluations').upsert(result.evaluations, { onConflict: 'id' }).then();
+      supabase.from('grades').upsert(result.grades, { onConflict: 'id' }).then();
+    } catch {
+      // ignore
+    }
+  };
 
   // -------------------------------------------------------------
   // INITIAL DATA FETCH & PERSISTENCE
@@ -634,7 +748,27 @@ export default function GradesPage() {
                 </span>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleExportMassarTemplate}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-bold text-xs shadow-xs transition-all cursor-pointer hover:scale-105"
+                  title="Télécharger le modèle officiel Massar Excel (.xlsx) pour cette classe"
+                >
+                  <Download className="w-4 h-4 text-emerald-600" />
+                  <span>{dir === 'rtl' ? '📥 تحميل نموذج مسار' : '📥 Modèle Massar Excel'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsMassarModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer hover:scale-105"
+                  title="Importer directement les notes depuis le fichier officiel Massar Excel (.xlsx)"
+                >
+                  <Upload className="w-4 h-4 text-white" />
+                  <span>{dir === 'rtl' ? '📤 استيراد نقط مسار' : '📤 Importer Massar Excel'}</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={handleSaveGrades}
@@ -642,7 +776,7 @@ export default function GradesPage() {
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-xs shadow-md shadow-orange-500/20 transition-all cursor-pointer hover:scale-105 disabled:opacity-50"
                 >
                   <Save className="w-4 h-4" />
-                  <span>{isSaving ? (dir === 'rtl' ? 'جاري الحفظ...' : 'Enregistrement...') : (dir === 'rtl' ? 'حفظ النقط في السجل 💾' : 'Enregistrer les Notes 💾')}</span>
+                  <span>{isSaving ? (dir === 'rtl' ? 'جاري الحفظ...' : 'Enregistrement...') : (dir === 'rtl' ? 'حفظ النقط 💾' : 'Enregistrer les Notes 💾')}</span>
                 </button>
               </div>
             </div>
@@ -982,6 +1116,16 @@ export default function GradesPage() {
             </div>
           </div>
         )}
+
+        {/* Massar Grades Import Modal */}
+        <MassarGradesImportModal
+          isOpen={isMassarModalOpen}
+          onClose={() => setIsMassarModalOpen(false)}
+          classes={classes}
+          subjects={subjects}
+          students={allStudents}
+          onImportSuccess={handleMassarImportSuccess}
+        />
       </div>
     </DashboardLayout>
   );
