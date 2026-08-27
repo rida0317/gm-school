@@ -683,25 +683,25 @@ export default function GradesPage() {
                 </span>
               </div>
 
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 shrink-0 flex-nowrap">
                 <button
                   type="button"
                   onClick={() => setIsMassarModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer hover:scale-105"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer hover:scale-105 whitespace-nowrap"
                   title="Importer directement les notes depuis le fichier officiel Massar Excel (.xlsx)"
                 >
-                  <Upload className="w-4 h-4 text-white" />
-                  <span>{dir === 'rtl' ? '📤 استيراد نقط مسار' : '📤 Importer Massar Excel'}</span>
+                  <Upload className="w-4 h-4 text-white shrink-0" />
+                  <span>{dir === 'rtl' ? 'استيراد مسار' : 'Importer Massar'}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleSaveGrades}
                   disabled={isSaving}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-xs shadow-md shadow-orange-500/20 transition-all cursor-pointer hover:scale-105 disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black text-xs shadow-md shadow-orange-500/20 transition-all cursor-pointer hover:scale-105 disabled:opacity-50 whitespace-nowrap"
                 >
-                  <Save className="w-4 h-4" />
-                  <span>{isSaving ? (dir === 'rtl' ? 'جاري الحفظ...' : 'Enregistrement...') : (dir === 'rtl' ? 'حفظ النقط 💾' : 'Enregistrer les Notes 💾')}</span>
+                  <Save className="w-4 h-4 shrink-0" />
+                  <span>{isSaving ? (dir === 'rtl' ? 'حفظ...' : 'Enregistrement...') : (dir === 'rtl' ? 'حفظ النقط 💾' : 'Enregistrer 💾')}</span>
                 </button>
               </div>
             </div>
