@@ -289,6 +289,48 @@ export default function TimetablePage() {
     });
   };
 
+  // Teacher Lock / Freeze State (Persisted in localStorage)
+  const [lockedTeacherIds, setLockedTeacherIds] = useState<Set<string>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('gm_locked_teacher_ids');
+        if (saved) return new Set(JSON.parse(saved));
+      } catch {
+        // ignore
+      }
+    }
+    return new Set();
+  });
+
+  const toggleTeacherLock = (teacherId: string) => {
+    setLockedTeacherIds((prev) => {
+      const next = new Set(prev);
+      const isNowLocked = !next.has(teacherId);
+      if (isNowLocked) {
+        next.add(teacherId);
+      } else {
+        next.delete(teacherId);
+      }
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('gm_locked_teacher_ids', JSON.stringify(Array.from(next)));
+        } catch {
+          // ignore
+        }
+      }
+      const targetTeacher = teachers.find((t) => t.id === teacherId);
+      const teacherName = targetTeacher ? `${targetTeacher.first_name} ${targetTeacher.last_name}` : '';
+      notify({
+        title: isNowLocked ? 'Enseignant Verrouillé 🔒' : 'Enseignant Déverrouillé 🔓',
+        message: isNowLocked
+          ? `L'emploi du temps de l'enseignant ${teacherName} est maintenant verrouillé et protégé contre l'auto-correction.`
+          : `L'emploi du temps de l'enseignant ${teacherName} est déverrouillé et peut être modifié.`,
+        type: isNowLocked ? 'warning' : 'info',
+      });
+      return next;
+    });
+  };
+
   const notify = useNotify();
 
   async function loadData() {
@@ -1009,10 +1051,10 @@ export default function TimetablePage() {
       let currentSlotsState = [...slots];
       const updatedMap = new Map<string, { id: string; day_of_week: number; start_time: string; end_time: string; room_id?: string | null }>();
 
-      // Build active pinned set: user-pinned slots + ALL slots belonging to locked classes!
+      // Build active pinned set: user-pinned slots + ALL slots belonging to locked classes & locked teachers!
       const effectivePinnedIds = new Set(pinnedSlotIds);
       currentSlotsState.forEach((s) => {
-        if (lockedClassIds.has(s.class_id)) {
+        if (lockedClassIds.has(s.class_id) || (s.teacher_id && lockedTeacherIds.has(s.teacher_id))) {
           effectivePinnedIds.add(s.id);
         }
       });
@@ -3376,20 +3418,46 @@ export default function TimetablePage() {
             )}
 
             {viewMode === 'TEACHER' && (
-              <select
-                value={selectedTeacherId}
-                onChange={(e) => setSelectedTeacherId(e.target.value)}
-                className="w-full sm:min-w-[320px] px-4 py-2.5 rounded-2xl text-xs font-black border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-xs"
-              >
-                {teachers.map((tch) => {
-                  const teacherSlotCount = slots.filter((s) => s.teacher_id === tch.id).length;
-                  return (
-                    <option key={tch.id} value={tch.id}>
-                      {tch.first_name} {tch.last_name} — {tch.specialization || 'Enseignant'} ({teacherSlotCount}h / sem.)
-                    </option>
-                  );
-                })}
-              </select>
+              <>
+                <select
+                  value={selectedTeacherId}
+                  onChange={(e) => setSelectedTeacherId(e.target.value)}
+                  className="w-full sm:w-auto sm:min-w-[300px] px-4 py-2.5 rounded-2xl text-xs font-black border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-xs"
+                >
+                  {teachers.map((tch) => {
+                    const teacherSlotCount = slots.filter((s) => s.teacher_id === tch.id).length;
+                    const isLocked = lockedTeacherIds.has(tch.id);
+                    return (
+                      <option key={tch.id} value={tch.id}>
+                        {isLocked ? '🔒 ' : ''}{tch.first_name} {tch.last_name} — {tch.specialization || 'Enseignant'} ({teacherSlotCount}h / sem.) {isLocked ? '(Verrouillé)' : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => toggleTeacherLock(selectedTeacherId)}
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl text-xs font-black shadow-xs transition-all cursor-pointer ${
+                    lockedTeacherIds.has(selectedTeacherId)
+                      ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 hover:bg-amber-500/25'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+                  }`}
+                  title={lockedTeacherIds.has(selectedTeacherId) ? 'Enseignant Verrouillé (Cliquer pour déverrouiller)' : 'Verrouiller et protéger cet enseignant'}
+                >
+                  {lockedTeacherIds.has(selectedTeacherId) ? (
+                    <>
+                      <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                      <span>Enseignant Verrouillé 🔒</span>
+                    </>
+                  ) : (
+                    <>
+                      <Unlock className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Verrouiller 🔓</span>
+                    </>
+                  )}
+                </button>
+              </>
             )}
 
             {viewMode === 'MASTER_GRID' && (
@@ -3605,25 +3673,33 @@ export default function TimetablePage() {
                 </div>
               </div>
 
-              {/* Locked Class Protection Banner */}
-              {viewMode === 'CLASS' && lockedClassIds.has(selectedClassId) && (
+              {/* Locked Class / Teacher Protection Banner */}
+              {((viewMode === 'CLASS' && lockedClassIds.has(selectedClassId)) ||
+                (viewMode === 'TEACHER' && lockedTeacherIds.has(selectedTeacherId))) && (
                 <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 border border-amber-300 dark:border-amber-700/60 shadow-xs flex items-center justify-between gap-3 text-amber-900 dark:text-amber-200 print:hidden mb-4">
                   <div className="flex items-center gap-2.5">
                     <Lock className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
                     <div>
                       <div className="text-xs font-black flex items-center gap-1.5">
-                        <span>Emploi du Temps Verrouillé &amp; Protégé</span>
+                        <span>
+                          {viewMode === 'CLASS' ? 'Emploi du Temps de Classe Verrouillé' : "Emploi du Temps de l'Enseignant Verrouillé"}
+                        </span>
                         <span className="px-1.5 py-0.2 rounded text-[9px] bg-amber-200 dark:bg-amber-900/80 text-amber-800 dark:text-amber-200 font-extrabold">
                           Protégé 🔒
                         </span>
                       </div>
                       <div className="text-[11px] text-amber-800/80 dark:text-amber-300/80 mt-0.5">
-                        Les séances de cette classe sont verrouillées et protégées contre l&apos;auto-correction et les modifications.
+                        {viewMode === 'CLASS'
+                          ? "Les séances de cette classe sont verrouillées et protégées contre l'auto-correction et les modifications."
+                          : "Les séances de cet enseignant sont verrouillées et protégées contre l'auto-correction et les déplacements."}
                       </div>
                     </div>
                   </div>
                   <button
-                    onClick={() => toggleClassLock(selectedClassId)}
+                    onClick={() => {
+                      if (viewMode === 'CLASS') toggleClassLock(selectedClassId);
+                      else toggleTeacherLock(selectedTeacherId);
+                    }}
                     className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 font-bold text-xs hover:bg-amber-50 cursor-pointer shrink-0 shadow-2xs"
                   >
                     Déverrouiller 🔓
@@ -3644,12 +3720,13 @@ export default function TimetablePage() {
                       </span>
                       <span className="px-2.5 py-0.5 rounded-lg bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300 font-extrabold text-sm flex items-center gap-1.5">
                         {viewMode === 'CLASS' ? selectedClass?.name : `${selectedTeacher?.first_name} ${selectedTeacher?.last_name}`}
-                        {viewMode === 'CLASS' && lockedClassIds.has(selectedClassId) && (
+                        {((viewMode === 'CLASS' && lockedClassIds.has(selectedClassId)) ||
+                          (viewMode === 'TEACHER' && lockedTeacherIds.has(selectedTeacherId))) && (
                           <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                         )}
                       </span>
                       {viewMode === 'TEACHER' && selectedTeacher?.specialization && (
-                        <span className="px-2.5 py-0.5 rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 text-xs font-bold">
+                        <span className="px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 text-xs font-bold">
                           {selectedTeacher.specialization} &bull; {selectedTeacher.contract_type}
                         </span>
                       )}
@@ -3657,9 +3734,11 @@ export default function TimetablePage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    {isReadOnly || (viewMode === 'CLASS' && lockedClassIds.has(selectedClassId)) ? (
+                    {isReadOnly ||
+                    (viewMode === 'CLASS' && lockedClassIds.has(selectedClassId)) ||
+                    (viewMode === 'TEACHER' && lockedTeacherIds.has(selectedTeacherId)) ? (
                       <span className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded-xl font-bold flex items-center gap-1.5 border border-amber-300 dark:border-amber-800">
-                        🔒 {dir === 'rtl' ? 'مقفلة (محمية ضد التعديل)' : 'Verrouillée (Protégée)'}
+                        🔒 {dir === 'rtl' ? 'مقفلة (محمية ضد التعديل)' : 'Verrouillé (Protégé)'}
                       </span>
                     ) : (
                       <span className="text-[11px] text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40 px-2.5 py-1 rounded-xl font-bold flex items-center gap-1.5 border border-sky-200 dark:border-sky-800">
@@ -3736,19 +3815,21 @@ export default function TimetablePage() {
                                   isSameSlotTime(s.day_of_week, s.start_time, day.id, period.start)
                                 );
 
-                                const isClassLocked = viewMode === 'CLASS' && lockedClassIds.has(selectedClassId);
+                                const isScopeLocked =
+                                  (viewMode === 'CLASS' && lockedClassIds.has(selectedClassId)) ||
+                                  (viewMode === 'TEACHER' && lockedTeacherIds.has(selectedTeacherId));
                                 const isDragOver =
                                   canManageTimetable &&
-                                  !isClassLocked &&
+                                  !isScopeLocked &&
                                   dragOverCell?.day === day.id &&
                                   dragOverCell?.start === period.start;
 
                                 return (
                                   <td
                                     key={day.id}
-                                    onDragOver={canManageTimetable && !isClassLocked ? (e) => handleDragOver(e, day.id, period.start) : undefined}
-                                    onDragLeave={canManageTimetable && !isClassLocked ? handleDragLeave : undefined}
-                                    onDrop={canManageTimetable && !isClassLocked ? (e) => handleDropOnCell(e, day.id, period, slot) : undefined}
+                                    onDragOver={canManageTimetable && !isScopeLocked ? (e) => handleDragOver(e, day.id, period.start) : undefined}
+                                    onDragLeave={canManageTimetable && !isScopeLocked ? handleDragLeave : undefined}
+                                    onDrop={canManageTimetable && !isScopeLocked ? (e) => handleDropOnCell(e, day.id, period, slot) : undefined}
                                     className={`p-1 sm:p-1.5 print:p-0.5 border-r border-slate-200 dark:border-slate-800 print:border-slate-300 last:border-r-0 align-middle transition-all ${
                                       isDragOver
                                         ? 'bg-sky-100/70 dark:bg-sky-900/40 ring-2 ring-sky-500 ring-inset scale-[1.01]'
@@ -3757,9 +3838,9 @@ export default function TimetablePage() {
                                   >
                                     {slot ? (
                                       <div
-                                        draggable={canManageTimetable && !isClassLocked}
-                                        onClick={() => canManageTimetable && !isClassLocked && openSlotEditor(day.id, period, slot)}
-                                        onDragStart={canManageTimetable && !isClassLocked ? (e) => handleDragStart(e, slot) : undefined}
+                                        draggable={canManageTimetable && !isScopeLocked}
+                                        onClick={() => canManageTimetable && !isScopeLocked && openSlotEditor(day.id, period, slot)}
+                                        onDragStart={canManageTimetable && !isScopeLocked ? (e) => handleDragStart(e, slot) : undefined}
                                         onDragEnd={() => {
                                           setDraggedSlot(null);
                                           setDragOverCell(null);
