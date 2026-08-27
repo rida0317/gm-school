@@ -373,6 +373,49 @@ export default function StudentsPage() {
     }
   };
 
+  const handleToggleGender = async (student: Student) => {
+    if (isTeacher) return;
+    const currentGender = student.gender === 'F' ? 'F' : 'M';
+    const nextGender = currentGender === 'F' ? 'M' : 'F';
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from('students')
+        .update({ gender: nextGender })
+        .eq('id', student.id);
+
+      if (error) throw error;
+
+      setStudents((prev) =>
+        prev.map((s) => (s.id === student.id ? { ...s, gender: nextGender } : s))
+      );
+
+      logAuditEvent({
+        action: 'STUDENT_GENDER_TOGGLED',
+        entity_type: 'students',
+        entity_id: student.id,
+        details: {
+          name: `${student.first_name} ${student.last_name}`,
+          old_gender: currentGender,
+          new_gender: nextGender,
+        },
+      });
+
+      notify({
+        title: nextGender === 'F' ? 'Genre : Féminin 👧' : 'Genre : Masculin 👦',
+        message: `Le genre de ${student.first_name} ${student.last_name} a été changé en ${nextGender === 'F' ? 'Féminin (Fille)' : 'Masculin (Garçon)'}.`,
+        type: 'info',
+      });
+    } catch (err: unknown) {
+      notify({
+        title: 'Erreur',
+        message: err instanceof Error ? err.message : 'Erreur lors du changement de genre',
+        type: 'danger',
+      });
+    }
+  };
+
   const handleExportPDF = () => {
     const activeClass = classes.find((c) => c.id === selectedClass);
     const titleText = activeClass ? `CLASSE : ${activeClass.name} (${activeClass.level})` : 'LISTE GÉNÉRALE DES ÉLÈVES';
@@ -913,15 +956,30 @@ export default function StudentsPage() {
                         </div>
                       </td>
                       <td className="px-6 py-3.5">
-                        <span
-                          className={`px-2.5 py-1 text-xs font-semibold rounded-lg ${
+                        <button
+                          type="button"
+                          onClick={() => handleToggleGender(student)}
+                          disabled={isTeacher}
+                          title={
+                            isTeacher
+                              ? 'Genre géré par l\'administration'
+                              : student.gender === 'F'
+                              ? 'Cliquer pour changer en Masculin (Garçon)'
+                              : 'Cliquer pour changer en Féminin (Fille)'
+                          }
+                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer select-none hover:scale-105 active:scale-95 disabled:cursor-default disabled:hover:scale-100 ${
                             student.gender === 'F'
-                              ? 'bg-pink-100 text-pink-700 dark:bg-pink-950/40 dark:text-pink-300'
-                              : 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
+                              ? 'bg-pink-100 text-pink-700 hover:bg-pink-200 dark:bg-pink-950/70 dark:text-pink-300 border border-pink-300/80 dark:border-pink-800'
+                              : 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-950/70 dark:text-blue-300 border border-blue-300/80 dark:border-blue-800'
                           }`}
                         >
-                          {student.gender === 'F' ? 'Féminin' : 'Masculin'}
-                        </span>
+                          <span>{student.gender === 'F' ? '👧' : '👦'}</span>
+                          <span>
+                            {student.gender === 'F'
+                              ? dir === 'rtl' ? 'أنثى' : 'Féminin'
+                              : dir === 'rtl' ? 'ذكر' : 'Masculin'}
+                          </span>
+                        </button>
                       </td>
                       <td className="px-6 py-3.5">
                         <button
