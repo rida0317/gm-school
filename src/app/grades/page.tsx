@@ -677,6 +677,146 @@ export default function GradesPage() {
     });
   };
 
+  // -------------------------------------------------------------
+  // ADMIN GRADE CORRECTION / OVERRIDE (DÉROGATION ADMINISTRATIVE)
+  // -------------------------------------------------------------
+  const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
+  const [correctingReportCard, setCorrectingReportCard] = useState<StudentReportCard | null>(null);
+  const [correctionScoresMap, setCorrectionScoresMap] = useState<
+    Record<string, { cc1: string; cc2: string; cc3: string; activities: string; comment: string }>
+  >({});
+  const [correctionReason, setCorrectionReason] = useState('Correction d’erreur matérielle de saisie enseignant');
+  const [isSavingCorrection, setIsSavingCorrection] = useState(false);
+
+  const handleOpenAdminCorrection = (rc: StudentReportCard) => {
+    setCorrectingReportCard(rc);
+    const initialMap: Record<string, { cc1: string; cc2: string; cc3: string; activities: string; comment: string }> = {};
+    rc.subjects.forEach((sub) => {
+      initialMap[sub.subject_id] = {
+        cc1: sub.scores.cc1 !== null && sub.scores.cc1 !== undefined ? String(sub.scores.cc1) : '',
+        cc2: sub.scores.cc2 !== null && sub.scores.cc2 !== undefined ? String(sub.scores.cc2) : '',
+        cc3: sub.scores.cc3 !== null && sub.scores.cc3 !== undefined ? String(sub.scores.cc3) : '',
+        activities: sub.scores.activities !== null && sub.scores.activities !== undefined ? String(sub.scores.activities) : '',
+        comment: sub.appreciation || '',
+      };
+    });
+    setCorrectionScoresMap(initialMap);
+    setCorrectionReason('Correction d’erreur matérielle de saisie enseignant');
+    setIsCorrectionModalOpen(true);
+  };
+
+  const handleSaveAdminCorrection = async () => {
+    if (!correctingReportCard || isTeacher) return;
+    setIsSavingCorrection(true);
+    try {
+      const studentId = correctingReportCard.student_id;
+      const classId = correctingReportCard.class_id;
+      const semester = correctingReportCard.semester;
+
+      const newEvalsToUpsert: Evaluation[] = [];
+      const newGradesToUpsert: Grade[] = [];
+
+      const evalTypes: EvaluationType[] = ['CC1', 'CC2', 'CC3', 'ACTIVITIES'];
+
+      subjects.forEach((sub) => {
+        const subData = correctionScoresMap[sub.id];
+        if (!subData) return;
+
+        evalTypes.forEach((type) => {
+          const rawScore =
+            type === 'CC1'
+              ? subData.cc1
+              : type === 'CC2'
+              ? subData.cc2
+              : type === 'CC3'
+              ? subData.cc3
+              : subData.activities;
+
+          if (rawScore !== '') {
+            const evalId = `eval-${classId}-${sub.id}-${semester}-${type}`;
+            const evalTypeObj = EVALUATION_TYPES.find((t) => t.type === type);
+
+            const evalObj: Evaluation = {
+              id: evalId,
+              class_id: classId,
+              subject_id: sub.id,
+              semester: semester,
+              type: type,
+              title: `${evalTypeObj?.labelFr || type} - ${sub.name}`,
+              max_score: maxScale,
+              coefficient: evalTypeObj?.defaultCoeff || 1,
+              date: new Date().toISOString().split('T')[0],
+              academic_year: settings.academic_year || '2025-2026',
+            };
+            newEvalsToUpsert.push(evalObj);
+
+            const parsedScore = Math.min(maxScale, Math.max(0, parseFloat(rawScore)));
+            const gradeObj: Grade = {
+              id: `gr-${evalId}-${studentId}`,
+              evaluation_id: evalId,
+              student_id: studentId,
+              score: isNaN(parsedScore) ? null : parsedScore,
+              is_absent: false,
+              comment: `[Admin: ${correctionReason}] ${subData.comment || ''}`.trim(),
+            };
+            newGradesToUpsert.push(gradeObj);
+          }
+        });
+      });
+
+      // Merge into local state
+      const mergedEvals = [...evaluations];
+      newEvalsToUpsert.forEach((ev) => {
+        const idx = mergedEvals.findIndex((e) => e.id === ev.id);
+        if (idx >= 0) mergedEvals[idx] = ev;
+        else mergedEvals.push(ev);
+      });
+
+      const mergedGrades = [...grades];
+      newGradesToUpsert.forEach((gr) => {
+        const idx = mergedGrades.findIndex((g) => g.id === gr.id || (g.evaluation_id === gr.evaluation_id && g.student_id === gr.student_id));
+        if (idx >= 0) mergedGrades[idx] = gr;
+        else mergedGrades.push(gr);
+      });
+
+      setEvaluations(mergedEvals);
+      setGrades(mergedGrades);
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('gm_evaluations_cache_v1', JSON.stringify(mergedEvals));
+        localStorage.setItem('gm_grades_cache_v1', JSON.stringify(mergedGrades));
+      }
+
+      // Upsert into Supabase
+      const supabase = createClient();
+      if (newEvalsToUpsert.length > 0) {
+        await supabase.from('evaluations').upsert(newEvalsToUpsert, { onConflict: 'id' });
+      }
+      if (newGradesToUpsert.length > 0) {
+        await supabase.from('grades').upsert(newGradesToUpsert, { onConflict: 'id' });
+      }
+
+      notify({
+        title: dir === 'rtl' ? 'تم التعديل الإداري بنجاح 🛡️' : 'Rectification Enregistrée 🛡️',
+        message: dir === 'rtl'
+          ? `تم تصحيح نقط التلميذ (${correctingReportCard.student_name}) وتحديث المعدلات تلقائياً.`
+          : `Les notes de ${correctingReportCard.student_name} ont été rectifiées avec succès.`,
+        type: 'success',
+      });
+
+      setIsCorrectionModalOpen(false);
+    } catch (err) {
+      console.error(err);
+      notify({
+        title: 'Erreur',
+        message: "Une erreur est survenue lors de l'enregistrement de la rectification.",
+        type: 'danger',
+      });
+    } finally {
+      setIsSavingCorrection(false);
+    }
+  };
+
   // Class Analytics KPI
   const classAvgScore = useMemo(() => {
     if (classReportCards.length === 0) return 0;
@@ -1127,14 +1267,27 @@ export default function GradesPage() {
                             </span>
                           </td>
                           <td className="p-3.5 text-right">
-                            <button
-                              type="button"
-                              onClick={() => handlePrintSingleBulletin(rc.student_id)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 font-bold text-xs border border-sky-200 dark:border-sky-800 cursor-pointer shadow-2xs transition-all"
-                            >
-                              <Printer className="w-3.5 h-3.5 text-sky-600" />
-                              <span>{dir === 'rtl' ? 'كشف النقط PDF' : 'Bulletin PDF'}</span>
-                            </button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              {!isTeacher && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenAdminCorrection(rc)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 font-bold text-xs border border-amber-200 dark:border-amber-800 cursor-pointer shadow-2xs transition-all"
+                                  title="Correction administrative de la note (Erreur enseignant)"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5 text-amber-600" />
+                                  <span>{dir === 'rtl' ? 'تعديل 🛡️' : 'Rectifier 🛡️'}</span>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handlePrintSingleBulletin(rc.student_id)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 font-bold text-xs border border-sky-200 dark:border-sky-800 cursor-pointer shadow-2xs transition-all"
+                              >
+                                <Printer className="w-3.5 h-3.5 text-sky-600" />
+                                <span>{dir === 'rtl' ? 'كشف النقط PDF' : 'Bulletin PDF'}</span>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1490,6 +1643,191 @@ export default function GradesPage() {
           students={allStudents}
           onImportSuccess={handleMassarImportSuccess}
         />
+
+        {/* ============================================================= */}
+        {/* ADMIN GRADE CORRECTION / OVERRIDE MODAL (DÉROGATION)          */}
+        {/* ============================================================= */}
+        {isCorrectionModalOpen && correctingReportCard && !isTeacher && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+              {/* Modal Header */}
+              <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                    <Edit2 className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-black text-slate-900 dark:text-white">
+                        {dir === 'rtl' ? 'تصحيح وتعديل استثنائي للنقط (الإدارة)' : 'Rectification Administrative des Notes'}
+                      </h2>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                        {dir === 'rtl' ? 'صلاحية الإدارة 🛡️' : 'Réservé Direction 🛡️'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Élève : <strong className="text-slate-900 dark:text-white">{correctingReportCard.student_name}</strong> &bull; Classe : <strong>{correctingReportCard.class_name}</strong> &bull; Code Massar : <strong>{correctingReportCard.massar_code || '—'}</strong>
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setIsCorrectionModalOpen(false)}
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  <XCircle className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Modal Body: Editable Subjects & Controls Spreadsheet */}
+              <div className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-5">
+                {/* Reason Banner */}
+                <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60">
+                  <label className="block text-[11px] font-black text-amber-900 dark:text-amber-200 uppercase mb-1">
+                    {dir === 'rtl' ? 'سبب / مبرر التعديل الإداري (Motif de Rectification) :' : 'Motif & Justification de la Rectification :'}
+                  </label>
+                  <input
+                    type="text"
+                    value={correctionReason}
+                    onChange={(e) => setCorrectionReason(e.target.value)}
+                    placeholder="Ex: Correction d'erreur matérielle de saisie par l'enseignant..."
+                    className="w-full px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+
+                {/* Subjects Table */}
+                <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 font-bold uppercase">
+                      <tr>
+                        <th className="p-3">Matière</th>
+                        <th className="p-3 text-center">CC 1 (/{maxScale})</th>
+                        <th className="p-3 text-center">CC 2 (/{maxScale})</th>
+                        <th className="p-3 text-center">CC 3 (/{maxScale})</th>
+                        <th className="p-3 text-center">Activités (/{maxScale})</th>
+                        <th className="p-3">Remarque</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {subjects.map((sub) => {
+                        const rowData = correctionScoresMap[sub.id] || { cc1: '', cc2: '', cc3: '', activities: '', comment: '' };
+                        return (
+                          <tr key={sub.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                            <td className="p-3 font-bold text-slate-900 dark:text-white">
+                              {sub.name}
+                            </td>
+                            <td className="p-2 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                max={maxScale}
+                                step="0.25"
+                                placeholder="—"
+                                value={rowData.cc1}
+                                onChange={(e) =>
+                                  setCorrectionScoresMap((prev) => ({
+                                    ...prev,
+                                    [sub.id]: { ...prev[sub.id], cc1: e.target.value },
+                                  }))
+                                }
+                                className="w-16 text-center px-1.5 py-1 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black focus:ring-2 focus:ring-amber-500"
+                              />
+                            </td>
+                            <td className="p-2 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                max={maxScale}
+                                step="0.25"
+                                placeholder="—"
+                                value={rowData.cc2}
+                                onChange={(e) =>
+                                  setCorrectionScoresMap((prev) => ({
+                                    ...prev,
+                                    [sub.id]: { ...prev[sub.id], cc2: e.target.value },
+                                  }))
+                                }
+                                className="w-16 text-center px-1.5 py-1 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black focus:ring-2 focus:ring-amber-500"
+                              />
+                            </td>
+                            <td className="p-2 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                max={maxScale}
+                                step="0.25"
+                                placeholder="—"
+                                value={rowData.cc3}
+                                onChange={(e) =>
+                                  setCorrectionScoresMap((prev) => ({
+                                    ...prev,
+                                    [sub.id]: { ...prev[sub.id], cc3: e.target.value },
+                                  }))
+                                }
+                                className="w-16 text-center px-1.5 py-1 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black focus:ring-2 focus:ring-amber-500"
+                              />
+                            </td>
+                            <td className="p-2 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                max={maxScale}
+                                step="0.25"
+                                placeholder="—"
+                                value={rowData.activities}
+                                onChange={(e) =>
+                                  setCorrectionScoresMap((prev) => ({
+                                    ...prev,
+                                    [sub.id]: { ...prev[sub.id], activities: e.target.value },
+                                  }))
+                                }
+                                className="w-16 text-center px-1.5 py-1 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black focus:ring-2 focus:ring-amber-500"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <input
+                                type="text"
+                                placeholder="Remarque..."
+                                value={rowData.comment}
+                                onChange={(e) =>
+                                  setCorrectionScoresMap((prev) => ({
+                                    ...prev,
+                                    [sub.id]: { ...prev[sub.id], comment: e.target.value },
+                                  }))
+                                }
+                                className="w-full px-2 py-1 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:ring-2 focus:ring-amber-500"
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-5 sm:p-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-3 bg-slate-50/50 dark:bg-slate-800/30">
+                <button
+                  type="button"
+                  onClick={() => setIsCorrectionModalOpen(false)}
+                  className="px-4 py-2 rounded-2xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  {dir === 'rtl' ? 'إلغاء' : 'Annuler'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAdminCorrection}
+                  disabled={isSavingCorrection}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-xs shadow-md shadow-orange-500/25 cursor-pointer disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{isSavingCorrection ? (dir === 'rtl' ? 'جاري الحفظ...' : 'Enregistrement...') : (dir === 'rtl' ? 'تأكيد التعديل الإداري 💾' : 'Valider & Mettre à Jour 💾')}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
