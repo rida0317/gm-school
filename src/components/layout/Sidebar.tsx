@@ -198,6 +198,15 @@ export function Sidebar({ isOpen, onClose, isCollapsed = false }: SidebarProps) 
         { href: '/students', label: t('students'), icon: GraduationCap, iconColor: 'text-sky-400' },
         { href: '/teachers', label: t('teachers'), icon: Users, iconColor: 'text-indigo-400' },
         { href: '/subjects', label: dir === 'rtl' ? 'المواد الدراسية' : 'Matières & Modules', icon: BookOpen, iconColor: 'text-emerald-400' },
+        {
+          href: '/grades',
+          label: dir === 'rtl' ? 'النقط وكشوف الملاحظات' : 'Notes & Bulletins',
+          icon: Award,
+          iconColor: 'text-amber-400',
+          highlight: true,
+          badge: 'MEN 📊',
+          badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+        },
       ],
     },
     {

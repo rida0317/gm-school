@@ -116,6 +116,7 @@ export interface ClassEntity {
 export interface Student {
   id: string;
   student_code: string;
+  massar_code?: string;
   first_name: string;
   last_name: string;
   date_of_birth?: string;
@@ -456,3 +457,78 @@ export interface SystemBackup {
   created_by?: string;
   created_at: string;
 }
+
+// -------------------------------------------------------------
+// GRADES, EVALUATIONS & REPORT CARDS (BULLETINS SCOLAIRES)
+// -------------------------------------------------------------
+export type EvaluationType = 'CC1' | 'CC2' | 'CC3' | 'ACTIVITIES' | 'EXAM';
+export type AcademicSemester = 'S1' | 'S2';
+
+export interface Evaluation {
+  id: string;
+  class_id: string;
+  subject_id: string;
+  teacher_id?: string;
+  semester: AcademicSemester;
+  type: EvaluationType;
+  title: string;
+  max_score: number;
+  coefficient: number;
+  date: string;
+  academic_year?: string;
+  created_at?: string;
+}
+
+export interface Grade {
+  id: string;
+  evaluation_id: string;
+  student_id: string;
+  score: number | null; // Note sur 20 (ou max_score)
+  is_absent: boolean;
+  comment?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SubjectGradeSummary {
+  subject_id: string;
+  subject_name: string;
+  subject_code?: string;
+  teacher_name?: string;
+  coefficient: number;
+  scores: {
+    cc1?: number | null;
+    cc2?: number | null;
+    cc3?: number | null;
+    activities?: number | null;
+    exam?: number | null;
+  };
+  average: number | null; // Moyenne calculée sur 20
+  class_min?: number;
+  class_max?: number;
+  class_avg?: number;
+  appreciation?: string;
+}
+
+export interface StudentReportCard {
+  student_id: string;
+  student_name: string;
+  massar_code?: string;
+  class_id: string;
+  class_name: string;
+  level: string;
+  cycle?: string;
+  academic_year: string;
+  semester: AcademicSemester;
+  subjects: SubjectGradeSummary[];
+  total_points: number;
+  total_coefficients: number;
+  general_average: number; // Moyenne Générale /20
+  rank: number; // Rang (1er, 2ème...)
+  total_students: number;
+  total_absences_hours: number;
+  unexcused_absences_hours: number;
+  conduct_mention?: string; // Très Bonne, Bonne, Passable...
+  council_decision?: string; // Tableau d'honneur, Encouragements, Félicitations, Avertissement...
+}
+
