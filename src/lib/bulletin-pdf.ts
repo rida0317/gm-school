@@ -255,7 +255,7 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
         <style>
           @page {
             size: A4 portrait;
-            margin: 6mm 8mm;
+            margin: 5mm 7mm;
           }
           * {
             box-sizing: border-box;
@@ -266,8 +266,8 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             height: 100%;
             font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
             color: #0f172a;
-            font-size: 10.5px;
-            line-height: 1.25;
+            font-size: 10px;
+            line-height: 1.2;
             background: #ffffff;
           }
           .page-break {
@@ -277,49 +277,54 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
           .bulletin-sheet {
             display: flex;
             flex-direction: column;
-            height: 284mm;
-            max-height: 284mm;
-            padding: 4px;
+            justify-content: space-between;
+            height: 282mm;
+            max-height: 282mm;
+            padding: 2px;
             box-sizing: border-box;
-            justify-content: flex-start;
+            overflow: hidden;
+            page-break-inside: avoid;
+            break-inside: avoid;
+            page-break-after: always;
+            break-after: page;
           }
           /* Header */
           .header-box {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 2.5px solid #0f172a;
-            padding-bottom: 6px;
-            margin-bottom: 8px;
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 4px;
+            margin-bottom: 6px;
             flex-shrink: 0;
           }
           .header-left {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
           }
           .logo-img {
-            width: 56px;
-            height: 56px;
+            width: 48px;
+            height: 48px;
             object-fit: contain;
             border-radius: 6px;
           }
           .gov-text {
-            font-size: 8.5px;
+            font-size: 8px;
             font-weight: 800;
             text-transform: uppercase;
             color: #475569;
             letter-spacing: 0.2px;
           }
           .school-name {
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 900;
             color: #0f172a;
-            letter-spacing: 0.3px;
-            margin: 2px 0;
+            letter-spacing: 0.2px;
+            margin: 1px 0;
           }
           .sub-text {
-            font-size: 9px;
+            font-size: 8.5px;
             color: #64748b;
             font-weight: 600;
           }
@@ -331,26 +336,26 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             background-color: #0f172a;
             color: #ffffff;
             font-weight: 900;
-            font-size: 11.5px;
-            padding: 4px 12px;
-            border-radius: 5px;
-            letter-spacing: 0.5px;
-            margin-bottom: 4px;
+            font-size: 11px;
+            padding: 3px 10px;
+            border-radius: 4px;
+            letter-spacing: 0.4px;
+            margin-bottom: 3px;
           }
           .meta-row {
-            font-size: 10px;
+            font-size: 9.5px;
             color: #334155;
           }
           /* Student ID */
           .student-id-grid {
             display: grid;
             grid-template-columns: 2fr 1.2fr 1.2fr 1fr;
-            gap: 8px;
+            gap: 6px;
             background-color: #f8fafc;
             border: 1.5px solid #cbd5e1;
             border-radius: 6px;
-            padding: 8px 12px;
-            margin-bottom: 10px;
+            padding: 6px 10px;
+            margin-bottom: 6px;
             flex-shrink: 0;
           }
           .id-item {
@@ -358,19 +363,19 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             flex-direction: column;
           }
           .id-label {
-            font-size: 8.5px;
+            font-size: 8px;
             font-weight: bold;
             color: #64748b;
             text-transform: uppercase;
           }
           .id-value {
-            font-size: 12px;
+            font-size: 11.5px;
             font-weight: 800;
             color: #0f172a;
           }
           .text-highlight {
             color: #1e3a8a;
-            font-size: 13px;
+            font-size: 12.5px;
             font-weight: 900;
           }
           .massar-font {
@@ -383,7 +388,8 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             flex: 1;
             display: flex;
             flex-direction: column;
-            margin-bottom: 10px;
+            margin-bottom: 6px;
+            overflow: hidden;
           }
           .grades-table {
             width: 100%;
@@ -391,19 +397,19 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             border-collapse: collapse;
           }
           .grades-table th, .grades-table td {
-            border: 1.5px solid #475569;
-            padding: 7px 6px;
-            font-size: 11px;
+            border: 1px solid #475569;
+            padding: 4px 5px;
+            font-size: 10px;
           }
           .grades-table th {
             background-color: #e2e8f0;
             color: #0f172a;
             font-weight: 900;
             text-transform: uppercase;
-            font-size: 10.5px;
+            font-size: 9px;
             text-align: center;
-            height: 32px;
-            letter-spacing: 0.3px;
+            height: 26px;
+            letter-spacing: 0.2px;
           }
           .even-row {
             background-color: #f8fafc;
@@ -411,40 +417,39 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
           .col-subj {
             text-align: left;
             width: 27%;
-            padding-left: 10px !important;
+            padding-left: 8px !important;
           }
           .subj-name {
             font-weight: 900;
             color: #0f172a;
-            font-size: 13px;
+            font-size: 11.5px;
             letter-spacing: 0.1px;
-            line-height: 1.2;
+            line-height: 1.15;
           }
           .subj-teacher {
-            font-size: 9px;
+            font-size: 8px;
             font-weight: 600;
             color: #475569;
-            margin-top: 1px;
           }
           .col-score {
             width: 6.5%;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 600;
           }
           .col-avg {
             width: 8.5%;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 900;
             background-color: #f1f5f9;
           }
           .col-coeff {
             width: 5%;
-            font-size: 11.5px;
+            font-size: 10.5px;
             font-weight: 900;
           }
           .col-pts {
             width: 7%;
-            font-size: 11.5px;
+            font-size: 10.5px;
             font-weight: 900;
           }
           .col-stat {
@@ -453,7 +458,7 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
           }
           .col-apprec {
             text-align: left;
-            font-size: 8.5px;
+            font-size: 8px;
             color: #334155;
             width: 26%;
           }
@@ -472,50 +477,51 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
           .summary-container {
             display: grid;
             grid-template-columns: 1.3fr 1fr;
-            gap: 8px;
-            margin-bottom: 8px;
+            gap: 6px;
+            margin-bottom: 6px;
+            flex-shrink: 0;
           }
           .kpi-box, .decision-box {
             border: 1px solid #94a3b8;
             border-radius: 6px;
-            padding: 6px 8px;
+            padding: 5px 7px;
             background: #ffffff;
           }
           .kpi-title, .decision-title {
-            font-size: 8.5px;
+            font-size: 8px;
             font-weight: 900;
             text-transform: uppercase;
             color: #0f172a;
             border-bottom: 1px solid #cbd5e1;
-            padding-bottom: 3px;
-            margin-bottom: 5px;
+            padding-bottom: 2px;
+            margin-bottom: 4px;
             letter-spacing: 0.3px;
           }
           .kpi-grid {
             display: grid;
             grid-template-columns: 1fr 1fr 1.3fr 1.3fr;
-            gap: 4px;
+            gap: 3px;
             text-align: center;
           }
           .kpi-cell {
             background: #f8fafc;
             border: 1px solid #e2e8f0;
             border-radius: 4px;
-            padding: 4px 2px;
+            padding: 3px 2px;
           }
           .cell-label {
-            font-size: 7.5px;
+            font-size: 7px;
             font-weight: bold;
             color: #64748b;
             text-transform: uppercase;
           }
           .cell-val {
-            font-size: 11px;
+            font-size: 10.5px;
             font-weight: 800;
             color: #0f172a;
           }
           .cell-val-lg {
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 900;
           }
           .highlight-avg {
@@ -535,27 +541,27 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             color: #854d0e;
           }
           .rank-total {
-            font-size: 9px;
+            font-size: 8.5px;
             color: #713f12;
             font-weight: bold;
           }
           .assiduity-strip {
-            margin-top: 5px;
-            padding-top: 4px;
+            margin-top: 4px;
+            padding-top: 3px;
             border-top: 1px dashed #cbd5e1;
             display: flex;
             justify-content: space-between;
-            font-size: 8.5px;
+            font-size: 8px;
             color: #475569;
           }
           /* Decision & Mentions */
           .mention-pill {
             display: inline-block;
-            padding: 3px 8px;
+            padding: 2px 7px;
             border-radius: 4px;
-            font-size: 10px;
+            font-size: 9.5px;
             font-weight: 900;
-            margin-bottom: 4px;
+            margin-bottom: 3px;
             text-transform: uppercase;
           }
           .mention-tb { background-color: #dcfce7; color: #15803d; border: 1px solid #86efac; }
@@ -564,32 +570,39 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
           .mention-p { background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; }
           .mention-insuff { background-color: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
           .council-text {
-            font-size: 8.5px;
+            font-size: 8px;
             color: #334155;
-            line-height: 1.3;
+            line-height: 1.25;
           }
           /* Signatures */
           .signatures-footer {
             display: grid;
             grid-template-columns: 1fr 1fr 1.2fr;
-            gap: 10px;
+            gap: 8px;
             page-break-inside: avoid;
+            break-inside: avoid;
+            flex-shrink: 0;
           }
           .sig-box {
             border: 1px dashed #94a3b8;
             border-radius: 6px;
-            padding: 6px;
+            padding: 5px;
             text-align: center;
-            height: 68px;
+            height: 54px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
           }
           .sig-title {
-            font-size: 8px;
+            font-size: 7.5px;
             font-weight: 800;
             text-transform: uppercase;
             color: #475569;
+          }
+          .sig-space {
+            font-size: 7px;
+            color: #94a3b8;
+            font-style: italic;
           }
           .official-seal {
             font-size: 7px;
