@@ -1387,35 +1387,126 @@ export default function TimetableGeneratorPage() {
         MOROCCAN_DAYS.forEach((day) => {
           // 1. Compact Morning (P1 -> P2 -> P3 -> P4)
           const morningPeriods = MOROCCAN_55MIN_PERIODS.slice(0, 4);
-          for (let pIdx = 0; pIdx < morningPeriods.length; pIdx++) {
-            const expectedPeriod = morningPeriods[pIdx];
-            const slotAtExpected = generated.find(
-              (s) => s.class_id === cls.id && s.day_of_week === day.id && s.start_time === expectedPeriod.start
-            );
+          const morningSlots = generated.filter(
+            (s) => s.class_id === cls.id && s.day_of_week === day.id && morningPeriods.some((p) => p.start === s.start_time)
+          );
 
-            if (!slotAtExpected) {
-              const laterSlot = generated.find((s) => {
-                if (s.class_id !== cls.id || s.day_of_week !== day.id) return false;
-                const sPeriodIdx = morningPeriods.findIndex((p) => p.start === s.start_time);
-                return sPeriodIdx > pIdx;
-              });
+          if (morningSlots.length > 0 && morningSlots.length < 4) {
+            const morningIndices = morningSlots
+              .map((s) => morningPeriods.findIndex((p) => p.start === s.start_time))
+              .sort((a, b) => a - b);
+            const minIdx = morningIndices[0];
+            const maxIdx = morningIndices[morningIndices.length - 1];
+            const hasInternalHole = maxIdx - minIdx + 1 > morningSlots.length;
+            const hasLateStart = minIdx > 0;
 
-              if (laterSlot) {
-                const teacher = teachers.find((t) => t.id === laterSlot.teacher_id);
-                const isTeacherFree = !generated.some(
-                  (s) =>
-                    s !== laterSlot &&
-                    s.teacher_id === laterSlot.teacher_id &&
-                    s.day_of_week === day.id &&
-                    s.start_time === expectedPeriod.start
-                );
-                const isVacOk = teacher
-                  ? isTeacherAvailableForSlot(teacher, day.id, expectedPeriod.id, expectedPeriod.start)
-                  : true;
+            if (hasInternalHole || hasLateStart) {
+              const k = morningSlots.length;
+              let compacted = false;
+              const maxStartOffset = 4 - k;
 
-                if (isTeacherFree && isVacOk) {
-                  laterSlot.start_time = expectedPeriod.start;
-                  laterSlot.end_time = expectedPeriod.end;
+              for (let startOffset = 0; startOffset <= maxStartOffset; startOffset++) {
+                if (compacted) break;
+                const targetPeriods = morningPeriods.slice(startOffset, startOffset + k);
+
+                const permute = (arr: GeneratedSlot[]): GeneratedSlot[][] => {
+                  if (arr.length <= 1) return [arr];
+                  const result: GeneratedSlot[][] = [];
+                  for (let i = 0; i < arr.length; i++) {
+                    const current = arr[i];
+                    const remaining = [...arr.slice(0, i), ...arr.slice(i + 1)];
+                    for (const p of permute(remaining)) {
+                      result.push([current, ...p]);
+                    }
+                  }
+                  return result;
+                };
+
+                const allPerms = permute(morningSlots);
+                for (const perm of allPerms) {
+                  let allValid = true;
+                  for (let i = 0; i < k; i++) {
+                    const slot = perm[i];
+                    const targetP = targetPeriods[i];
+                    const teacher = teachers.find((t) => t.id === slot.teacher_id);
+
+                    const isTeacherBusy = generated.some(
+                      (other) =>
+                        other !== slot &&
+                        !morningSlots.includes(other) &&
+                        other.teacher_id === slot.teacher_id &&
+                        other.day_of_week === day.id &&
+                        other.start_time === targetP.start
+                    );
+                    if (isTeacherBusy) {
+                      allValid = false;
+                      break;
+                    }
+
+                    const vacOk = teacher
+                      ? isTeacherAvailableForSlot(teacher, day.id, targetP.id, targetP.start)
+                      : true;
+                    if (!vacOk) {
+                      allValid = false;
+                      break;
+                    }
+                  }
+
+                  if (allValid) {
+                    for (let i = 0; i < k; i++) {
+                      perm[i].start_time = targetPeriods[i].start;
+                      perm[i].end_time = targetPeriods[i].end;
+                    }
+                    compacted = true;
+                    break;
+                  }
+                }
+              }
+
+              // Inter-day swap fallback
+              if (!compacted && hasInternalHole) {
+                const neededSlotP = morningPeriods.find((p, pIdx) => {
+                  const isOccupied = morningSlots.some((s) => s.start_time === p.start);
+                  return !isOccupied && pIdx < maxIdx;
+                });
+                const holeSlot = morningSlots[morningSlots.length - 1];
+
+                if (neededSlotP) {
+                  const otherSlots = generated.filter((s) => s.class_id === cls.id && s.day_of_week !== day.id);
+                  for (const partner of otherSlots) {
+                    const tPartner = teachers.find((t) => t.id === partner.teacher_id);
+                    const tHole = teachers.find((t) => t.id === holeSlot.teacher_id);
+
+                    const isPartnerFree = !generated.some(
+                      (s) => s !== partner && s.teacher_id === partner.teacher_id && s.day_of_week === day.id && s.start_time === neededSlotP.start
+                    );
+                    const isHoleFree = !generated.some(
+                      (s) => s !== holeSlot && s !== partner && s.teacher_id === holeSlot.teacher_id && s.day_of_week === partner.day_of_week && s.start_time === partner.start_time
+                    );
+
+                    const countPartnerOnDay = generated.filter(
+                      (s) => s !== partner && s.class_id === cls.id && s.day_of_week === day.id && s.subject_id === partner.subject_id
+                    ).length;
+                    const countHoleOnPartnerDay = generated.filter(
+                      (s) => s !== holeSlot && s.class_id === cls.id && s.day_of_week === partner.day_of_week && s.subject_id === holeSlot.subject_id
+                    ).length;
+
+                    const vac1 = tPartner ? isTeacherAvailableForSlot(tPartner, day.id, neededSlotP.id, neededSlotP.start) : true;
+                    const vac2 = tHole ? isTeacherAvailableForSlot(tHole, partner.day_of_week, '', partner.start_time) : true;
+
+                    if (isPartnerFree && isHoleFree && countPartnerOnDay < 2 && countHoleOnPartnerDay < 2 && vac1 && vac2) {
+                      partner.day_of_week = day.id;
+                      partner.dayName = day.name;
+                      partner.start_time = neededSlotP.start;
+                      partner.end_time = neededSlotP.end;
+
+                      holeSlot.day_of_week = partner.day_of_week;
+                      holeSlot.dayName = partner.dayName;
+                      holeSlot.start_time = partner.start_time;
+                      holeSlot.end_time = partner.end_time;
+                      break;
+                    }
+                  }
                 }
               }
             }
@@ -1424,35 +1515,131 @@ export default function TimetableGeneratorPage() {
           // 2. Compact Afternoon (P5 -> P6 -> P7 for Mon-Thu)
           if (day.id !== 5) {
             const afternoonPeriods = MOROCCAN_55MIN_PERIODS.slice(4);
-            for (let pIdx = 0; pIdx < afternoonPeriods.length; pIdx++) {
-              const expectedPeriod = afternoonPeriods[pIdx];
-              const slotAtExpected = generated.find(
-                (s) => s.class_id === cls.id && s.day_of_week === day.id && s.start_time === expectedPeriod.start
-              );
+            const afternoonSlots = generated.filter(
+              (s) => s.class_id === cls.id && s.day_of_week === day.id && afternoonPeriods.some((p) => p.start === s.start_time)
+            );
 
-              if (!slotAtExpected) {
-                const laterSlot = generated.find((s) => {
-                  if (s.class_id !== cls.id || s.day_of_week !== day.id) return false;
-                  const sPeriodIdx = afternoonPeriods.findIndex((p) => p.start === s.start_time);
-                  return sPeriodIdx > pIdx;
-                });
+            if (afternoonSlots.length > 0 && afternoonSlots.length < 3) {
+              const afternoonIndices = afternoonSlots
+                .map((s) => afternoonPeriods.findIndex((p) => p.start === s.start_time))
+                .sort((a, b) => a - b);
+              const minIdx = afternoonIndices[0];
+              const maxIdx = afternoonIndices[afternoonIndices.length - 1];
+              const hasInternalHole = maxIdx - minIdx + 1 > afternoonSlots.length;
+              const hasLateStart = minIdx > 0;
 
-                if (laterSlot) {
-                  const teacher = teachers.find((t) => t.id === laterSlot.teacher_id);
-                  const isTeacherFree = !generated.some(
-                    (s) =>
-                      s !== laterSlot &&
-                      s.teacher_id === laterSlot.teacher_id &&
-                      s.day_of_week === day.id &&
-                      s.start_time === expectedPeriod.start
-                  );
-                  const isVacOk = teacher
-                    ? isTeacherAvailableForSlot(teacher, day.id, expectedPeriod.id, expectedPeriod.start)
-                    : true;
+              if (hasInternalHole || hasLateStart) {
+                const k = afternoonSlots.length;
+                let compacted = false;
+                const maxStartOffset = 3 - k;
 
-                  if (isTeacherFree && isVacOk) {
-                    laterSlot.start_time = expectedPeriod.start;
-                    laterSlot.end_time = expectedPeriod.end;
+                for (let startOffset = 0; startOffset <= maxStartOffset; startOffset++) {
+                  if (compacted) break;
+                  const targetPeriods = afternoonPeriods.slice(startOffset, startOffset + k);
+
+                  const permute = (arr: GeneratedSlot[]): GeneratedSlot[][] => {
+                    if (arr.length <= 1) return [arr];
+                    const result: GeneratedSlot[][] = [];
+                    for (let i = 0; i < arr.length; i++) {
+                      const current = arr[i];
+                      const remaining = [...arr.slice(0, i), ...arr.slice(i + 1)];
+                      for (const p of permute(remaining)) {
+                        result.push([current, ...p]);
+                      }
+                    }
+                    return result;
+                  };
+
+                  const allPerms = permute(afternoonSlots);
+                  for (const perm of allPerms) {
+                    let allValid = true;
+                    for (let i = 0; i < k; i++) {
+                      const slot = perm[i];
+                      const targetP = targetPeriods[i];
+                      const teacher = teachers.find((t) => t.id === slot.teacher_id);
+
+                      const isTeacherBusy = generated.some(
+                        (other) =>
+                          other !== slot &&
+                          !afternoonSlots.includes(other) &&
+                          other.teacher_id === slot.teacher_id &&
+                          other.day_of_week === day.id &&
+                          other.start_time === targetP.start
+                      );
+                      if (isTeacherBusy) {
+                        allValid = false;
+                        break;
+                      }
+
+                      const vacOk = teacher
+                        ? isTeacherAvailableForSlot(teacher, day.id, targetP.id, targetP.start)
+                        : true;
+                      if (!vacOk) {
+                        allValid = false;
+                        break;
+                      }
+                    }
+
+                    if (allValid) {
+                      for (let i = 0; i < k; i++) {
+                        perm[i].start_time = targetPeriods[i].start;
+                        perm[i].end_time = targetPeriods[i].end;
+                      }
+                      compacted = true;
+                      break;
+                    }
+                  }
+                }
+
+                // Inter-day swap fallback
+                if (!compacted && hasInternalHole) {
+                  const neededSlotP = afternoonPeriods.find((p, pIdx) => {
+                    const isOccupied = afternoonSlots.some((s) => s.start_time === p.start);
+                    return !isOccupied && pIdx < maxIdx;
+                  });
+                  const holeSlot = afternoonSlots[afternoonSlots.length - 1];
+
+                  if (neededSlotP) {
+                    const otherSlots = generated.filter((s) => s.class_id === cls.id && s.day_of_week !== day.id);
+                    for (const partner of otherSlots) {
+                      const tPartner = teachers.find((t) => t.id === partner.teacher_id);
+                      const tHole = teachers.find((t) => t.id === holeSlot.teacher_id);
+
+                      const isPartnerFree = !generated.some(
+                        (s) => s !== partner && s.teacher_id === partner.teacher_id && s.day_of_week === day.id && s.start_time === neededSlotP.start
+                      );
+                      const isHoleFree = !generated.some(
+                        (s) => s !== holeSlot && s !== partner && s.teacher_id === holeSlot.teacher_id && s.day_of_week === partner.day_of_week && s.start_time === partner.start_time
+                      );
+
+                      const countPartnerOnDay = generated.filter(
+                        (s) => s !== partner && s.class_id === cls.id && s.day_of_week === day.id && s.subject_id === partner.subject_id
+                      ).length;
+                      const countHoleOnPartnerDay = generated.filter(
+                        (s) => s !== holeSlot && s.class_id === cls.id && s.day_of_week === partner.day_of_week && s.subject_id === holeSlot.subject_id
+                      ).length;
+
+                      const vac1 = tPartner ? isTeacherAvailableForSlot(tPartner, day.id, neededSlotP.id, neededSlotP.start) : true;
+                      const vac2 = tHole ? isTeacherAvailableForSlot(tHole, partner.day_of_week, '', partner.start_time) : true;
+
+                      if (isPartnerFree && isHoleFree && countPartnerOnDay < 2 && countHoleOnPartnerDay < 2 && vac1 && vac2) {
+                        const tempDay = partner.day_of_week;
+                        const tempDayName = partner.dayName;
+                        const tempStart = partner.start_time;
+                        const tempEnd = partner.end_time;
+
+                        partner.day_of_week = day.id;
+                        partner.dayName = day.name;
+                        partner.start_time = neededSlotP.start;
+                        partner.end_time = neededSlotP.end;
+
+                        holeSlot.day_of_week = tempDay;
+                        holeSlot.dayName = tempDayName;
+                        holeSlot.start_time = tempStart;
+                        holeSlot.end_time = tempEnd;
+                        break;
+                      }
+                    }
                   }
                 }
               }

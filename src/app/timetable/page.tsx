@@ -1645,6 +1645,86 @@ export default function TimetablePage() {
                     }
                   }
                 }
+
+                // Fallback: If intra-morning compaction is blocked, try swapping with another day to eliminate the gap!
+                if (!compacted && hasInternalHole) {
+                  const neededSlotP = morningPeriods.find((p, pIdx) => {
+                    const isOccupied = morningSlots.some((s) => normalizeTime(s.start_time) === normalizeTime(p.start));
+                    return !isOccupied && pIdx < maxIdx;
+                  });
+                  const holeSlot = morningSlots[morningSlots.length - 1];
+
+                  if (neededSlotP && !pinnedSlotIds.has(holeSlot.id)) {
+                    const otherClassSlots = currentSlotsState.filter(
+                      (s) =>
+                        s.class_id === cls.id &&
+                        s.day_of_week !== day.id &&
+                        !pinnedSlotIds.has(s.id) &&
+                        !(s.day_of_week === 5 && normalizeTime(s.start_time) >= '13:00')
+                    );
+
+                    for (const partnerSlot of otherClassSlots) {
+                      const partnerTeacher = teachers.find((t) => t.id === partnerSlot.teacher_id) || partnerSlot.teacher;
+                      const holeTeacher = teachers.find((t) => t.id === holeSlot.teacher_id) || holeSlot.teacher;
+
+                      const isPartnerTeacherFree = !currentSlotsState.some(
+                        (s) =>
+                          s.id !== partnerSlot.id &&
+                          s.teacher_id === partnerSlot.teacher_id &&
+                          s.day_of_week === day.id &&
+                          normalizeTime(s.start_time) === normalizeTime(neededSlotP.start)
+                      );
+                      if (!isPartnerTeacherFree) continue;
+
+                      const isHoleTeacherFree = !currentSlotsState.some(
+                        (s) =>
+                          s.id !== holeSlot.id &&
+                          s.id !== partnerSlot.id &&
+                          s.teacher_id === holeSlot.teacher_id &&
+                          s.day_of_week === partnerSlot.day_of_week &&
+                          normalizeTime(s.start_time) === normalizeTime(partnerSlot.start_time)
+                      );
+                      if (!isHoleTeacherFree) continue;
+
+                      const partnerSubjCountOnDay = currentSlotsState.filter(
+                        (s) => s.id !== partnerSlot.id && s.class_id === cls.id && s.day_of_week === day.id && s.subject_id === partnerSlot.subject_id
+                      ).length;
+                      if (partnerSubjCountOnDay >= 2) continue;
+
+                      const holeSubjCountOnPartnerDay = currentSlotsState.filter(
+                        (s) => s.id !== holeSlot.id && s.class_id === cls.id && s.day_of_week === partnerSlot.day_of_week && s.subject_id === holeSlot.subject_id
+                      ).length;
+                      if (holeSubjCountOnPartnerDay >= 2) continue;
+
+                      const isPartnerVacOk = partnerTeacher ? isVacataireAvailable(partnerTeacher, day.id, neededSlotP.id, neededSlotP.start) : true;
+                      const isHoleVacOk = holeTeacher ? isVacataireAvailable(holeTeacher, partnerSlot.day_of_week, '', partnerSlot.start_time) : true;
+                      if (!isPartnerVacOk || !isHoleVacOk) continue;
+
+                      updatedMap.set(partnerSlot.id, {
+                        id: partnerSlot.id,
+                        day_of_week: day.id,
+                        start_time: neededSlotP.start,
+                        end_time: neededSlotP.end,
+                      });
+                      updatedMap.set(holeSlot.id, {
+                        id: holeSlot.id,
+                        day_of_week: partnerSlot.day_of_week,
+                        start_time: partnerSlot.start_time,
+                        end_time: partnerSlot.end_time,
+                      });
+
+                      currentSlotsState = currentSlotsState.map((s) => {
+                        if (s.id === partnerSlot.id) return { ...s, day_of_week: day.id, start_time: neededSlotP.start, end_time: neededSlotP.end };
+                        if (s.id === holeSlot.id) return { ...s, day_of_week: partnerSlot.day_of_week, start_time: partnerSlot.start_time, end_time: partnerSlot.end_time };
+                        return s;
+                      });
+
+                      changesInThisPass++;
+                      compacted = true;
+                      break;
+                    }
+                  }
+                }
               }
             }
 
@@ -1755,6 +1835,86 @@ export default function TimetablePage() {
                           compacted = true;
                           break;
                         }
+                      }
+                    }
+                  }
+
+                  // Fallback: If intra-afternoon compaction is blocked (e.g. teacher busy at P6), try swapping with another day!
+                  if (!compacted && hasInternalHole) {
+                    const neededSlotP = afternoonPeriods.find((p, pIdx) => {
+                      const isOccupied = afternoonSlots.some((s) => normalizeTime(s.start_time) === normalizeTime(p.start));
+                      return !isOccupied && pIdx < maxIdx;
+                    });
+                    const holeSlot = afternoonSlots[afternoonSlots.length - 1];
+
+                    if (neededSlotP && !pinnedSlotIds.has(holeSlot.id)) {
+                      const otherClassSlots = currentSlotsState.filter(
+                        (s) =>
+                          s.class_id === cls.id &&
+                          s.day_of_week !== day.id &&
+                          !pinnedSlotIds.has(s.id) &&
+                          !(s.day_of_week === 5 && normalizeTime(s.start_time) >= '13:00')
+                      );
+
+                      for (const partnerSlot of otherClassSlots) {
+                        const partnerTeacher = teachers.find((t) => t.id === partnerSlot.teacher_id) || partnerSlot.teacher;
+                        const holeTeacher = teachers.find((t) => t.id === holeSlot.teacher_id) || holeSlot.teacher;
+
+                        const isPartnerTeacherFree = !currentSlotsState.some(
+                          (s) =>
+                            s.id !== partnerSlot.id &&
+                            s.teacher_id === partnerSlot.teacher_id &&
+                            s.day_of_week === day.id &&
+                            normalizeTime(s.start_time) === normalizeTime(neededSlotP.start)
+                        );
+                        if (!isPartnerTeacherFree) continue;
+
+                        const isHoleTeacherFree = !currentSlotsState.some(
+                          (s) =>
+                            s.id !== holeSlot.id &&
+                            s.id !== partnerSlot.id &&
+                            s.teacher_id === holeSlot.teacher_id &&
+                            s.day_of_week === partnerSlot.day_of_week &&
+                            normalizeTime(s.start_time) === normalizeTime(partnerSlot.start_time)
+                        );
+                        if (!isHoleTeacherFree) continue;
+
+                        const partnerSubjCountOnDay = currentSlotsState.filter(
+                          (s) => s.id !== partnerSlot.id && s.class_id === cls.id && s.day_of_week === day.id && s.subject_id === partnerSlot.subject_id
+                        ).length;
+                        if (partnerSubjCountOnDay >= 2) continue;
+
+                        const holeSubjCountOnPartnerDay = currentSlotsState.filter(
+                          (s) => s.id !== holeSlot.id && s.class_id === cls.id && s.day_of_week === partnerSlot.day_of_week && s.subject_id === holeSlot.subject_id
+                        ).length;
+                        if (holeSubjCountOnPartnerDay >= 2) continue;
+
+                        const isPartnerVacOk = partnerTeacher ? isVacataireAvailable(partnerTeacher, day.id, neededSlotP.id, neededSlotP.start) : true;
+                        const isHoleVacOk = holeTeacher ? isVacataireAvailable(holeTeacher, partnerSlot.day_of_week, '', partnerSlot.start_time) : true;
+                        if (!isPartnerVacOk || !isHoleVacOk) continue;
+
+                        updatedMap.set(partnerSlot.id, {
+                          id: partnerSlot.id,
+                          day_of_week: day.id,
+                          start_time: neededSlotP.start,
+                          end_time: neededSlotP.end,
+                        });
+                        updatedMap.set(holeSlot.id, {
+                          id: holeSlot.id,
+                          day_of_week: partnerSlot.day_of_week,
+                          start_time: partnerSlot.start_time,
+                          end_time: partnerSlot.end_time,
+                        });
+
+                        currentSlotsState = currentSlotsState.map((s) => {
+                          if (s.id === partnerSlot.id) return { ...s, day_of_week: day.id, start_time: neededSlotP.start, end_time: neededSlotP.end };
+                          if (s.id === holeSlot.id) return { ...s, day_of_week: partnerSlot.day_of_week, start_time: partnerSlot.start_time, end_time: partnerSlot.end_time };
+                          return s;
+                        });
+
+                        changesInThisPass++;
+                        compacted = true;
+                        break;
                       }
                     }
                   }
