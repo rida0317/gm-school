@@ -741,18 +741,19 @@ export default function StudentsPage() {
           </div>
 
           <div className="flex items-center gap-2.5 flex-wrap">
+            {/* Tableau PDF Export Button (Accessible to Teachers & Administration) */}
+            <button
+              type="button"
+              onClick={handleExportPDF}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-xs shadow-md transition-all cursor-pointer hover:scale-105"
+              title={dir === 'rtl' ? 'طباعة لائحة تلاميذ القسم بصيغة PDF' : 'Générer et imprimer la liste de la classe en PDF'}
+            >
+              <Printer className="w-4 h-4 text-emerald-400 dark:text-emerald-600" />
+              <span>{dir === 'rtl' ? 'طباعة لائحة PDF' : 'Tableau PDF'}</span>
+            </button>
+
             {!isTeacher && (
               <>
-                <button
-                  type="button"
-                  onClick={handleExportPDF}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-xs shadow-md transition-all cursor-pointer hover:scale-105"
-                  title="Générer et imprimer le tableau officiel de la classe en PDF"
-                >
-                  <Printer className="w-4 h-4 text-emerald-400 dark:text-emerald-600" />
-                  <span>{dir === 'rtl' ? 'طباعة لائحة PDF' : 'Tableau PDF'}</span>
-                </button>
-
                 <button
                   type="button"
                   onClick={handleExportExcel}
