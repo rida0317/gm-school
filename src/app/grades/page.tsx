@@ -22,6 +22,7 @@ import {
 import { resolveTeacherScope } from '@/lib/teacher-resolver';
 import { printStudentBulletinsPDF } from '@/lib/bulletin-pdf';
 import { MassarGradesImportModal } from '@/components/grades/MassarGradesImportModal';
+import { exportMassarExcelTemplate } from '@/lib/massar-excel-exporter';
 import * as XLSX from 'xlsx';
 import {
   Award,
@@ -89,7 +90,7 @@ export default function GradesPage() {
   // Massar Import Modal State
   const [isMassarModalOpen, setIsMassarModalOpen] = useState(false);
 
-  // Export Massar Compatible Template
+  // Export Massar Compatible Template (Styled & Formatted)
   const handleExportMassarTemplate = () => {
     if (!activeClass || classStudents.length === 0) {
       notify({
@@ -102,55 +103,17 @@ export default function GradesPage() {
 
     const currentSub = subjects.find((s) => s.id === selectedSubjectId);
 
-    const wsData: any[][] = [
-      ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O'],
-      ['sgs', 'sgs', 'sgs', 'sgs', 'sgs', 'sgs', 10, 'sgs', 'sgs', 'sgs', 'sgs', 'sgs', 'sgs', 'sgs', 'sgs'],
-      [],
-      ['', '', '', '', '', 'نقط المراقبة المستمرة'],
-      ['', '', '55976T', '', '1fcabb4c-45d0-4307-be0c-f7f42a4b34af', '', 2, '', 0, '', '#0030#', '', 18, '', '2A32101110'],
-      [],
-      ['', '', 'أكاديمية :', 'مراكش - آسفي', '', '', 'م.الإقليمية : ', '', 'عمالة: مراكش', '', '', 'مؤسسة', '', '', settings.school_name || 'مجموعة مدارس الأجيال الصاعدة'],
-      [],
-      ['', '', 'المستوى  :  ', activeClass.level, '', '', 'القسم  :', '', activeClass.name, '', '', 'الاستاذ', '', '', ''],
-      [],
-      ['', '', 'الدورة  :', selectedSemester === 'S1' ? 'الدورة الأولى' : 'الدورة الثانية', '', '', 'نقط :', '', '', '', '', 'المادة', '', '', currentSub?.name || ''],
-      [],
-      ['', '', 'السنة الدراسية :', settings.academic_year || '2025/2026'],
-      [],
-      ['', '', '', '', '', '', '#1#', '', '#2#', '', '#3#', '', '#4#', '', '#100#'],
-      ['', 'ID', 'رقم  التلميذ  ', 'إسم التلميذ  ', '', ' تاريخ الإزدياد', 'الفرض الأول', 'الفرض الأول', 'الفرض الثاني', 'الفرض الثاني', 'الفرض الثالث', 'الفرض الثالث', 'الأنشطة المندمجة', 'الأنشطة المندمجة', 'ملاحظات الأستاذ'],
-      ['', '', '', '', '', '', 'النقطة', 'التغيب', 'النقطة', 'التغيب', 'النقطة', 'التغيب', 'النقطة', 'التغيب', '-'],
-    ];
-
-    classStudents.forEach((student, idx) => {
-      wsData.push([
-        '',
-        10000000 + idx + 1,
-        student.massar_code || student.student_code,
-        `${student.last_name} ${student.first_name}`,
-        '',
-        student.date_of_birth || '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-      ]);
+    exportMassarExcelTemplate({
+      activeClass,
+      students: classStudents,
+      subject: currentSub,
+      semester: selectedSemester,
+      settings,
     });
-
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
-    XLSX.utils.book_append_sheet(wb, ws, 'NotesCC');
-
-    XLSX.writeFile(wb, `export_notesCC_${activeClass.name}_${selectedSemester}.xlsx`);
 
     notify({
       title: 'Modèle Massar Téléchargé 📥',
-      message: `Modèle Excel pour la classe ${activeClass.name} prêt à remplir.`,
+      message: `Modèle Excel officiel pour la classe ${activeClass.name} prêt à remplir.`,
       type: 'success',
     });
   };
