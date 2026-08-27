@@ -25,6 +25,22 @@ import { MassarGradesImportModal } from '@/components/grades/MassarGradesImportM
 import { exportMassarExcelTemplate } from '@/lib/massar-excel-exporter';
 import * as XLSX from 'xlsx';
 import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  Legend,
+  ReferenceLine,
+  Cell,
+  Area,
+  AreaChart,
+} from 'recharts';
+import {
   Award,
   BookOpen,
   Calendar,
@@ -506,6 +522,129 @@ export default function GradesPage() {
     const passed = classReportCards.filter((c) => c.general_average >= passThreshold).length;
     return Math.round((passed / classReportCards.length) * 100);
   }, [classReportCards, passThreshold]);
+
+  // Selected Student for Deep Evolution Analytics
+  const [selectedStudentForAnalysis, setSelectedStudentForAnalysis] = useState<string>('');
+
+  const activeStudentForAnalysis = useMemo(() => {
+    if (classStudents.length === 0) return null;
+    return classStudents.find((s) => s.id === selectedStudentForAnalysis) || classStudents[0];
+  }, [classStudents, selectedStudentForAnalysis]);
+
+  const activeStudentReportCard = useMemo(() => {
+    if (!activeStudentForAnalysis) return null;
+    return classReportCards.find((rc) => rc.student_id === activeStudentForAnalysis.id);
+  }, [activeStudentForAnalysis, classReportCards]);
+
+  // Evolution Data Across Controls (CC1 ➔ CC2 ➔ CC3 ➔ Activités)
+  const studentEvolutionData = useMemo(() => {
+    if (!activeStudentForAnalysis) return [];
+
+    const evalTypes: { type: EvaluationType; label: string; short: string }[] = [
+      { type: 'CC1', label: 'Contrôle 1', short: 'CC 1' },
+      { type: 'CC2', label: 'Contrôle 2', short: 'CC 2' },
+      { type: 'CC3', label: 'Contrôle 3', short: 'CC 3' },
+      { type: 'ACTIVITIES', label: 'Activités', short: 'Activités' },
+    ];
+
+    const semesterEvals = evaluations.filter(
+      (e) => e.class_id === selectedClassId && e.semester === selectedSemester
+    );
+
+    return evalTypes.map(({ type, label, short }) => {
+      const typedEvals = semesterEvals.filter((e) => e.type === type);
+      const evalIds = typedEvals.map((e) => e.id);
+
+      // Student average for this evaluation type across subjects
+      const studentGradesForType = grades.filter(
+        (g) => g.student_id === activeStudentForAnalysis.id && evalIds.includes(g.evaluation_id) && g.score !== null && !g.is_absent
+      );
+      const studentAvg =
+        studentGradesForType.length > 0
+          ? studentGradesForType.reduce((acc, g) => acc + (g.score || 0), 0) / studentGradesForType.length
+          : null;
+
+      // Class benchmark
+      const classGradesForType = grades.filter(
+        (g) => evalIds.includes(g.evaluation_id) && g.score !== null && !g.is_absent
+      );
+      const classAvg =
+        classGradesForType.length > 0
+          ? classGradesForType.reduce((acc, g) => acc + (g.score || 0), 0) / classGradesForType.length
+          : null;
+
+      return {
+        name: short,
+        fullName: label,
+        studentScore: studentAvg !== null ? parseFloat(studentAvg.toFixed(2)) : null,
+        classBenchmark: classAvg !== null ? parseFloat(classAvg.toFixed(2)) : null,
+      };
+    });
+  }, [activeStudentForAnalysis, evaluations, grades, selectedClassId, selectedSemester]);
+
+  // Progression Trend (Ascendante 📈 vs En Baisse 📉 vs Stable ➡️)
+  const studentProgressionTrend = useMemo(() => {
+    const validScores = studentEvolutionData
+      .filter((d) => d.studentScore !== null)
+      .map((d) => d.studentScore as number);
+
+    if (validScores.length < 2) {
+      return {
+        status: 'NEUTRAL' as const,
+        delta: 0,
+        titleFr: 'Données Insuffisantes',
+        titleAr: 'بيانات غير كافية',
+        descFr: 'Remplissez au moins 2 contrôles pour afficher la tendance.',
+        descAr: 'يرجى إدخال نقط فرضين على الأقل لتحديد منحنى التطور.',
+      };
+    }
+
+    const firstScore = validScores[0];
+    const lastScore = validScores[validScores.length - 1];
+    const delta = parseFloat((lastScore - firstScore).toFixed(2));
+
+    if (delta >= (isPrimaryClass ? 0.35 : 0.75)) {
+      return {
+        status: 'UP' as const,
+        delta,
+        titleFr: `En Forte Progression (+${delta} pts) 📈`,
+        titleAr: `في تطور تصاعدي ملحوظ (+${delta} نقطة) 📈`,
+        descFr: "L'élève enregistre une amélioration constante et continue de ses notes d'un contrôle à l'autre.",
+        descAr: 'التلميذ يحقق تقدماً مستمراً من فرض لآخر ويسجل نتائج إيجابية متزايدة تعكس مجهوداً مميزاً.',
+      };
+    } else if (delta <= -(isPrimaryClass ? 0.35 : 0.75)) {
+      return {
+        status: 'DOWN' as const,
+        delta,
+        titleFr: `En Baisse de Niveau (${delta} pts) ⚠️`,
+        titleAr: `في تراجع - يحتاج لمواكبة ودعم (${delta} نقطة) ⚠️`,
+        descFr: 'Une baisse des résultats a été constatée sur les derniers contrôles. Un accompagnement pédagogique est vivement recommandé.',
+        descAr: 'لوحظ انخفاض في نقط الفروض الأخيرة مقارنة بالبداية، ينصح بمواكبة التلميذ وجلسة تقوية لرفع مستواه.',
+      };
+    } else {
+      return {
+        status: 'STABLE' as const,
+        delta,
+        titleFr: 'Niveau Stable & Régulier ⚖️',
+        titleAr: 'مستوى مستقر ومنتظم ⚖️',
+        descFr: "L'élève maintient un rythme de travail et un rendement équilibré sur l'ensemble des évaluations.",
+        descAr: 'أداء التلميذ متوازن ويحافظ على نفس النسق في جميع الفروض والمراقبة المستمرة.',
+      };
+    }
+  }, [studentEvolutionData, isPrimaryClass]);
+
+  // Subject Breakdown data for the active student
+  const studentSubjectBreakdown = useMemo(() => {
+    if (!activeStudentReportCard) return [];
+    return activeStudentReportCard.subjects
+      .filter((s) => s.average !== null)
+      .map((s) => ({
+        name: s.subject_name.length > 15 ? s.subject_name.substring(0, 14) + '…' : s.subject_name,
+        fullName: s.subject_name,
+        average: s.average !== null ? parseFloat(s.average.toFixed(2)) : 0,
+        coeff: s.coefficient,
+      }));
+  }, [activeStudentReportCard]);
 
   // -------------------------------------------------------------
   // PRINT HANDLERS
@@ -1080,6 +1219,249 @@ export default function GradesPage() {
                         </div>
                       ))
                   )}
+                </div>
+              </div>
+            </div>
+
+            {/* ============================================================= */}
+            {/* INDIVIDUAL STUDENT EVOLUTION & PROGRESSION TREND SECTION       */}
+            {/* ============================================================= */}
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+              {/* Section Header & Student Selector */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0">
+                    <TrendingUp className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-900 dark:text-white">
+                      {dir === 'rtl' ? 'منحنى تطور مستوى التلميذ ومسار الفروض 📈' : 'Analyse de Progression & Évolution Individuelle 📈'}
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {dir === 'rtl'
+                        ? 'تتبع المسار التصاعدي أو التنازلي للتلميذ عبر الفروض والمراقبة المستمرة مقارنة بالمعدل العام للقسم.'
+                        : 'Visualisation de la courbe d’évolution (en hausse ou en baisse) par rapport à la moyenne de la classe.'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Student Selector */}
+                <div className="w-full md:w-72 shrink-0">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    {dir === 'rtl' ? 'اختر تلميذاً للتحليل :' : 'Sélectionner un élève :'}
+                  </label>
+                  <select
+                    value={activeStudentForAnalysis?.id || ''}
+                    onChange={(e) => setSelectedStudentForAnalysis(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                  >
+                    {classStudents.map((s) => {
+                      const rc = classReportCards.find((r) => r.student_id === s.id);
+                      return (
+                        <option key={s.id} value={s.id}>
+                          {s.first_name} {s.last_name} {rc ? `(${rc.general_average.toFixed(2)}/${maxScale})` : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              </div>
+
+              {/* Student Diagnostic Banner */}
+              {activeStudentForAnalysis && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  {/* Student Summary Profile */}
+                  <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                    <div>
+                      <div className="text-[10px] font-bold uppercase text-slate-400">Élève Sélectionné</div>
+                      <div className="text-sm font-black text-slate-900 dark:text-white mt-0.5">
+                        {activeStudentForAnalysis.first_name} {activeStudentForAnalysis.last_name}
+                      </div>
+                      <div className="text-[11px] font-mono text-sky-600 dark:text-sky-400 mt-0.5">
+                        {activeStudentForAnalysis.massar_code || '—'}
+                      </div>
+                    </div>
+                    {activeStudentReportCard && (
+                      <div className="text-right">
+                        <div className="text-xl font-black text-amber-600 dark:text-amber-400">
+                          {activeStudentReportCard.general_average.toFixed(2)} <span className="text-xs text-slate-400">/ {maxScale}</span>
+                        </div>
+                        <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                          Rang : {activeStudentReportCard.rank}e / {classStudents.length}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Trend Indicator (Progression vs Régression) */}
+                  <div className={`col-span-1 lg:col-span-2 p-5 rounded-2xl border flex items-start gap-4 transition-all ${
+                    studentProgressionTrend.status === 'UP'
+                      ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/60'
+                      : studentProgressionTrend.status === 'DOWN'
+                      ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800/60'
+                      : 'bg-sky-50/70 dark:bg-sky-950/30 border-sky-200 dark:border-sky-800/60'
+                  }`}>
+                    <div className={`p-3 rounded-xl shrink-0 ${
+                      studentProgressionTrend.status === 'UP'
+                        ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
+                        : studentProgressionTrend.status === 'DOWN'
+                        ? 'bg-rose-500 text-white shadow-md shadow-rose-500/20'
+                        : 'bg-sky-500 text-white shadow-md shadow-sky-500/20'
+                    }`}>
+                      {studentProgressionTrend.status === 'UP' ? (
+                        <TrendingUp className="w-5 h-5" />
+                      ) : studentProgressionTrend.status === 'DOWN' ? (
+                        <TrendingDown className="w-5 h-5" />
+                      ) : (
+                        <Award className="w-5 h-5" />
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-black uppercase tracking-wider ${
+                          studentProgressionTrend.status === 'UP'
+                            ? 'text-emerald-700 dark:text-emerald-300'
+                            : studentProgressionTrend.status === 'DOWN'
+                            ? 'text-rose-700 dark:text-rose-300'
+                            : 'text-sky-700 dark:text-sky-300'
+                        }`}>
+                          {dir === 'rtl' ? 'تشخيص المسار والمستوى :' : 'Diagnostic d’Évolution :'}
+                        </span>
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-black ${
+                          studentProgressionTrend.status === 'UP'
+                            ? 'bg-emerald-200/60 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200'
+                            : studentProgressionTrend.status === 'DOWN'
+                            ? 'bg-rose-200/60 text-rose-800 dark:bg-rose-900 dark:text-rose-200'
+                            : 'bg-sky-200/60 text-sky-800 dark:bg-sky-900 dark:text-sky-200'
+                        }`}>
+                          {dir === 'rtl' ? studentProgressionTrend.titleAr : studentProgressionTrend.titleFr}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                        {dir === 'rtl' ? studentProgressionTrend.descAr : studentProgressionTrend.descFr}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Interactive Charts (Line Chart for Controls + Bar Chart for Subjects) */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+                {/* Chart 1: Evolution over Controls (CC1, CC2, CC3, Activités) */}
+                <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-black uppercase text-slate-900 dark:text-white flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-amber-500" />
+                        <span>{dir === 'rtl' ? 'منحنى تطور النقط عبر الفروض' : 'Évolution par Contrôle Continu'}</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {dir === 'rtl' ? 'مقارنة نقط التلميذ مع المعدل المرجعي للقسم' : 'Comparaison de l’élève avec la moyenne de classe'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={studentEvolutionData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.2} />
+                        <XAxis dataKey="name" stroke="#64748b" fontSize={11} fontWeight="bold" />
+                        <YAxis domain={[0, maxScale]} stroke="#64748b" fontSize={11} fontWeight="bold" />
+                        <RechartsTooltip
+                          contentStyle={{
+                            backgroundColor: '#0f172a',
+                            borderRadius: '12px',
+                            border: 'none',
+                            color: '#ffffff',
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                          }}
+                        />
+                        <Legend
+                          verticalAlign="top"
+                          height={32}
+                          wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }}
+                        />
+                        <ReferenceLine y={passThreshold} stroke="#f43f5e" strokeDasharray="3 3" label={{ value: `Seuil ${passThreshold}/${maxScale}`, fill: '#f43f5e', fontSize: 10 }} />
+                        <Line
+                          type="monotone"
+                          dataKey="studentScore"
+                          name={activeStudentForAnalysis ? `${activeStudentForAnalysis.first_name}` : 'Élève'}
+                          stroke={studentProgressionTrend.status === 'UP' ? '#10b981' : studentProgressionTrend.status === 'DOWN' ? '#f43f5e' : '#f59e0b'}
+                          strokeWidth={3.5}
+                          dot={{ r: 6, fill: '#ffffff', strokeWidth: 3 }}
+                          activeDot={{ r: 8 }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="classBenchmark"
+                          name="Moyenne Classe"
+                          stroke="#94a3b8"
+                          strokeDasharray="4 4"
+                          strokeWidth={2}
+                          dot={{ r: 4 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Chart 2: Subject-by-Subject Breakdown */}
+                <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-black uppercase text-slate-900 dark:text-white flex items-center gap-2">
+                        <Award className="w-4 h-4 text-sky-500" />
+                        <span>{dir === 'rtl' ? 'توزيع النقط حسب المواد الدراسية' : 'Performance par Matière'}</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {dir === 'rtl' ? 'كشف المواد القوية والمواد التي تحتاج لدعم' : 'Matières fortes vs matières à consolider'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="h-64 w-full">
+                    {studentSubjectBreakdown.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-xs font-bold text-slate-400">
+                        Aucune note de matière enregistrée pour le moment.
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={studentSubjectBreakdown} margin={{ top: 10, right: 10, left: -15, bottom: 25 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.2} />
+                          <XAxis dataKey="name" stroke="#64748b" fontSize={10} angle={-25} textAnchor="end" interval={0} />
+                          <YAxis domain={[0, maxScale]} stroke="#64748b" fontSize={11} fontWeight="bold" />
+                          <RechartsTooltip
+                            contentStyle={{
+                              backgroundColor: '#0f172a',
+                              borderRadius: '12px',
+                              border: 'none',
+                              color: '#ffffff',
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                            }}
+                          />
+                          <ReferenceLine y={passThreshold} stroke="#f43f5e" strokeDasharray="3 3" />
+                          <Bar dataKey="average" name="Moyenne Matière" radius={[6, 6, 0, 0]}>
+                            {studentSubjectBreakdown.map((entry, index) => (
+                              <Cell
+                                key={`cell-${index}`}
+                                fill={
+                                  entry.average < passThreshold
+                                    ? '#f43f5e'
+                                    : entry.average >= (isPrimaryClass ? 8.5 : 16)
+                                    ? '#10b981'
+                                    : entry.average >= (isPrimaryClass ? 7 : 14)
+                                    ? '#0ea5e9'
+                                    : '#6366f1'
+                                }
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
