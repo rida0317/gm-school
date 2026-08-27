@@ -979,7 +979,7 @@ export default function TimetableGeneratorPage() {
               if (teacherOccupied.has(teacherKey)) continue;
 
               const tDayKey = `${slot.dayId}_${t.id}`;
-              if ((teacherDayHoursCount.get(tDayKey) || 0) >= 5) continue; // MAX 5H/DAY PER TEACHER
+              if ((teacherDayHoursCount.get(tDayKey) || 0) >= 6) continue; // Soft limit: max 6h/day
 
               validSlots.push({ slot, teacher: t, currentDaySessions: currentDayCount });
               break;
@@ -1054,7 +1054,7 @@ export default function TimetableGeneratorPage() {
               if (teacherOccupied.has(teacherKey)) continue;
 
               const tDayKey = `${slot.dayId}_${t.id}`;
-              if ((teacherDayHoursCount.get(tDayKey) || 0) >= 5) continue; // MAX 5H/DAY PER TEACHER
+              if ((teacherDayHoursCount.get(tDayKey) || 0) >= 6) continue; // Max 6h/day
 
               assignedTeacher = t;
               break;
@@ -1119,7 +1119,7 @@ export default function TimetableGeneratorPage() {
               if (teacherOccupied.has(teacherKey)) continue;
 
               const tDayKey = `${slot.dayId}_${t.id}`;
-              if ((teacherDayHoursCount.get(tDayKey) || 0) >= 5) continue; // MAX 5H/DAY PER TEACHER
+              if ((teacherDayHoursCount.get(tDayKey) || 0) >= 6) continue; // Max 6h/day
 
               assignedTeacher = t;
               break;
@@ -1156,7 +1156,7 @@ export default function TimetableGeneratorPage() {
         });
       });
 
-      // PASS 3: FAIL-SAFE GUARANTEE PASS (Strictly respecting max daily cap: 2h for Collège/Lycée, 4h for Primaire, max 5h per teacher)
+      // PASS 3: FAIL-SAFE GUARANTEE PASS (Ensuring 100% Demand Placement)
       targetClasses.forEach((cls) => {
         const demands = classDemandsMap.get(cls.id) || [];
         const clsCycle = getClassCycle(cls);
@@ -1166,7 +1166,7 @@ export default function TimetableGeneratorPage() {
           const demand = demands.shift()!;
           const subj = demand.subject;
 
-          // Find an open slot in the week where this day does not exceed maxAllowedPerDay for this subject and teacher has < 5h
+          // Find an open slot in the week where this day does not exceed maxAllowedPerDay for this subject
           let openSlot = allWeeklyPeriods.find((slot) => {
             const classKey = `${slot.dayId}_${slot.start}_${cls.id}`;
             const countOnDay = classDaySubjectCount.get(`${slot.dayId}_${cls.id}_${subj.id}`) || 0;
@@ -1179,14 +1179,14 @@ export default function TimetableGeneratorPage() {
               const tKey = `${slot.dayId}_${slot.start}_${t.id}`;
               if (teacherOccupied.has(tKey)) return false;
               const tDayKey = `${slot.dayId}_${t.id}`;
-              return (teacherDayHoursCount.get(tDayKey) || 0) < 5;
+              return (teacherDayHoursCount.get(tDayKey) || 0) < 7;
             });
 
             return hasValidTeacher;
           });
 
-          // Fallback if no strict slot found
-          if (!openSlot && !demand.isVacataire) {
+          // Fallback if no slot under maxAllowedPerDay
+          if (!openSlot) {
             const candidateSlots = allWeeklyPeriods.filter((slot) => {
               const classKey = `${slot.dayId}_${slot.start}_${cls.id}`;
               return !classOccupied.has(classKey);
@@ -1209,18 +1209,16 @@ export default function TimetableGeneratorPage() {
               const tKey = `${openSlot.dayId}_${openSlot.start}_${t.id}`;
               if (teacherOccupied.has(tKey)) continue;
 
-              const tDayKey = `${openSlot.dayId}_${t.id}`;
-              if ((teacherDayHoursCount.get(tDayKey) || 0) >= 5) continue; // MAX 5H/DAY
-
               assignedTeacher = t;
               break;
             }
 
-            if (!assignedTeacher && !demand.isVacataire && demand.qualifiedTeachers.length > 0) {
-              const fallbackNonVac = demand.qualifiedTeachers.find(
-                (t) => t.contract_type !== 'VACATAIRE' && !teacherOccupied.has(`${openSlot.dayId}_${openSlot.start}_${t.id}`)
+            if (!assignedTeacher && demand.qualifiedTeachers.length > 0) {
+              const freeTeacher = demand.qualifiedTeachers.find(
+                (t) => !teacherOccupied.has(`${openSlot.dayId}_${openSlot.start}_${t.id}`)
               );
-              if (fallbackNonVac) assignedTeacher = fallbackNonVac;
+              if (freeTeacher) assignedTeacher = freeTeacher;
+              else assignedTeacher = demand.qualifiedTeachers[0]; // will be resolved in Pass 4 de-collision
             }
 
             if (assignedTeacher) {
