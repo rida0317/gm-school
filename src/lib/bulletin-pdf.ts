@@ -363,52 +363,61 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             border-collapse: collapse;
           }
           .grades-table th, .grades-table td {
-            border: 1px solid #64748b;
-            padding: 6px 6px;
-            font-size: 10px;
+            border: 1.5px solid #475569;
+            padding: 7px 6px;
+            font-size: 11px;
           }
           .grades-table th {
             background-color: #e2e8f0;
             color: #0f172a;
-            font-weight: 800;
+            font-weight: 900;
             text-transform: uppercase;
-            font-size: 9px;
+            font-size: 10.5px;
             text-align: center;
-            height: 28px;
+            height: 32px;
+            letter-spacing: 0.3px;
           }
           .even-row {
             background-color: #f8fafc;
           }
           .col-subj {
             text-align: left;
-            width: 25%;
-            font-weight: 800;
+            width: 27%;
+            padding-left: 10px !important;
           }
           .subj-name {
-            font-weight: 800;
+            font-weight: 900;
             color: #0f172a;
-            font-size: 10.5px;
+            font-size: 13px;
+            letter-spacing: 0.1px;
+            line-height: 1.2;
           }
           .subj-teacher {
-            font-size: 8px;
-            color: #64748b;
+            font-size: 9px;
+            font-weight: 600;
+            color: #475569;
+            margin-top: 1px;
           }
           .col-score {
             width: 6.5%;
-            font-size: 9.5px;
+            font-size: 11px;
+            font-weight: 600;
           }
           .col-avg {
-            width: 8%;
-            font-size: 10.5px;
+            width: 8.5%;
+            font-size: 12px;
+            font-weight: 900;
             background-color: #f1f5f9;
           }
           .col-coeff {
             width: 5%;
-            font-weight: bold;
+            font-size: 11.5px;
+            font-weight: 900;
           }
           .col-pts {
             width: 7%;
-            font-weight: bold;
+            font-size: 11.5px;
+            font-weight: 900;
           }
           .col-stat {
             width: 10%;
