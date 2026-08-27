@@ -106,7 +106,7 @@ export default function GradesPage() {
   // Massar Import Modal State
   const [isMassarModalOpen, setIsMassarModalOpen] = useState(false);
 
-  const handleMassarImportSuccess = (result: {
+  const handleMassarImportSuccess = async (result: {
     classId: string;
     subjectId: string;
     semester: AcademicSemester;
@@ -141,10 +141,14 @@ export default function GradesPage() {
 
     const supabase = createClient();
     try {
-      supabase.from('evaluations').upsert(result.evaluations, { onConflict: 'id' }).then();
-      supabase.from('grades').upsert(result.grades, { onConflict: 'id' }).then();
-    } catch {
-      // ignore
+      if (result.evaluations.length > 0) {
+        await supabase.from('evaluations').upsert(result.evaluations, { onConflict: 'id' });
+      }
+      if (result.grades.length > 0) {
+        await supabase.from('grades').upsert(result.grades, { onConflict: 'id' });
+      }
+    } catch (err) {
+      console.warn('Supabase massar import sync failed:', err);
     }
   };
 
