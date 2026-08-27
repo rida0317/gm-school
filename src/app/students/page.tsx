@@ -24,8 +24,11 @@ import {
   Coins,
   CreditCard,
   ShieldAlert,
-  BookOpen
+  BookOpen,
+  FileSpreadsheet,
+  Sparkles,
 } from 'lucide-react';
+import { StudentsImportModal } from '@/components/students/StudentsImportModal';
 
 export default function StudentsPage() {
   const { t, dir } = useI18n();
@@ -41,8 +44,9 @@ export default function StudentsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClass, setSelectedClass] = useState<string>('ALL');
   
-  // Modal state (create / edit)
+  // Modal state (create / edit / import)
   const [showModal, setShowModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [formData, setFormData] = useState({
     student_code: '',
@@ -364,7 +368,17 @@ export default function StudentsPage() {
           </div>
 
           {!isTeacher && (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setShowImportModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer hover:scale-105"
+                title="Importer la liste des élèves depuis un fichier Excel (.xlsx)"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>{dir === 'rtl' ? 'استيراد من Excel' : 'Importer Excel (.xlsx)'}</span>
+              </button>
+
               <button
                 onClick={handleOpenCreateModal}
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs shadow-md shadow-blue-600/20 hover:from-blue-700 hover:to-indigo-700 transition-all cursor-pointer"
@@ -464,20 +478,26 @@ export default function StudentsPage() {
                         <div className="text-xs text-slate-400">{student.class?.level || '-'}</div>
                       </td>
                       <td className="px-6 py-3.5">
-                        <div className="text-xs space-y-0.5">
+                        <div className="text-xs space-y-1">
+                          {student.phone && (
+                            <div className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200 font-bold">
+                              <Phone className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                              <span className="font-mono">{student.phone}</span>
+                            </div>
+                          )}
+                          {student.guardian_phone && student.guardian_phone !== student.phone && (
+                            <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400 font-medium">
+                              <Phone className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                              <span className="font-mono text-[11px]">{student.guardian_phone}</span>
+                            </div>
+                          )}
                           {student.email && (
                             <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
-                              <Mail className="w-3.5 h-3.5 text-slate-400" />
-                              <span>{student.email}</span>
+                              <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <span className="truncate max-w-[160px]">{student.email}</span>
                             </div>
                           )}
-                          {student.phone && (
-                            <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
-                              <Phone className="w-3.5 h-3.5 text-slate-400" />
-                              <span>{student.phone}</span>
-                            </div>
-                          )}
-                          {!student.email && !student.phone && (
+                          {!student.email && !student.phone && !student.guardian_phone && (
                             <span className="text-slate-400 italic">Aucun contact</span>
                           )}
                         </div>
@@ -799,6 +819,15 @@ export default function StudentsPage() {
             </div>
           </div>
         )}
+
+        {/* Students Excel Import Modal */}
+        <StudentsImportModal
+          isOpen={showImportModal}
+          onClose={() => setShowImportModal(false)}
+          classes={classes}
+          onImportComplete={loadData}
+          notify={notify}
+        />
       </div>
     </DashboardLayout>
   );
