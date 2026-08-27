@@ -1134,77 +1134,131 @@ export default function DashboardPage() {
 
         {/* 6. QUICK ACTIONS SHORTCUTS GRID */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 items-stretch">
-          <Link
-            href="/students"
-            className="h-[105px] p-3 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-sky-500 hover:shadow-lg transition-all text-center group flex flex-col items-center justify-center gap-2"
-          >
-            <div className="p-2.5 rounded-2xl bg-sky-500/10 text-sky-600 dark:text-sky-400 group-hover:scale-110 group-hover:bg-sky-500 group-hover:text-white transition-all shadow-xs shrink-0">
-              <UserPlus className="w-5 h-5" />
-            </div>
-            <div className="font-bold text-xs text-slate-900 dark:text-white truncate w-full px-1">
-              {dir === 'rtl' ? 'تسجيل تلميذ' : 'Inscrire Élève'}
-            </div>
-          </Link>
+          {isTeacher ? (
+            <>
+              <Link
+                href="/attendance/students"
+                className="h-[105px] p-3 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-500 hover:shadow-lg transition-all text-center group flex flex-col items-center justify-center gap-2"
+              >
+                <div className="p-2.5 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-xs shrink-0">
+                  <ClipboardList className="w-5 h-5" />
+                </div>
+                <div className="font-bold text-xs text-slate-900 dark:text-white truncate w-full px-1">
+                  {dir === 'rtl' ? 'ورقة الغياب' : "Feuille d'Appel"}
+                </div>
+              </Link>
 
-          <Link
-            href="/attendance/students"
-            className="h-[105px] p-3 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-500 hover:shadow-lg transition-all text-center group flex flex-col items-center justify-center gap-2"
-          >
-            <div className="p-2.5 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-xs shrink-0">
-              <ClipboardList className="w-5 h-5" />
-            </div>
-            <div className="font-bold text-xs text-slate-900 dark:text-white truncate w-full px-1">
-              {dir === 'rtl' ? 'ورقة الغياب' : "Feuille d'Appel"}
-            </div>
-          </Link>
+              <Link
+                href="/students"
+                className="h-[105px] p-3 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-sky-500 hover:shadow-lg transition-all text-center group flex flex-col items-center justify-center gap-2"
+              >
+                <div className="p-2.5 rounded-2xl bg-sky-500/10 text-sky-600 dark:text-sky-400 group-hover:scale-110 group-hover:bg-sky-500 group-hover:text-white transition-all shadow-xs shrink-0">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div className="font-bold text-xs text-slate-900 dark:text-white truncate w-full px-1">
+                  {dir === 'rtl' ? 'لوائح التلاميذ' : 'Mes Élèves'}
+                </div>
+              </Link>
 
-          <Link
-            href="/attendance/staff"
-            className="h-[105px] p-3 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-500 hover:shadow-lg transition-all text-center group flex flex-col items-center justify-center gap-2"
-          >
-            <div className="p-2.5 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 group-hover:scale-110 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-xs shrink-0">
-              <UserCheck className="w-5 h-5" />
-            </div>
-            <div className="font-bold text-xs text-slate-900 dark:text-white truncate w-full px-1">
-              {dir === 'rtl' ? 'حضور الأطر' : 'Pointage Staff'}
-            </div>
-          </Link>
+              <Link
+                href="/timetable"
+                className="h-[105px] p-3 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-orange-500 hover:shadow-lg transition-all text-center group flex flex-col items-center justify-center gap-2"
+              >
+                <div className="p-2.5 rounded-2xl bg-orange-500/10 text-orange-600 dark:text-orange-400 group-hover:scale-110 group-hover:bg-orange-500 group-hover:text-white transition-all shadow-xs shrink-0">
+                  <CalendarDays className="w-5 h-5" />
+                </div>
+                <div className="font-bold text-xs text-slate-900 dark:text-white truncate w-full px-1">
+                  {dir === 'rtl' ? 'جدول الحصص' : 'Emploi du Temps'}
+                </div>
+              </Link>
 
-          <Link
-            href="/stock"
-            className="h-[105px] p-3 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500 hover:shadow-lg transition-all text-center group flex flex-col items-center justify-center gap-2"
-          >
-            <div className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 group-hover:scale-110 group-hover:bg-amber-500 group-hover:text-white transition-all shadow-xs shrink-0">
-              <PackageCheck className="w-5 h-5" />
-            </div>
-            <div className="font-bold text-xs text-slate-900 dark:text-white truncate w-full px-1">
-              {dir === 'rtl' ? 'تسليم مخزون' : 'Sortie Stock'}
-            </div>
-          </Link>
+              <Link
+                href="/announcements"
+                className="h-[105px] p-3 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500 hover:shadow-lg transition-all text-center group flex flex-col items-center justify-center gap-2"
+              >
+                <div className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 group-hover:scale-110 group-hover:bg-amber-500 group-hover:text-white transition-all shadow-xs shrink-0">
+                  <Megaphone className="w-5 h-5" />
+                </div>
+                <div className="font-bold text-xs text-slate-900 dark:text-white truncate w-full px-1">
+                  {dir === 'rtl' ? 'الإعلانات' : 'Annonces'}
+                </div>
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/students"
+                className="h-[105px] p-3 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-sky-500 hover:shadow-lg transition-all text-center group flex flex-col items-center justify-center gap-2"
+              >
+                <div className="p-2.5 rounded-2xl bg-sky-500/10 text-sky-600 dark:text-sky-400 group-hover:scale-110 group-hover:bg-sky-500 group-hover:text-white transition-all shadow-xs shrink-0">
+                  <UserPlus className="w-5 h-5" />
+                </div>
+                <div className="font-bold text-xs text-slate-900 dark:text-white truncate w-full px-1">
+                  {dir === 'rtl' ? 'تسجيل تلميذ' : 'Inscrire Élève'}
+                </div>
+              </Link>
 
-          <Link
-            href="/suppliers"
-            className="h-[105px] p-3 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 hover:shadow-lg transition-all text-center group flex flex-col items-center justify-center gap-2"
-          >
-            <div className="p-2.5 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 group-hover:bg-emerald-500 group-hover:text-white transition-all shadow-xs shrink-0">
-              <Truck className="w-5 h-5" />
-            </div>
-            <div className="font-bold text-xs text-slate-900 dark:text-white truncate w-full px-1">
-              {dir === 'rtl' ? 'الموردون' : 'Fournisseurs ICE'}
-            </div>
-          </Link>
+              <Link
+                href="/attendance/students"
+                className="h-[105px] p-3 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-500 hover:shadow-lg transition-all text-center group flex flex-col items-center justify-center gap-2"
+              >
+                <div className="p-2.5 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-xs shrink-0">
+                  <ClipboardList className="w-5 h-5" />
+                </div>
+                <div className="font-bold text-xs text-slate-900 dark:text-white truncate w-full px-1">
+                  {dir === 'rtl' ? 'ورقة الغياب' : "Feuille d'Appel"}
+                </div>
+              </Link>
 
-          <Link
-            href="/substitutions"
-            className="h-[105px] p-3 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-purple-500 hover:shadow-lg transition-all text-center group flex flex-col items-center justify-center gap-2"
-          >
-            <div className="p-2.5 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 group-hover:scale-110 group-hover:bg-purple-600 group-hover:text-white transition-all shadow-xs shrink-0">
-              <TrendingUp className="w-5 h-5" />
-            </div>
-            <div className="font-bold text-xs text-slate-900 dark:text-white truncate w-full px-1">
-              {dir === 'rtl' ? 'التعويضات' : 'Remplacements'}
-            </div>
-          </Link>
+              <Link
+                href="/attendance/staff"
+                className="h-[105px] p-3 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-500 hover:shadow-lg transition-all text-center group flex flex-col items-center justify-center gap-2"
+              >
+                <div className="p-2.5 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 group-hover:scale-110 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-xs shrink-0">
+                  <UserCheck className="w-5 h-5" />
+                </div>
+                <div className="font-bold text-xs text-slate-900 dark:text-white truncate w-full px-1">
+                  {dir === 'rtl' ? 'حضور الأطر' : 'Pointage Staff'}
+                </div>
+              </Link>
+
+              <Link
+                href="/stock"
+                className="h-[105px] p-3 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500 hover:shadow-lg transition-all text-center group flex flex-col items-center justify-center gap-2"
+              >
+                <div className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 group-hover:scale-110 group-hover:bg-amber-500 group-hover:text-white transition-all shadow-xs shrink-0">
+                  <PackageCheck className="w-5 h-5" />
+                </div>
+                <div className="font-bold text-xs text-slate-900 dark:text-white truncate w-full px-1">
+                  {dir === 'rtl' ? 'تسليم مخزون' : 'Sortie Stock'}
+                </div>
+              </Link>
+
+              <Link
+                href="/suppliers"
+                className="h-[105px] p-3 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 hover:shadow-lg transition-all text-center group flex flex-col items-center justify-center gap-2"
+              >
+                <div className="p-2.5 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 group-hover:bg-emerald-500 group-hover:text-white transition-all shadow-xs shrink-0">
+                  <Truck className="w-5 h-5" />
+                </div>
+                <div className="font-bold text-xs text-slate-900 dark:text-white truncate w-full px-1">
+                  {dir === 'rtl' ? 'الموردون' : 'Fournisseurs ICE'}
+                </div>
+              </Link>
+
+              <Link
+                href="/substitutions"
+                className="h-[105px] p-3 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-purple-500 hover:shadow-lg transition-all text-center group flex flex-col items-center justify-center gap-2"
+              >
+                <div className="p-2.5 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 group-hover:scale-110 group-hover:bg-purple-600 group-hover:text-white transition-all shadow-xs shrink-0">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+                <div className="font-bold text-xs text-slate-900 dark:text-white truncate w-full px-1">
+                  {dir === 'rtl' ? 'التعويضات' : 'Remplacements'}
+                </div>
+              </Link>
+            </>
+          )}
         </div>
       </div>
 
