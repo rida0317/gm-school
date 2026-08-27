@@ -330,6 +330,271 @@ export default function StudentsPage() {
     return matchesSearch && matchesClass;
   });
 
+  const handleExportPDF = () => {
+    const activeClass = classes.find((c) => c.id === selectedClass);
+    const titleText = activeClass ? `CLASSE : ${activeClass.name} (${activeClass.level})` : 'LISTE GÉNÉRALE DES ÉLÈVES';
+    const totalCount = filteredStudents.length;
+    const girlsCount = filteredStudents.filter((s) => s.gender === 'F').length;
+    const boysCount = filteredStudents.filter((s) => s.gender !== 'F').length;
+
+    const html = `
+      <!DOCTYPE html>
+      <html lang="fr" dir="ltr">
+        <head>
+          <meta charset="utf-8" />
+          <title>${titleText} - Groupe Scolaire GM</title>
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 10mm 12mm;
+            }
+            body {
+              font-family: Arial, Helvetica, sans-serif;
+              color: #0f172a;
+              margin: 0;
+              padding: 0;
+              font-size: 11px;
+              line-height: 1.3;
+            }
+            .header-container {
+              border-bottom: 2px solid #0f172a;
+              padding-bottom: 10px;
+              margin-bottom: 14px;
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+            }
+            .gov {
+              font-size: 8.5px;
+              font-weight: bold;
+              text-transform: uppercase;
+              color: #475569;
+            }
+            .school {
+              font-size: 14px;
+              font-weight: 900;
+              color: #0f172a;
+              margin-top: 3px;
+              letter-spacing: 0.3px;
+            }
+            .badge-class {
+              display: inline-block;
+              background-color: #0f172a;
+              color: #ffffff;
+              font-weight: 900;
+              font-size: 12px;
+              padding: 5px 12px;
+              border-radius: 4px;
+              text-transform: uppercase;
+            }
+            .meta-info {
+              font-size: 9.5px;
+              font-weight: bold;
+              color: #475569;
+              margin-top: 4px;
+              text-align: right;
+            }
+            .stats-bar {
+              display: flex;
+              gap: 14px;
+              background: #f1f5f9;
+              border: 1px solid #cbd5e1;
+              border-radius: 6px;
+              padding: 6px 12px;
+              margin-bottom: 12px;
+              font-size: 10px;
+              font-weight: bold;
+            }
+            .stats-item span {
+              color: #0f172a;
+              font-weight: 900;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 4px;
+            }
+            th, td {
+              border: 1px solid #94a3b8;
+              padding: 5.5px 7px;
+              text-align: left;
+            }
+            th {
+              background-color: #e2e8f0;
+              color: #0f172a;
+              font-weight: 800;
+              font-size: 9.5px;
+              text-transform: uppercase;
+            }
+            tr:nth-child(even) {
+              background-color: #f8fafc;
+            }
+            .col-num {
+              width: 24px;
+              text-align: center;
+              font-weight: bold;
+              color: #64748b;
+            }
+            .col-name {
+              font-weight: 800;
+              color: #0f172a;
+            }
+            .col-massar {
+              font-family: monospace;
+              font-weight: bold;
+              color: #1d4ed8;
+              width: 85px;
+            }
+            .col-class {
+              font-weight: bold;
+              width: 65px;
+              text-align: center;
+            }
+            .col-gender {
+              width: 45px;
+              text-align: center;
+              font-weight: 800;
+            }
+            .col-phone {
+              font-family: monospace;
+              font-size: 9.5px;
+              font-weight: 600;
+              width: 165px;
+            }
+            .col-obs {
+              width: 80px;
+            }
+            .footer-container {
+              margin-top: 25px;
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-end;
+              font-size: 10px;
+              font-weight: bold;
+              color: #334155;
+              page-break-inside: avoid;
+            }
+            .stamp-box {
+              border: 1.5px dashed #64748b;
+              border-radius: 6px;
+              width: 160px;
+              height: 65px;
+              margin-top: 5px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header-container">
+            <div>
+              <div class="gov">Royaume du Maroc &bull; Ministère de l'Éducation Nationale</div>
+              <div class="school">${settings.school_name || 'GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES'}</div>
+            </div>
+            <div>
+              <div class="badge-class">${titleText}</div>
+              <div class="meta-info">Année Scolaire : ${settings.academic_year || '2025-2026'}</div>
+            </div>
+          </div>
+
+          <div class="stats-bar">
+            <div class="stats-item">Effectif Total : <span>${totalCount} élèves</span></div>
+            <div class="stats-item">&bull; Filles : <span>${girlsCount}</span></div>
+            <div class="stats-item">&bull; Garçons : <span>${boysCount}</span></div>
+            <div class="stats-item" style="margin-left: auto;">Édité le : <span>${new Date().toLocaleDateString('fr-FR')}</span></div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th class="col-num">N°</th>
+                <th>Nom &amp; Prénom de l'Élève</th>
+                <th class="col-massar">Code Massar</th>
+                <th class="col-class">Classe</th>
+                <th class="col-gender">Genre</th>
+                <th class="col-phone">Téléphone(s) Parent</th>
+                <th class="col-obs">Observation</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredStudents
+                .map((s, idx) => {
+                  const phones = [s.phone, s.guardian_phone].filter(Boolean).join(' / ') || '-';
+                  return `
+                  <tr>
+                    <td class="col-num">${idx + 1}</td>
+                    <td class="col-name">${s.first_name} ${s.last_name}</td>
+                    <td class="col-massar">${s.student_code || '-'}</td>
+                    <td class="col-class">${s.class?.name || '-'}</td>
+                    <td class="col-gender">${s.gender === 'F' ? 'F' : 'G'}</td>
+                    <td class="col-phone">${phones}</td>
+                    <td class="col-obs"></td>
+                  </tr>
+                `;
+                })
+                .join('')}
+            </tbody>
+          </table>
+
+          <div class="footer-container">
+            <div>Fait à Marrakech, le ${new Date().toLocaleDateString('fr-FR')}</div>
+            <div style="text-align: center;">
+              <div>Cachet et Signature de la Direction</div>
+              <div class="stamp-box"></div>
+            </div>
+          </div>
+
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    const printWin = window.open('', '_blank');
+    if (printWin) {
+      printWin.document.open();
+      printWin.document.write(html);
+      printWin.document.close();
+    }
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      const XLSX = await import('xlsx');
+      const activeClass = classes.find((c) => c.id === selectedClass);
+      const fileName = activeClass
+        ? `Liste_Eleves_${activeClass.name.replace(/\s+/g, '_')}.xlsx`
+        : 'Liste_Globale_Eleves.xlsx';
+
+      const dataToExport = filteredStudents.map((s, idx) => ({
+        'N°': idx + 1,
+        'Nom': s.last_name,
+        'Prénom': s.first_name,
+        'Code Massar': s.student_code,
+        'Classe': s.class?.name || '-',
+        'Niveau': s.class?.level || '-',
+        'Genre': s.gender === 'F' ? 'Féminin' : 'Masculin',
+        'Téléphone 1': s.phone || '',
+        'Téléphone 2': s.guardian_phone || '',
+        'Statut': s.status || 'ACTIVE',
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Élèves');
+      XLSX.writeFile(workbook, fileName);
+
+      notify({
+        title: 'Export Excel Réussi',
+        message: `Le fichier ${fileName} (${filteredStudents.length} élèves) a été téléchargé.`,
+        type: 'success',
+      });
+    } catch {
+      notify({ title: 'Erreur', message: "Impossible d'exporter le fichier Excel.", type: 'danger' });
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -375,12 +640,22 @@ export default function StudentsPage() {
           <div className="flex items-center gap-2.5 flex-wrap">
             <button
               type="button"
-              onClick={() => window.print()}
+              onClick={handleExportPDF}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-xs shadow-md transition-all cursor-pointer hover:scale-105"
-              title="Imprimer ou exporter la fiche officielle de la classe en PDF"
+              title="Générer et imprimer le tableau officiel de la classe en PDF"
             >
               <Printer className="w-4 h-4 text-emerald-400 dark:text-emerald-600" />
-              <span>{dir === 'rtl' ? 'تصدير / طباعة PDF' : 'Imprimer / Export PDF'}</span>
+              <span>{dir === 'rtl' ? 'طباعة لائحة PDF' : 'Tableau PDF'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer hover:scale-105"
+              title="Exporter les élèves au format tableau Excel (.xlsx)"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>{dir === 'rtl' ? 'تصدير جدول Excel' : 'Tableau Excel'}</span>
             </button>
 
             {!isTeacher && (
@@ -398,11 +673,10 @@ export default function StudentsPage() {
                 <button
                   type="button"
                   onClick={() => setShowImportModal(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer hover:scale-105"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 font-bold text-xs transition-all cursor-pointer hover:scale-105"
                   title="Importer la liste des élèves depuis un fichier Excel (.xlsx)"
                 >
-                  <FileSpreadsheet className="w-4 h-4" />
-                  <span>{dir === 'rtl' ? 'استيراد من Excel' : 'Importer Excel (.xlsx)'}</span>
+                  <span>{dir === 'rtl' ? '📥 استيراد Excel' : '📥 Importer Excel'}</span>
                 </button>
 
                 <button
