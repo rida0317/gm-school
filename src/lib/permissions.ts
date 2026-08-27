@@ -25,7 +25,7 @@ export const ROLE_CONFIGS: Record<UserRole, RoleConfig> = {
   },
   TEACHER: {
     label: 'Enseignant',
-    description: 'Accès dédié : Élèves et présence de ses classes, consultation de son emploi du temps, annonces et communications',
+    description: 'Accès dédié : Élèves, présence, saisie des notes & bulletins de ses classes, consultation de son emploi du temps',
     color: 'text-emerald-600 dark:text-emerald-400',
     badgeBg: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300',
     allowedPaths: [
@@ -34,6 +34,7 @@ export const ROLE_CONFIGS: Record<UserRole, RoleConfig> = {
       '/students',
       '/attendance/students',
       '/timetable',
+      '/grades',
     ],
   },
   SUPERVISOR: {

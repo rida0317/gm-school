@@ -83,6 +83,13 @@ export default function GradesPage() {
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<'saisie' | 'bulletins' | 'analyse'>('saisie');
 
+  // Ensure Teachers cannot access Analyse & Bilan
+  useEffect(() => {
+    if (isTeacher && activeTab === 'analyse') {
+      setActiveTab('saisie');
+    }
+  }, [isTeacher, activeTab]);
+
   // Core Data
   const [classes, setClasses] = useState<ClassEntity[]>([]);
   const [allStudents, setAllStudents] = useState<Student[]>([]);
@@ -738,18 +745,20 @@ export default function GradesPage() {
               <span>{dir === 'rtl' ? '2. كشوف النقط PDF' : '2. Bulletins PDF'}</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('analyse')}
-              className={`flex-1 min-w-[140px] flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'analyse'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'
-              }`}
-            >
-              <TrendingUp className="w-4 h-4 text-emerald-500 shrink-0" />
-              <span>{dir === 'rtl' ? '3. تحليل المستوى' : '3. Analyse & Bilan'}</span>
-            </button>
+            {!isTeacher && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('analyse')}
+                className={`flex-1 min-w-[140px] flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
+                  activeTab === 'analyse'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'
+                }`}
+              >
+                <TrendingUp className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{dir === 'rtl' ? '3. تحليل المستوى 🔒' : '3. Analyse & Bilan 🔒'}</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -1140,7 +1149,7 @@ export default function GradesPage() {
         {/* ============================================================= */}
         {/* TAB 3: ANALYSE DU NIVEAU & SUIVI PÉDAGOGIQUE                  */}
         {/* ============================================================= */}
-        {activeTab === 'analyse' && (
+        {activeTab === 'analyse' && !isTeacher && (
           <div className="space-y-6 animate-in fade-in duration-300">
             {/* KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
