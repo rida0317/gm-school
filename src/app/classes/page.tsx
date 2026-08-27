@@ -17,8 +17,10 @@ import {
   X,
   Search,
   Users,
-  Layers
+  Layers,
+  Sparkles,
 } from 'lucide-react';
+import { StudentsPromotionModal } from '@/components/students/StudentsPromotionModal';
 
 export interface LevelCategory {
   cycle: string;
@@ -99,6 +101,8 @@ function ClassesContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCycle, setSelectedCycle] = useState<string>('ALL');
   const [showModal, setShowModal] = useState(false);
+  const [showPromotionModal, setShowPromotionModal] = useState(false);
+  const [promotionSourceClassId, setPromotionSourceClassId] = useState<string | undefined>(undefined);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -341,13 +345,27 @@ function ClassesContent() {
             </p>
           </div>
 
-          <button
-            onClick={openCreateModal}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold text-sm shadow-lg shadow-orange-500/25 transition-all hover:scale-105 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            {t('add_class')}
-          </button>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <button
+              onClick={() => {
+                setPromotionSourceClassId(undefined);
+                setShowPromotionModal(true);
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white font-bold text-xs shadow-md shadow-indigo-500/20 transition-all hover:scale-105 cursor-pointer"
+              title="Passage des élèves vers le niveau supérieur et équilibrage des groupes"
+            >
+              <GraduationCap className="w-4 h-4 text-yellow-300" />
+              <span>{dir === 'rtl' ? 'الترقية الجماعية للأقسام' : 'Promotion Collective'}</span>
+            </button>
+
+            <button
+              onClick={openCreateModal}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold text-xs shadow-md shadow-orange-500/25 transition-all hover:scale-105 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>{t('add_class')}</span>
+            </button>
+          </div>
         </div>
 
         {/* Filter Bar & Cycle Tabs */}
@@ -461,6 +479,16 @@ function ClassesContent() {
                     {c.group_name && c.group_name !== 'Unique' ? (dir === 'rtl' ? `شعبة ${c.group_name}` : `Division ${c.group_name}`) : (dir === 'rtl' ? 'فوج عام' : 'Division Générale')}
                   </span>
                   <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => {
+                        setPromotionSourceClassId(c.id);
+                        setShowPromotionModal(true);
+                      }}
+                      title={dir === 'rtl' ? 'ترقية تلاميذ هذا القسم' : 'Promouvoir les élèves de cette classe'}
+                      className="p-2 text-indigo-500 hover:text-indigo-600 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer"
+                    >
+                      <GraduationCap className="w-4 h-4" />
+                    </button>
                     <button
                       onClick={() => openEditModal(c)}
                       title={dir === 'rtl' ? 'تعديل القسم' : 'Modifier la classe'}
@@ -613,6 +641,15 @@ function ClassesContent() {
             </div>
           </div>
         )}
+        {/* Students Collective Promotion Modal */}
+        <StudentsPromotionModal
+          isOpen={showPromotionModal}
+          onClose={() => setShowPromotionModal(false)}
+          classes={classes}
+          initialSourceClassId={promotionSourceClassId}
+          onPromotionComplete={loadData}
+          notify={notify}
+        />
       </div>
     </DashboardLayout>
   );

@@ -29,6 +29,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { StudentsImportModal } from '@/components/students/StudentsImportModal';
+import { StudentsPromotionModal } from '@/components/students/StudentsPromotionModal';
 
 export default function StudentsPage() {
   const { t, dir } = useI18n();
@@ -44,9 +45,10 @@ export default function StudentsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClass, setSelectedClass] = useState<string>('ALL');
   
-  // Modal state (create / edit / import)
+  // Modal state (create / edit / import / promotion)
   const [showModal, setShowModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showPromotionModal, setShowPromotionModal] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [formData, setFormData] = useState({
     student_code: '',
@@ -368,7 +370,17 @@ export default function StudentsPage() {
           </div>
 
           {!isTeacher && (
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setShowPromotionModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition-all cursor-pointer hover:scale-105"
+                title="Transférer les élèves admis vers le niveau supérieur et équilibrer les groupes"
+              >
+                <GraduationCap className="w-4 h-4 text-yellow-300" />
+                <span>{dir === 'rtl' ? 'الترقية والأفواج' : 'Promotion & Répartition'}</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setShowImportModal(true)}
@@ -826,6 +838,16 @@ export default function StudentsPage() {
           onClose={() => setShowImportModal(false)}
           classes={classes}
           onImportComplete={loadData}
+          notify={notify}
+        />
+
+        {/* Students Collective Promotion Modal */}
+        <StudentsPromotionModal
+          isOpen={showPromotionModal}
+          onClose={() => setShowPromotionModal(false)}
+          classes={classes}
+          initialSourceClassId={selectedClass !== 'ALL' ? selectedClass : undefined}
+          onPromotionComplete={loadData}
           notify={notify}
         />
       </div>
