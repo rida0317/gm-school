@@ -336,6 +336,8 @@ export default function StudentsPage() {
     const totalCount = filteredStudents.length;
     const girlsCount = filteredStudents.filter((s) => s.gender === 'F').length;
     const boysCount = filteredStudents.filter((s) => s.gender !== 'F').length;
+    const logoUrl = settings.logo_url || '/logo.png';
+    const fullLogoSrc = logoUrl.startsWith('http') ? logoUrl : `${window.location.origin}${logoUrl}`;
 
     const html = `
       <!DOCTYPE html>
@@ -362,7 +364,18 @@ export default function StudentsPage() {
               margin-bottom: 14px;
               display: flex;
               justify-content: space-between;
-              align-items: flex-start;
+              align-items: center;
+            }
+            .header-left {
+              display: flex;
+              align-items: center;
+              gap: 12px;
+            }
+            .logo-img {
+              width: 50px;
+              height: 50px;
+              object-fit: contain;
+              border-radius: 8px;
             }
             .gov {
               font-size: 8.5px;
@@ -374,7 +387,7 @@ export default function StudentsPage() {
               font-size: 14px;
               font-weight: 900;
               color: #0f172a;
-              margin-top: 3px;
+              margin-top: 2px;
               letter-spacing: 0.3px;
             }
             .badge-class {
@@ -485,9 +498,12 @@ export default function StudentsPage() {
         </head>
         <body>
           <div class="header-container">
-            <div>
-              <div class="gov">Royaume du Maroc &bull; Ministère de l'Éducation Nationale</div>
-              <div class="school">${settings.school_name || 'GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES'}</div>
+            <div class="header-left">
+              <img src="${fullLogoSrc}" alt="Logo" class="logo-img" />
+              <div>
+                <div class="gov">Royaume du Maroc &bull; Ministère de l'Éducation Nationale</div>
+                <div class="school">${settings.school_name || 'GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES'}</div>
+              </div>
             </div>
             <div>
               <div class="badge-class">${titleText}</div>
@@ -544,7 +560,9 @@ export default function StudentsPage() {
 
           <script>
             window.onload = function() {
-              window.print();
+              setTimeout(function() {
+                window.print();
+              }, 200);
             };
           </script>
         </body>
