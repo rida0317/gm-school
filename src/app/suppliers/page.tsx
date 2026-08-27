@@ -11,6 +11,8 @@ import {
   Truck,
   Plus,
   Phone,
+  PhoneCall,
+  MessageCircle,
   Mail,
   MapPin,
   FileText,
@@ -20,6 +22,16 @@ import {
   Building2,
   CheckCircle2
 } from 'lucide-react';
+
+function formatPhoneForWhatsApp(phone: string) {
+  let p = phone.replace(/[\s\-\(\)\.]/g, '');
+  if (p.startsWith('0') && p.length === 10) {
+    p = '212' + p.substring(1);
+  } else if (p.startsWith('+')) {
+    p = p.substring(1);
+  }
+  return p;
+}
 
 export default function SuppliersPage() {
   const { t, dir } = useI18n();
@@ -308,13 +320,47 @@ export default function SuppliersPage() {
                     {s.company || (dir === 'rtl' ? 'شركة / مقاولة' : 'Entreprise')}
                   </div>
 
-                  <div className="mt-4 space-y-2 text-xs text-slate-600 dark:text-slate-300">
-                    {s.phone && (
-                      <div className="flex items-center gap-2">
-                        <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span className="truncate">{s.phone}</span>
+                  <div className="mt-4 space-y-2.5 text-xs text-slate-600 dark:text-slate-300">
+                    {/* Phone & Direct Contact Bar */}
+                    {s.phone ? (
+                      <div className="flex items-center justify-between p-2 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Phone className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                          <span className="truncate font-black text-slate-800 dark:text-slate-200 text-xs tracking-tight">
+                            {s.phone}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {/* WhatsApp Button */}
+                          <a
+                            href={`https://wa.me/${formatPhoneForWhatsApp(s.phone)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black text-[11px] shadow-xs shadow-emerald-500/25 transition-all hover:scale-105"
+                            title={dir === 'rtl' ? 'مراسلة عبر واتساب 📲' : 'Discuter sur WhatsApp 📲'}
+                          >
+                            <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+                            <span>WhatsApp</span>
+                          </a>
+
+                          {/* Direct Call Button */}
+                          <a
+                            href={`tel:${s.phone.replace(/[\s\-\(\)]/g, '')}`}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black text-[11px] shadow-xs shadow-blue-600/25 transition-all hover:scale-105"
+                            title={dir === 'rtl' ? 'اتصال هاتفي مباشر 📞' : 'Appeler directement 📞'}
+                          >
+                            <PhoneCall className="w-3.5 h-3.5 shrink-0" />
+                            <span>{dir === 'rtl' ? 'اتصال' : 'Appel'}</span>
+                          </a>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-slate-400">
+                        <Phone className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 shrink-0" />
+                        <span className="italic text-[11px]">{dir === 'rtl' ? 'لا يوجد رقم هاتف' : 'Aucun numéro renseigné'}</span>
                       </div>
                     )}
+
                     {s.email && (
                       <div className="flex items-center gap-2">
                         <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -336,27 +382,43 @@ export default function SuppliersPage() {
                   </div>
                 </div>
 
-                <div className="pt-3 mt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-1.5">
-                  {/* Modifier Button */}
-                  <button
-                    type="button"
-                    onClick={() => handleOpenEditModal(s)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/60 font-bold text-xs transition-colors cursor-pointer"
-                    title={dir === 'rtl' ? 'تعديل بيانات المورد' : 'Modifier les coordonnées du fournisseur'}
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                    <span>{t('edit')}</span>
-                  </button>
+                <div className="pt-3 mt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-1.5">
+                  {/* Quick communication mini badge if phone exists */}
+                  <div className="text-[11px] text-slate-400 font-medium">
+                    {s.status === 'ACTIVE' ? (
+                      <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
+                        <CheckCircle2 className="w-3 h-3" />
+                        {dir === 'rtl' ? 'متاح للطلبيات' : 'Opérationnel'}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 italic">
+                        {dir === 'rtl' ? 'موقف مؤقتاً' : 'Suspendu'}
+                      </span>
+                    )}
+                  </div>
 
-                  {/* Supprimer Button */}
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(s.id, s.name)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
-                    title={dir === 'rtl' ? 'حذف المورد نهائياً' : 'Supprimer définitivement'}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    {/* Modifier Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditModal(s)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/60 font-bold text-xs transition-colors cursor-pointer"
+                      title={dir === 'rtl' ? 'تعديل بيانات المورد' : 'Modifier les coordonnées du fournisseur'}
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                      <span>{t('edit')}</span>
+                    </button>
+
+                    {/* Supprimer Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(s.id, s.name)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                      title={dir === 'rtl' ? 'حذف المورد نهائياً' : 'Supprimer définitivement'}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
