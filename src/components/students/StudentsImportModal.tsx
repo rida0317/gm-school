@@ -20,11 +20,9 @@ import {
   Phone,
   RefreshCw,
   Search,
-  Sparkles,
   Users,
   Building2,
   Check,
-  Zap,
 } from 'lucide-react';
 
 interface StudentsImportModalProps {
@@ -91,31 +89,6 @@ export function StudentsImportModal({
       notify({
         title: "Erreur de lecture du fichier",
         message: err instanceof Error ? err.message : 'Fichier Excel invalide',
-        type: 'danger',
-      });
-    } finally {
-      setIsParsing(false);
-    }
-  };
-
-  const handleLoadSampleFile = async () => {
-    setIsParsing(true);
-    setFileName('eleves(1).xlsx (Fichier Primaire GM)');
-    try {
-      const res = await fetch('/api/students/import-sample');
-      if (!res.ok) throw new Error('Impossible de charger le fichier exemple.');
-      const buffer = await res.arrayBuffer();
-      const result = parseStudentsExcel(buffer, classes);
-      setParsedResult(result);
-      notify({
-        title: 'Fichier Primaire Chargé',
-        message: `${result.validRows.length} élèves prêts à être importés dans leurs classes respectives.`,
-        type: 'success',
-      });
-    } catch (err: unknown) {
-      notify({
-        title: 'Erreur',
-        message: err instanceof Error ? err.message : 'Erreur lors du chargement du fichier',
         type: 'danger',
       });
     } finally {
@@ -287,34 +260,12 @@ export function StudentsImportModal({
                 </div>
               </div>
 
-              {/* Action Buttons: 1-Click Load & Template Download */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={handleLoadSampleFile}
-                  disabled={isParsing}
-                  className="p-4 rounded-2xl bg-gradient-to-r from-sky-500/10 via-indigo-500/10 to-emerald-500/10 border border-sky-200 dark:border-sky-800/60 hover:border-sky-400 text-left transition-all cursor-pointer flex items-center justify-between group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-sky-500 text-white shadow-xs group-hover:scale-105 transition-transform">
-                      <Zap className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-black text-slate-900 dark:text-white">
-                        Charger la Liste Primaire Locale
-                      </div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                        243 élèves &bull; CP, CE1, CE2, CM1, CM2, 6ème (GA &amp; GB)
-                      </div>
-                    </div>
-                  </div>
-                  <Sparkles className="w-4 h-4 text-sky-500 shrink-0" />
-                </button>
-
+              {/* Action: Template Download */}
+              <div className="pt-1">
                 <button
                   type="button"
                   onClick={handleDownloadTemplate}
-                  className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 text-left transition-all cursor-pointer flex items-center justify-between group"
+                  className="w-full p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-left transition-all cursor-pointer flex items-center justify-between group"
                 >
                   <div className="flex items-center gap-3">
                     <div className="p-2.5 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 group-hover:scale-105 transition-transform">
@@ -325,7 +276,7 @@ export function StudentsImportModal({
                         Télécharger le Modèle Excel
                       </div>
                       <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                        Format type (.xlsx) avec exemples
+                        Format type (.xlsx) avec colonnes : Classe/Groupe, Élève, Identifiant, Tel Parent
                       </div>
                     </div>
                   </div>
