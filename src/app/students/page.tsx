@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { StudentsImportModal } from '@/components/students/StudentsImportModal';
 import { StudentsPromotionModal } from '@/components/students/StudentsPromotionModal';
+import { resolveTeacherScope } from '@/lib/teacher-resolver';
 
 export default function StudentsPage() {
   const { t, dir } = useI18n();
@@ -83,35 +84,10 @@ export default function StudentsPage() {
 
       // If current user is TEACHER, scope exclusively to their assigned classes
       if (profile?.role === 'TEACHER') {
-        // 1. Find teacher record
-        const { data: teacherData } = await supabase
-          .from('teachers')
-          .select('id, first_name, last_name')
-          .or(`profile_id.eq.${profile.id},email.eq.${profile.email}`)
-          .maybeSingle();
-
-        if (teacherData) {
-          setTeacherName(`${teacherData.first_name} ${teacherData.last_name}`);
-          // 2. Find classes where teacher teaches via timetable_slots or main_teacher
-          const [{ data: slots }, { data: mainClasses }] = await Promise.all([
-            supabase.from('timetable_slots').select('class_id').eq('teacher_id', teacherData.id),
-            supabase.from('classes').select('id').eq('main_teacher_id', teacherData.id),
-          ]);
-
-          const classIdSet = new Set<string>();
-          (slots || []).forEach((s) => {
-            if (s.class_id) classIdSet.add(s.class_id);
-          });
-          (mainClasses || []).forEach((c) => {
-            if (c.id) classIdSet.add(c.id);
-          });
-
-          allowedClassIds = Array.from(classIdSet);
-          setTeacherClassIds(allowedClassIds);
-        } else {
-          allowedClassIds = [];
-          setTeacherClassIds([]);
-        }
+        const scope = await resolveTeacherScope(profile);
+        setTeacherName(scope.teacherName);
+        allowedClassIds = scope.allowedClassIds;
+        setTeacherClassIds(scope.allowedClassIds);
       }
 
       const [{ data: studs }, { data: cls }] = await Promise.all([

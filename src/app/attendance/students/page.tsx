@@ -45,6 +45,7 @@ import {
   normalizeMoroccanPhone,
   buildAbsenceMessage
 } from '@/lib/whatsapp';
+import { resolveTeacherScope } from '@/lib/teacher-resolver';
 
 import { useAuth } from '@/lib/auth';
 
@@ -124,31 +125,9 @@ export default function StudentAttendancePage() {
 
         // If current user is TEACHER, scope exclusively to their assigned classes
         if (profile?.role === 'TEACHER') {
-          const { data: teacherData } = await supabase
-            .from('teachers')
-            .select('id, first_name, last_name')
-            .or(`profile_id.eq.${profile.id},email.eq.${profile.email}`)
-            .maybeSingle();
-
-          if (teacherData) {
-            setTeacherName(`${teacherData.first_name} ${teacherData.last_name}`);
-            const [{ data: slots }, { data: mainClasses }] = await Promise.all([
-              supabase.from('timetable_slots').select('class_id').eq('teacher_id', teacherData.id),
-              supabase.from('classes').select('id').eq('main_teacher_id', teacherData.id),
-            ]);
-
-            const classIdSet = new Set<string>();
-            (slots || []).forEach((s) => {
-              if (s.class_id) classIdSet.add(s.class_id);
-            });
-            (mainClasses || []).forEach((c) => {
-              if (c.id) classIdSet.add(c.id);
-            });
-
-            allowedClassIds = Array.from(classIdSet);
-          } else {
-            allowedClassIds = [];
-          }
+          const scope = await resolveTeacherScope(profile);
+          setTeacherName(scope.teacherName);
+          allowedClassIds = scope.allowedClassIds;
         }
 
         const [{ data: cls }, { data: studs }, { data: att }] = await Promise.all([

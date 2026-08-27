@@ -126,21 +126,33 @@ export default function SignUpPage() {
         // If registered as TEACHER, auto-link or create corresponding teacher record
         if (formData.role === 'TEACHER') {
           try {
-            // Check for existing teacher record with matching email
-            const { data: existingTeacher } = await supabase
-              .from('teachers')
-              .select('id, profile_id')
-              .ilike('email', formData.email.trim())
-              .maybeSingle();
+            const cleanFn = formData.firstName.trim().toLowerCase();
+            const cleanLn = formData.lastName.trim().toLowerCase();
+            const cleanEmail = formData.email.trim().toLowerCase();
 
-            if (existingTeacher) {
+            const { data: allTeachers } = await supabase.from('teachers').select('*');
+            const matched = (allTeachers || []).find((t) => {
+              const tEmail = (t.email || '').toLowerCase();
+              const tFn = (t.first_name || '').toLowerCase();
+              const tLn = (t.last_name || '').toLowerCase();
+              return (
+                tEmail === cleanEmail ||
+                (tFn === cleanFn && tLn === cleanLn) ||
+                (tFn === cleanLn && tLn === cleanFn) ||
+                `${tFn} ${tLn}` === `${cleanFn} ${cleanLn}` ||
+                `${tLn} ${tFn}` === `${cleanFn} ${cleanLn}`
+              );
+            });
+
+            if (matched) {
               await supabase
                 .from('teachers')
                 .update({
                   profile_id: userId,
-                  phone: formData.phone.trim() || undefined,
+                  email: formData.email.trim(),
+                  phone: formData.phone.trim() || matched.phone,
                 })
-                .eq('id', existingTeacher.id);
+                .eq('id', matched.id);
             } else {
               // Create new teacher record
               const teacherCode = `ENS-${Date.now().toString().slice(-4)}`;
