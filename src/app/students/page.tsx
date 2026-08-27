@@ -741,28 +741,28 @@ export default function StudentsPage() {
           </div>
 
           <div className="flex items-center gap-2.5 flex-wrap">
-            <button
-              type="button"
-              onClick={handleExportPDF}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-xs shadow-md transition-all cursor-pointer hover:scale-105"
-              title="Générer et imprimer le tableau officiel de la classe en PDF"
-            >
-              <Printer className="w-4 h-4 text-emerald-400 dark:text-emerald-600" />
-              <span>{dir === 'rtl' ? 'طباعة لائحة PDF' : 'Tableau PDF'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleExportExcel}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer hover:scale-105"
-              title="Exporter les élèves au format tableau Excel (.xlsx)"
-            >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>{dir === 'rtl' ? 'تصدير جدول Excel' : 'Tableau Excel'}</span>
-            </button>
-
             {!isTeacher && (
               <>
+                <button
+                  type="button"
+                  onClick={handleExportPDF}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-xs shadow-md transition-all cursor-pointer hover:scale-105"
+                  title="Générer et imprimer le tableau officiel de la classe en PDF"
+                >
+                  <Printer className="w-4 h-4 text-emerald-400 dark:text-emerald-600" />
+                  <span>{dir === 'rtl' ? 'طباعة لائحة PDF' : 'Tableau PDF'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportExcel}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer hover:scale-105"
+                  title="Exporter les élèves au format tableau Excel (.xlsx)"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>{dir === 'rtl' ? 'تصدير جدول Excel' : 'Tableau Excel'}</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setShowPromotionModal(true)}
@@ -1015,45 +1015,43 @@ export default function StudentsPage() {
                           </span>
                         </button>
                       </td>
-                      <td className="px-6 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {/* Individual Attendance Report Button */}
-                          <button
-                            type="button"
-                            onClick={() => handlePrintStudentAttendance(student)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 font-bold text-xs transition-colors cursor-pointer border border-emerald-200/60 dark:border-emerald-800"
-                            title={dir === 'rtl' ? 'طباعة تقرير المواظبة والغياب الفردي PDF' : 'Imprimer la fiche individuelle d\'assiduité & de présence en PDF'}
-                          >
-                            <Printer className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                            <span>{dir === 'rtl' ? 'تقرير الغياب PDF' : 'Bilan PDF'}</span>
-                          </button>
+                      {!isTeacher && (
+                        <td className="px-6 py-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {/* Individual Attendance Report Button (Admin Only) */}
+                            <button
+                              type="button"
+                              onClick={() => handlePrintStudentAttendance(student)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 font-bold text-xs transition-colors cursor-pointer border border-emerald-200/60 dark:border-emerald-800"
+                              title={dir === 'rtl' ? 'طباعة تقرير المواظبة والغياب الفردي PDF' : 'Imprimer la fiche individuelle d\'assiduité & de présence en PDF'}
+                            >
+                              <Printer className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                              <span>{dir === 'rtl' ? 'تقرير الغياب PDF' : 'Bilan PDF'}</span>
+                            </button>
 
-                          {!isTeacher && (
-                            <>
-                              {/* Modifier Button */}
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEditModal(student)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/60 font-bold text-xs transition-colors cursor-pointer"
-                                title="Modifier les informations de l'élève"
-                              >
-                                <Edit2 className="w-3.5 h-3.5" />
-                                <span>Modifier</span>
-                              </button>
+                            {/* Modifier Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditModal(student)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/60 font-bold text-xs transition-colors cursor-pointer"
+                              title="Modifier les informations de l'élève"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                              <span>Modifier</span>
+                            </button>
 
-                              {/* Supprimer Button */}
-                              <button
-                                type="button"
-                                onClick={() => handleDelete(student.id, `${student.first_name} ${student.last_name}`)}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
-                                title="Archiver / Supprimer l'élève"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
+                            {/* Supprimer Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(student.id, `${student.first_name} ${student.last_name}`)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                              title="Archiver / Supprimer l'élève"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}

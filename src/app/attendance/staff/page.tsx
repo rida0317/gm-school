@@ -15,6 +15,7 @@ import { useNotify } from '@/lib/modal-service';
 import { useSettings } from '@/lib/settings';
 import { logAuditEvent } from '@/lib/audit';
 import { ZKTecoImportModal, ShiftConfig } from '@/components/attendance/ZKTecoImportModal';
+import { printIndividualTeacherAttendanceReport } from '@/lib/teacher-attendance-pdf';
 import {
   ClipboardCheck,
   Calendar,
@@ -1830,16 +1831,44 @@ export default function StaffAttendancePage() {
                             )}
                           </td>
 
-                          {/* Edit Action Button */}
+                          {/* Actions: Bilan PDF & Edit */}
                           <td className="py-2.5 px-3 text-right">
-                            <button
-                              type="button"
-                              onClick={() => openEditModal(staff)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold transition-colors cursor-pointer"
-                            >
-                              <Edit2 className="w-3 h-3" />
-                              <span>Éditer</span>
-                            </button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  printIndividualTeacherAttendanceReport({
+                                    teacher: {
+                                      id: staff.id,
+                                      first_name: staff.first_name,
+                                      last_name: staff.last_name,
+                                      teacher_code: staff.staff_code,
+                                      specialization: staff.role_title,
+                                      contract_type: staff.category === 'ENSEIGNANT' ? 'PLEIN_TEMPS' : 'PERMANENT',
+                                      phone: staff.phone,
+                                      email: staff.email,
+                                    },
+                                    attendanceRecords,
+                                    settings,
+                                    periodLabel: `Date : ${selectedDate}`,
+                                  })
+                                }
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 text-[10px] font-bold transition-colors cursor-pointer border border-sky-200 dark:border-sky-800"
+                                title="Imprimer la fiche individuelle de présence en PDF"
+                              >
+                                <Printer className="w-3 h-3 text-sky-600" />
+                                <span>Bilan PDF</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => openEditModal(staff)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold transition-colors cursor-pointer"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                                <span>Éditer</span>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -2007,7 +2036,8 @@ export default function StaffAttendancePage() {
                       <th className="p-3 text-center font-bold">Cumul H/Min</th>
                       <th className="p-3 text-center">Injustifiés</th>
                       <th className="p-3 text-center">Absences</th>
-                      <th className="p-3 text-right">Taux Assiduité</th>
+                      <th className="p-3 text-center">Taux Assiduité</th>
+                      <th className="p-3 text-right">Rapport PDF</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
@@ -2036,7 +2066,7 @@ export default function StaffAttendancePage() {
                           )}
                         </td>
                         <td className="p-3 text-center font-bold text-rose-600">{item.absentDays} j</td>
-                        <td className="p-3 text-right font-black text-xs">
+                        <td className="p-3 text-center font-black text-xs">
                           <span
                             className={
                               item.assiduityRate >= 95
@@ -2048,6 +2078,33 @@ export default function StaffAttendancePage() {
                           >
                             {item.assiduityRate}%
                           </span>
+                        </td>
+                        <td className="p-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              printIndividualTeacherAttendanceReport({
+                                teacher: {
+                                  id: item.staff.id,
+                                  first_name: item.staff.first_name,
+                                  last_name: item.staff.last_name,
+                                  teacher_code: item.staff.staff_code,
+                                  specialization: item.staff.role_title,
+                                  contract_type: item.staff.category === 'ENSEIGNANT' ? 'PLEIN_TEMPS' : 'PERMANENT',
+                                  phone: item.staff.phone,
+                                  email: item.staff.email,
+                                },
+                                attendanceRecords,
+                                settings,
+                                periodLabel: `Mois de ${selectedMonth}`,
+                              })
+                            }
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-sky-50 hover:bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 font-bold text-xs border border-sky-200 dark:border-sky-800 cursor-pointer shadow-2xs"
+                            title="Imprimer la fiche individuelle mensuelle"
+                          >
+                            <Printer className="w-3.5 h-3.5 text-sky-600" />
+                            <span>Bilan PDF</span>
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -2096,7 +2153,8 @@ export default function StaffAttendancePage() {
                       <th className="p-3 text-center font-bold">Cumul H/Min</th>
                       <th className="p-3 text-center">Injustifiés</th>
                       <th className="p-3 text-center">Absences</th>
-                      <th className="p-3 text-right">Taux Semestriel</th>
+                      <th className="p-3 text-center">Taux Semestriel</th>
+                      <th className="p-3 text-right">Rapport PDF</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
@@ -2125,7 +2183,7 @@ export default function StaffAttendancePage() {
                           )}
                         </td>
                         <td className="p-3 text-center font-bold text-rose-600">{item.absentDays} j</td>
-                        <td className="p-3 text-right font-black text-xs">
+                        <td className="p-3 text-center font-black text-xs">
                           <span
                             className={
                               item.assiduityRate >= 95
@@ -2137,6 +2195,33 @@ export default function StaffAttendancePage() {
                           >
                             {item.assiduityRate}%
                           </span>
+                        </td>
+                        <td className="p-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              printIndividualTeacherAttendanceReport({
+                                teacher: {
+                                  id: item.staff.id,
+                                  first_name: item.staff.first_name,
+                                  last_name: item.staff.last_name,
+                                  teacher_code: item.staff.staff_code,
+                                  specialization: item.staff.role_title,
+                                  contract_type: item.staff.category === 'ENSEIGNANT' ? 'PLEIN_TEMPS' : 'PERMANENT',
+                                  phone: item.staff.phone,
+                                  email: item.staff.email,
+                                },
+                                attendanceRecords,
+                                settings,
+                                periodLabel: selectedSemester === 'S1' ? 'Semestre 1 (S1)' : 'Semestre 2 (S2)',
+                              })
+                            }
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-sky-50 hover:bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 font-bold text-xs border border-sky-200 dark:border-sky-800 cursor-pointer shadow-2xs"
+                            title="Imprimer la fiche individuelle semestrielle"
+                          >
+                            <Printer className="w-3.5 h-3.5 text-sky-600" />
+                            <span>Bilan PDF</span>
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -2556,21 +2641,51 @@ export default function StaffAttendancePage() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-between gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setEditingRecord(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                  onClick={() => {
+                    const staffObj = allStaffMembers.find((s) => s.id === editingRecord.staffId);
+                    if (staffObj) {
+                      printIndividualTeacherAttendanceReport({
+                        teacher: {
+                          id: staffObj.id,
+                          first_name: staffObj.first_name,
+                          last_name: staffObj.last_name,
+                          teacher_code: staffObj.staff_code,
+                          specialization: staffObj.role_title,
+                          contract_type: staffObj.category === 'ENSEIGNANT' ? 'PLEIN_TEMPS' : 'PERMANENT',
+                          phone: staffObj.phone,
+                          email: staffObj.email,
+                        },
+                        attendanceRecords,
+                        settings,
+                        periodLabel: `Date : ${selectedDate}`,
+                      });
+                    }
+                  }}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800 hover:bg-sky-100 transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
-                  Annuler
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Imprimer Bilan Individuel PDF</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={handleSaveModalRecord}
-                  className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 shadow-md transition-all cursor-pointer"
-                >
-                  Enregistrer
-                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingRecord(null)}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveModalRecord}
+                    className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 shadow-md transition-all cursor-pointer"
+                  >
+                    Enregistrer
+                  </button>
+                </div>
               </div>
             </div>
           </div>

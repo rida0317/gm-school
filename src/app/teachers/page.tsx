@@ -3,9 +3,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { createClient } from '@/lib/supabase/client';
-import { Teacher, TeacherContractType, TeacherAvailabilitySlot, Subject } from '@/types/database';
+import { Teacher, TeacherContractType, TeacherAvailabilitySlot, Subject, StaffAttendanceRecord } from '@/types/database';
 import { useConfirm, useNotify } from '@/lib/modal-service';
 import { logAuditEvent } from '@/lib/audit';
+import { useSettings } from '@/lib/settings';
+import { printIndividualTeacherAttendanceReport } from '@/lib/teacher-attendance-pdf';
 
 import {
   Users,
@@ -25,7 +27,8 @@ import {
   CalendarDays,
   MoreVertical,
   CheckCircle2,
-  XCircle
+  XCircle,
+  Printer
 } from 'lucide-react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n';
@@ -108,6 +111,7 @@ const MOROCCAN_55MIN_PERIODS = [
 
 export default function TeachersPage() {
   const { t, dir } = useI18n();
+  const { settings } = useSettings();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [classes, setClasses] = useState<Array<{ id: string; name: string; level: string; group_name?: string }>>([]);
@@ -740,6 +744,35 @@ export default function TeachersPage() {
                   <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{t('actions')}</span>
                     <div className="flex items-center gap-1">
+                      <button
+                        onClick={async () => {
+                          try {
+                            const supabase = createClient();
+                            const { data: records } = await supabase
+                              .from('staff_attendance')
+                              .select('*')
+                              .or(`staff_id.eq.${tch.id},staff_id.eq.${tch.teacher_code}`)
+                              .order('date', { ascending: false });
+
+                            printIndividualTeacherAttendanceReport({
+                              teacher: tch,
+                              attendanceRecords: (records as StaffAttendanceRecord[]) || [],
+                              settings,
+                              periodLabel: 'Année Scolaire en cours',
+                            });
+                          } catch (err) {
+                            notify({
+                              title: 'Erreur',
+                              message: "Impossible d'imprimer le bilan d'assiduité",
+                              type: 'danger',
+                            });
+                          }
+                        }}
+                        title={dir === 'rtl' ? 'طباعة تقرير المواظبة والغياب الفردي للأستاذ PDF' : "Imprimer la fiche d'assiduité individuelle en PDF"}
+                        className="p-1.5 text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-white rounded-xl hover:bg-sky-50 dark:hover:bg-sky-950/50 transition-colors cursor-pointer"
+                      >
+                        <Printer className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => openEditModal(tch)}
                         title={dir === 'rtl' ? 'تعديل الأستاذ والمستويات والتوقيت' : "Modifier l'enseignant, ses niveaux et ses disponibilités"}

@@ -1052,153 +1052,157 @@ export default function StudentAttendancePage() {
               </button>
             )}
 
-            {/* Print / PDF Dropdown Hub */}
-            <div className="relative">
-              <button
-                onClick={() => {
-                  setShowPrintMenu(!showPrintMenu);
-                  setShowExportMenu(false);
-                }}
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs shadow-xs hover:bg-slate-50 dark:hover:bg-slate-700 transition-all cursor-pointer whitespace-nowrap"
-              >
-                <Printer className="w-4 h-4 text-blue-500 shrink-0" />
-                <span>{dir === 'rtl' ? 'طباعة / PDF' : 'Imprimer / PDF'}</span>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-              </button>
-
-              {showPrintMenu && (
-                <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 animate-in fade-in zoom-in-95 space-y-1">
-                  <div className="px-3 py-1.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                    {dir === 'rtl' ? 'خيارات الطباعة الرسمية' : 'Type de Rapport à Imprimer'}
-                  </div>
-
-                  <button
-                    onClick={() => handleTriggerPrint('DAILY')}
-                    className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-xl transition-all text-left"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-blue-500" />
-                      <div>
-                        <div>{dir === 'rtl' ? '1. التقرير اليومي للمواظبة' : '1. Rapport Journalier / Quotidien'}</div>
-                        <div className="text-[10px] text-slate-400 font-normal">{dir === 'rtl' ? `التاريخ : ${selectedDate}` : `Date : ${selectedDate}`}</div>
-                      </div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => handleTriggerPrint('WEEKLY')}
-                    className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-xl transition-all text-left"
-                  >
-                    <div className="flex items-center gap-2">
-                      <FileSpreadsheet className="w-4 h-4 text-indigo-500" />
-                      <div>
-                        <div>{dir === 'rtl' ? '2. السجل الأسبوعي للحضور' : '2. Journal Hebdomadaire (Semaine)'}</div>
-                        <div className="text-[10px] text-slate-400 font-normal">{dir === 'rtl' ? `الأسبوع : من ${currentWeekDates[0]} إلى ${currentWeekDates[5]}` : `Semaine du ${currentWeekDates[0]} au ${currentWeekDates[5]}`}</div>
-                      </div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => handleTriggerPrint('MONTHLY')}
-                    className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-all text-left"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-emerald-500" />
-                      <div>
-                        <div>{dir === 'rtl' ? '3. الحصيلة الشهرية الشاملة' : '3. Bilan Mensuel (Mois Complet)'}</div>
-                        <div className="text-[10px] text-slate-400 font-normal">{dir === 'rtl' ? `الشهر : ${selectedMonth}` : `Mois : ${selectedMonth}`}</div>
-                      </div>
-                    </div>
-                  </button>
-
+            {!isTeacher && (
+              <>
+                {/* Print / PDF Dropdown Hub */}
+                <div className="relative">
                   <button
                     onClick={() => {
-                      setShowPrintMenu(false);
-                      setShowCustomRangeModal(true);
-                    }}
-                    className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-xl transition-all text-left"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Award className="w-4 h-4 text-purple-500" />
-                      <div>
-                        <div>{dir === 'rtl' ? '4. تقرير دوري مخصص' : '4. Bilan Périodique Personnalisé'}</div>
-                        <div className="text-[10px] text-slate-400 font-normal">{dir === 'rtl' ? 'تحديد تاريخ البداية والنهاية' : 'Choisir Date Début ➔ Date Fin'}</div>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Export CSV Dropdown Hub */}
-            <div className="relative">
-              <button
-                onClick={() => {
-                  setShowExportMenu(!showExportMenu);
-                  setShowPrintMenu(false);
-                }}
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-300 font-bold text-xs hover:bg-emerald-100 transition-all cursor-pointer whitespace-nowrap"
-              >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>{dir === 'rtl' ? 'تصدير Excel / CSV' : 'Exporter CSV / Excel'}</span>
-                <ChevronDown className="w-3.5 h-3.5 text-emerald-600" />
-              </button>
-
-              {showExportMenu && (
-                <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 animate-in fade-in zoom-in-95 space-y-1">
-                  <div className="px-3 py-1.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                    {dir === 'rtl' ? 'خيارات التصدير' : 'Exporter au format CSV'}
-                  </div>
-
-                  <button
-                    onClick={handleExportDailyCSV}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-all text-left"
-                  >
-                    <Download className="w-4 h-4 text-emerald-500 shrink-0" />
-                    <div>
-                      <div>{dir === 'rtl' ? '1. تصدير الحضور اليومي' : '1. Exporter Pointage Journalier'}</div>
-                      <div className="text-[10px] text-slate-400 font-normal">{dir === 'rtl' ? `اليوم : ${selectedDate}` : `Jour : ${selectedDate}`}</div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={handleExportWeeklyCSV}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-all text-left"
-                  >
-                    <Download className="w-4 h-4 text-indigo-500 shrink-0" />
-                    <div>
-                      <div>{dir === 'rtl' ? '2. تصدير السجل الأسبوعي' : '2. Exporter Journal Hebdomadaire'}</div>
-                      <div className="text-[10px] text-slate-400 font-normal">{dir === 'rtl' ? `الأسبوع : من ${currentWeekDates[0]} إلى ${currentWeekDates[5]}` : `Semaine du ${currentWeekDates[0]} au ${currentWeekDates[5]}`}</div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={handleExportMonthlyCSV}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-all text-left"
-                  >
-                    <Download className="w-4 h-4 text-teal-500 shrink-0" />
-                    <div>
-                      <div>{dir === 'rtl' ? '3. تصدير الحصيلة الشهرية' : '3. Exporter Bilan Mensuel'}</div>
-                      <div className="text-[10px] text-slate-400 font-normal">Mois : {selectedMonth}</div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => {
+                      setShowPrintMenu(!showPrintMenu);
                       setShowExportMenu(false);
-                      setShowCustomRangeModal(true);
                     }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-all text-left"
+                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs shadow-xs hover:bg-slate-50 dark:hover:bg-slate-700 transition-all cursor-pointer whitespace-nowrap"
                   >
-                    <Download className="w-4 h-4 text-purple-500 shrink-0" />
-                    <div>
-                      <div>4. Exporter Période Personnalisée</div>
-                      <div className="text-[10px] text-slate-400 font-normal">Plage personnalisée (Date Début ➔ Fin)</div>
-                    </div>
+                    <Printer className="w-4 h-4 text-blue-500 shrink-0" />
+                    <span>{dir === 'rtl' ? 'طباعة / PDF' : 'Imprimer / PDF'}</span>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                   </button>
+
+                  {showPrintMenu && (
+                    <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 animate-in fade-in zoom-in-95 space-y-1">
+                      <div className="px-3 py-1.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                        {dir === 'rtl' ? 'خيارات الطباعة الرسمية' : 'Type de Rapport à Imprimer'}
+                      </div>
+
+                      <button
+                        onClick={() => handleTriggerPrint('DAILY')}
+                        className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-xl transition-all text-left"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-blue-500" />
+                          <div>
+                            <div>{dir === 'rtl' ? '1. التقرير اليومي للمواظبة' : '1. Rapport Journalier / Quotidien'}</div>
+                            <div className="text-[10px] text-slate-400 font-normal">{dir === 'rtl' ? `التاريخ : ${selectedDate}` : `Date : ${selectedDate}`}</div>
+                          </div>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => handleTriggerPrint('WEEKLY')}
+                        className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-xl transition-all text-left"
+                      >
+                        <div className="flex items-center gap-2">
+                          <FileSpreadsheet className="w-4 h-4 text-indigo-500" />
+                          <div>
+                            <div>{dir === 'rtl' ? '2. السجل الأسبوعي للحضور' : '2. Journal Hebdomadaire (Semaine)'}</div>
+                            <div className="text-[10px] text-slate-400 font-normal">{dir === 'rtl' ? `الأسبوع : من ${currentWeekDates[0]} إلى ${currentWeekDates[5]}` : `Semaine du ${currentWeekDates[0]} au ${currentWeekDates[5]}`}</div>
+                          </div>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => handleTriggerPrint('MONTHLY')}
+                        className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-all text-left"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-emerald-500" />
+                          <div>
+                            <div>{dir === 'rtl' ? '3. الحصيلة الشهرية الشاملة' : '3. Bilan Mensuel (Mois Complet)'}</div>
+                            <div className="text-[10px] text-slate-400 font-normal">{dir === 'rtl' ? `الشهر : ${selectedMonth}` : `Mois : ${selectedMonth}`}</div>
+                          </div>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setShowPrintMenu(false);
+                          setShowCustomRangeModal(true);
+                        }}
+                        className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-xl transition-all text-left"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Award className="w-4 h-4 text-purple-500" />
+                          <div>
+                            <div>{dir === 'rtl' ? '4. تقرير دوري مخصص' : '4. Bilan Périodique Personnalisé'}</div>
+                            <div className="text-[10px] text-slate-400 font-normal">{dir === 'rtl' ? 'تحديد تاريخ البداية والنهاية' : 'Choisir Date Début ➔ Date Fin'}</div>
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+
+                {/* Export CSV Dropdown Hub */}
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      setShowExportMenu(!showExportMenu);
+                      setShowPrintMenu(false);
+                    }}
+                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-300 font-bold text-xs hover:bg-emerald-100 transition-all cursor-pointer whitespace-nowrap"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span>{dir === 'rtl' ? 'تصدير Excel / CSV' : 'Exporter CSV / Excel'}</span>
+                    <ChevronDown className="w-3.5 h-3.5 text-emerald-600" />
+                  </button>
+
+                  {showExportMenu && (
+                    <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 animate-in fade-in zoom-in-95 space-y-1">
+                      <div className="px-3 py-1.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                        {dir === 'rtl' ? 'خيارات التصدير' : 'Exporter au format CSV'}
+                      </div>
+
+                      <button
+                        onClick={handleExportDailyCSV}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-all text-left"
+                      >
+                        <Download className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <div>
+                          <div>{dir === 'rtl' ? '1. تصدير الحضور اليومي' : '1. Exporter Pointage Journalier'}</div>
+                          <div className="text-[10px] text-slate-400 font-normal">{dir === 'rtl' ? `اليوم : ${selectedDate}` : `Jour : ${selectedDate}`}</div>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={handleExportWeeklyCSV}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-all text-left"
+                      >
+                        <Download className="w-4 h-4 text-indigo-500 shrink-0" />
+                        <div>
+                          <div>{dir === 'rtl' ? '2. تصدير السجل الأسبوعي' : '2. Exporter Journal Hebdomadaire'}</div>
+                          <div className="text-[10px] text-slate-400 font-normal">{dir === 'rtl' ? `الأسبوع : من ${currentWeekDates[0]} إلى ${currentWeekDates[5]}` : `Semaine du ${currentWeekDates[0]} au ${currentWeekDates[5]}`}</div>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={handleExportMonthlyCSV}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-all text-left"
+                      >
+                        <Download className="w-4 h-4 text-teal-500 shrink-0" />
+                        <div>
+                          <div>{dir === 'rtl' ? '3. تصدير الحصيلة الشهرية' : '3. Exporter Bilan Mensuel'}</div>
+                          <div className="text-[10px] text-slate-400 font-normal">Mois : {selectedMonth}</div>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setShowExportMenu(false);
+                          setShowCustomRangeModal(true);
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-all text-left"
+                      >
+                        <Download className="w-4 h-4 text-purple-500 shrink-0" />
+                        <div>
+                          <div>4. Exporter Période Personnalisée</div>
+                          <div className="text-[10px] text-slate-400 font-normal">Plage personnalisée (Date Début ➔ Fin)</div>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -1735,23 +1739,25 @@ export default function StudentAttendancePage() {
                                   </button>
                                 )}
 
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    printIndividualStudentAttendanceReport({
-                                      student,
-                                      attendanceRecords,
-                                      settings,
-                                      periodLabel: `Date : ${selectedDate}`,
-                                      isTeacher,
-                                    })
-                                  }
-                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 text-xs font-bold transition-colors cursor-pointer border border-sky-200 dark:border-sky-800"
-                                  title={dir === 'rtl' ? 'طباعة تقرير المواظبة والغياب الفردي PDF' : 'Imprimer la fiche individuelle de présence PDF'}
-                                >
-                                  <Printer className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
-                                  <span>{dir === 'rtl' ? 'تقرير PDF' : 'Bilan PDF'}</span>
-                                </button>
+                                {!isTeacher && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      printIndividualStudentAttendanceReport({
+                                        student,
+                                        attendanceRecords,
+                                        settings,
+                                        periodLabel: `Date : ${selectedDate}`,
+                                        isTeacher,
+                                      })
+                                    }
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 text-xs font-bold transition-colors cursor-pointer border border-sky-200 dark:border-sky-800"
+                                    title={dir === 'rtl' ? 'طباعة تقرير المواظبة والغياب الفردي PDF' : 'Imprimer la fiche individuelle de présence PDF'}
+                                  >
+                                    <Printer className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                                    <span>{dir === 'rtl' ? 'تقرير PDF' : 'Bilan PDF'}</span>
+                                  </button>
+                                )}
 
                                 <button
                                   type="button"
@@ -1912,7 +1918,7 @@ export default function StudentAttendancePage() {
                       <th className="p-3 text-center">Injustifiés</th>
                       <th className="p-3 text-center">Absences</th>
                       <th className="p-3 text-center">Taux Assiduité</th>
-                      <th className="p-3 text-right">Rapport PDF</th>
+                      {!isTeacher && <th className="p-3 text-right">Rapport PDF</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
@@ -1956,25 +1962,27 @@ export default function StudentAttendancePage() {
                             {item.assiduityRate}%
                           </span>
                         </td>
-                        <td className="p-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              printIndividualStudentAttendanceReport({
-                                student: item.student,
-                                attendanceRecords,
-                                settings,
-                                periodLabel: `Mois de ${selectedMonth}`,
-                                isTeacher,
-                              })
-                            }
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-sky-50 hover:bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 font-bold text-xs border border-sky-200 dark:border-sky-800 cursor-pointer shadow-2xs"
-                            title="Imprimer la fiche individuelle mensuelle"
-                          >
-                            <Printer className="w-3.5 h-3.5 text-sky-600" />
-                            <span>Bilan PDF</span>
-                          </button>
-                        </td>
+                        {!isTeacher && (
+                          <td className="p-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                printIndividualStudentAttendanceReport({
+                                  student: item.student,
+                                  attendanceRecords,
+                                  settings,
+                                  periodLabel: `Mois de ${selectedMonth}`,
+                                  isTeacher,
+                                })
+                              }
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-sky-50 hover:bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 font-bold text-xs border border-sky-200 dark:border-sky-800 cursor-pointer shadow-2xs"
+                              title="Imprimer la fiche individuelle mensuelle"
+                            >
+                              <Printer className="w-3.5 h-3.5 text-sky-600" />
+                              <span>Bilan PDF</span>
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -2023,7 +2031,7 @@ export default function StudentAttendancePage() {
                       <th className="p-3 text-center">Injustifiés</th>
                       <th className="p-3 text-center">Absences</th>
                       <th className="p-3 text-center">Taux Semestriel</th>
-                      <th className="p-3 text-right">Rapport PDF</th>
+                      {!isTeacher && <th className="p-3 text-right">Rapport PDF</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
@@ -2067,25 +2075,27 @@ export default function StudentAttendancePage() {
                             {item.assiduityRate}%
                           </span>
                         </td>
-                        <td className="p-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              printIndividualStudentAttendanceReport({
-                                student: item.student,
-                                attendanceRecords,
-                                settings,
-                                periodLabel: selectedSemester === 'S1' ? 'Semestre 1 (S1)' : 'Semestre 2 (S2)',
-                                isTeacher,
-                              })
-                            }
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-sky-50 hover:bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 font-bold text-xs border border-sky-200 dark:border-sky-800 cursor-pointer shadow-2xs"
-                            title="Imprimer la fiche individuelle semestrielle"
-                          >
-                            <Printer className="w-3.5 h-3.5 text-sky-600" />
-                            <span>Bilan PDF</span>
-                          </button>
-                        </td>
+                        {!isTeacher && (
+                          <td className="p-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                printIndividualStudentAttendanceReport({
+                                  student: item.student,
+                                  attendanceRecords,
+                                  settings,
+                                  periodLabel: selectedSemester === 'S1' ? 'Semestre 1 (S1)' : 'Semestre 2 (S2)',
+                                  isTeacher,
+                                })
+                              }
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-sky-50 hover:bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 font-bold text-xs border border-sky-200 dark:border-sky-800 cursor-pointer shadow-2xs"
+                              title="Imprimer la fiche individuelle semestrielle"
+                            >
+                              <Printer className="w-3.5 h-3.5 text-sky-600" />
+                              <span>Bilan PDF</span>
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -2496,25 +2506,27 @@ export default function StudentAttendancePage() {
               </div>
 
               <div className="flex items-center justify-between gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const studentObj = students.find((s) => s.id === editingRecord.studentId);
-                    if (studentObj) {
-                      printIndividualStudentAttendanceReport({
-                        student: studentObj,
-                        attendanceRecords,
-                        settings,
-                        periodLabel: `Date : ${selectedDate}`,
-                        isTeacher,
-                      });
-                    }
-                  }}
-                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800 hover:bg-sky-100 transition-colors flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>Imprimer Bilan Individuel PDF</span>
-                </button>
+                {!isTeacher ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const studentObj = students.find((s) => s.id === editingRecord.studentId);
+                      if (studentObj) {
+                        printIndividualStudentAttendanceReport({
+                          student: studentObj,
+                          attendanceRecords,
+                          settings,
+                          periodLabel: `Date : ${selectedDate}`,
+                          isTeacher,
+                        });
+                      }
+                    }}
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800 hover:bg-sky-100 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>Imprimer Bilan Individuel PDF</span>
+                  </button>
+                ) : <div />}
 
                 <div className="flex items-center gap-2">
                   <button
