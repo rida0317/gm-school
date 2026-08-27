@@ -3383,37 +3383,41 @@ export default function TimetablePage() {
                   })}
                 </select>
 
-                <button
-                  type="button"
-                  onClick={() => toggleClassLock(selectedClassId)}
-                  className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl text-xs font-black shadow-xs transition-all cursor-pointer ${
-                    lockedClassIds.has(selectedClassId)
-                      ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 hover:bg-amber-500/25'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200'
-                  }`}
-                  title={lockedClassIds.has(selectedClassId) ? 'Classe Verrouillée (Cliquer pour déverrouiller)' : 'Verrouiller et protéger cette classe'}
-                >
-                  {lockedClassIds.has(selectedClassId) ? (
-                    <>
-                      <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                      <span>Classe Verrouillée 🔒</span>
-                    </>
-                  ) : (
-                    <>
-                      <Unlock className="w-3.5 h-3.5 text-slate-400" />
-                      <span>Verrouiller 🔓</span>
-                    </>
-                  )}
-                </button>
+                {canManageTimetable && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => toggleClassLock(selectedClassId)}
+                      className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl text-xs font-black shadow-xs transition-all cursor-pointer ${
+                        lockedClassIds.has(selectedClassId)
+                          ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 hover:bg-amber-500/25'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+                      }`}
+                      title={lockedClassIds.has(selectedClassId) ? 'Classe Verrouillée (Cliquer pour déverrouiller)' : 'Verrouiller et protéger cette classe'}
+                    >
+                      {lockedClassIds.has(selectedClassId) ? (
+                        <>
+                          <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                          <span>Classe Verrouillée 🔒</span>
+                        </>
+                      ) : (
+                        <>
+                          <Unlock className="w-3.5 h-3.5 text-slate-400" />
+                          <span>Verrouiller 🔓</span>
+                        </>
+                      )}
+                    </button>
 
-                <Link
-                  href={`/timetable/generator?classId=${selectedClassId}`}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-md shadow-indigo-600/20 transition-all hover:scale-105"
-                  title="Générer ou régénérer uniquement l'emploi du temps de cette classe"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
-                  <span>Générer cette classe</span>
-                </Link>
+                    <Link
+                      href={`/timetable/generator?classId=${selectedClassId}`}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-md shadow-indigo-600/20 transition-all hover:scale-105"
+                      title="Générer ou régénérer uniquement l'emploi du temps de cette classe"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+                      <span>Générer cette classe</span>
+                    </Link>
+                  </>
+                )}
               </>
             )}
 
@@ -3435,28 +3439,30 @@ export default function TimetablePage() {
                   })}
                 </select>
 
-                <button
-                  type="button"
-                  onClick={() => toggleTeacherLock(selectedTeacherId)}
-                  className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl text-xs font-black shadow-xs transition-all cursor-pointer ${
-                    lockedTeacherIds.has(selectedTeacherId)
-                      ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 hover:bg-amber-500/25'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200'
-                  }`}
-                  title={lockedTeacherIds.has(selectedTeacherId) ? 'Enseignant Verrouillé (Cliquer pour déverrouiller)' : 'Verrouiller et protéger cet enseignant'}
-                >
-                  {lockedTeacherIds.has(selectedTeacherId) ? (
-                    <>
-                      <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                      <span>Enseignant Verrouillé 🔒</span>
-                    </>
-                  ) : (
-                    <>
-                      <Unlock className="w-3.5 h-3.5 text-slate-400" />
-                      <span>Verrouiller 🔓</span>
-                    </>
-                  )}
-                </button>
+                {canManageTimetable && (
+                  <button
+                    type="button"
+                    onClick={() => toggleTeacherLock(selectedTeacherId)}
+                    className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl text-xs font-black shadow-xs transition-all cursor-pointer ${
+                      lockedTeacherIds.has(selectedTeacherId)
+                        ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 hover:bg-amber-500/25'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+                    }`}
+                    title={lockedTeacherIds.has(selectedTeacherId) ? 'Enseignant Verrouillé (Cliquer pour déverrouiller)' : 'Verrouiller et protéger cet enseignant'}
+                  >
+                    {lockedTeacherIds.has(selectedTeacherId) ? (
+                      <>
+                        <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                        <span>Enseignant Verrouillé 🔒</span>
+                      </>
+                    ) : (
+                      <>
+                        <Unlock className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Verrouiller 🔓</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </>
             )}
 
@@ -3695,15 +3701,17 @@ export default function TimetablePage() {
                       </div>
                     </div>
                   </div>
-                  <button
-                    onClick={() => {
-                      if (viewMode === 'CLASS') toggleClassLock(selectedClassId);
-                      else toggleTeacherLock(selectedTeacherId);
-                    }}
-                    className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 font-bold text-xs hover:bg-amber-50 cursor-pointer shrink-0 shadow-2xs"
-                  >
-                    Déverrouiller 🔓
-                  </button>
+                  {canManageTimetable && (
+                    <button
+                      onClick={() => {
+                        if (viewMode === 'CLASS') toggleClassLock(selectedClassId);
+                        else toggleTeacherLock(selectedTeacherId);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 font-bold text-xs hover:bg-amber-50 cursor-pointer shrink-0 shadow-2xs"
+                    >
+                      Déverrouiller 🔓
+                    </button>
+                  )}
                 </div>
               )}
 
