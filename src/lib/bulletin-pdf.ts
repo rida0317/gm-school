@@ -132,25 +132,27 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
         </div>
 
         <!-- Grades Table -->
-        <table class="grades-table">
-          <thead>
-            <tr>
-              <th class="col-subj">Matière / Discipline</th>
-              <th class="col-score">C.C 1</th>
-              <th class="col-score">C.C 2</th>
-              <th class="col-score">C.C 3</th>
-              <th class="col-score">Activités</th>
-              <th class="col-avg">Moyenne</th>
-              <th class="col-coeff">Coeff</th>
-              <th class="col-pts">Points</th>
-              <th class="col-stat">Min / Max</th>
-              <th class="col-apprec">Appréciations des Enseignants</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rowsHtml}
-          </tbody>
-        </table>
+        <div class="table-wrapper">
+          <table class="grades-table">
+            <thead>
+              <tr>
+                <th class="col-subj">Matière / Discipline</th>
+                <th class="col-score">C.C 1</th>
+                <th class="col-score">C.C 2</th>
+                <th class="col-score">C.C 3</th>
+                <th class="col-score">Activités</th>
+                <th class="col-avg">Moyenne</th>
+                <th class="col-coeff">Coeff</th>
+                <th class="col-pts">Points</th>
+                <th class="col-stat">Min / Max</th>
+                <th class="col-apprec">Appréciations des Enseignants</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+        </div>
 
         <!-- Summary KPI & Honors Section -->
         <div class="summary-container">
@@ -225,16 +227,17 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
         <style>
           @page {
             size: A4 portrait;
-            margin: 8mm 10mm;
+            margin: 6mm 8mm;
           }
           * {
             box-sizing: border-box;
           }
-          body {
-            font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
-            color: #0f172a;
+          html, body {
             margin: 0;
             padding: 0;
+            height: 100%;
+            font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
+            color: #0f172a;
             font-size: 10.5px;
             line-height: 1.25;
             background: #ffffff;
@@ -244,48 +247,51 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             break-before: page;
           }
           .bulletin-sheet {
-            padding: 4px;
             display: flex;
             flex-direction: column;
-            min-height: 277mm;
-            justify-content: space-between;
+            height: 284mm;
+            max-height: 284mm;
+            padding: 4px;
+            box-sizing: border-box;
+            justify-content: flex-start;
           }
           /* Header */
           .header-box {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 2px solid #0f172a;
-            padding-bottom: 8px;
+            border-bottom: 2.5px solid #0f172a;
+            padding-bottom: 6px;
             margin-bottom: 8px;
+            flex-shrink: 0;
           }
           .header-left {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
           }
           .logo-img {
-            width: 52px;
-            height: 52px;
+            width: 56px;
+            height: 56px;
             object-fit: contain;
             border-radius: 6px;
           }
           .gov-text {
-            font-size: 8px;
+            font-size: 8.5px;
             font-weight: 800;
             text-transform: uppercase;
             color: #475569;
             letter-spacing: 0.2px;
           }
           .school-name {
-            font-size: 13.5px;
+            font-size: 15px;
             font-weight: 900;
             color: #0f172a;
             letter-spacing: 0.3px;
-            margin: 1px 0;
+            margin: 2px 0;
           }
           .sub-text {
-            font-size: 8.5px;
+            font-size: 9px;
             color: #64748b;
             font-weight: 600;
           }
@@ -297,69 +303,78 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             background-color: #0f172a;
             color: #ffffff;
             font-weight: 900;
-            font-size: 11px;
-            padding: 4px 10px;
-            border-radius: 4px;
+            font-size: 11.5px;
+            padding: 4px 12px;
+            border-radius: 5px;
             letter-spacing: 0.5px;
-            margin-bottom: 3px;
+            margin-bottom: 4px;
           }
           .meta-row {
-            font-size: 9.5px;
+            font-size: 10px;
             color: #334155;
           }
           /* Student ID */
           .student-id-grid {
             display: grid;
             grid-template-columns: 2fr 1.2fr 1.2fr 1fr;
-            gap: 6px;
+            gap: 8px;
             background-color: #f8fafc;
-            border: 1px solid #cbd5e1;
+            border: 1.5px solid #cbd5e1;
             border-radius: 6px;
-            padding: 6px 10px;
-            margin-bottom: 8px;
+            padding: 8px 12px;
+            margin-bottom: 10px;
+            flex-shrink: 0;
           }
           .id-item {
             display: flex;
             flex-direction: column;
           }
           .id-label {
-            font-size: 8px;
+            font-size: 8.5px;
             font-weight: bold;
             color: #64748b;
             text-transform: uppercase;
           }
           .id-value {
-            font-size: 11px;
+            font-size: 12px;
             font-weight: 800;
             color: #0f172a;
           }
           .text-highlight {
             color: #1e3a8a;
-            font-size: 12px;
+            font-size: 13px;
+            font-weight: 900;
           }
           .massar-font {
             font-family: monospace;
             color: #0284c7;
             font-weight: 900;
           }
-          /* Table */
+          /* Table: Stretched & Vertically Balanced */
+          .table-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 10px;
+          }
           .grades-table {
             width: 100%;
+            height: 100%;
             border-collapse: collapse;
-            margin-bottom: 8px;
           }
           .grades-table th, .grades-table td {
-            border: 1px solid #94a3b8;
-            padding: 4.5px 5.5px;
-            font-size: 9.5px;
+            border: 1px solid #64748b;
+            padding: 6px 6px;
+            font-size: 10px;
           }
           .grades-table th {
             background-color: #e2e8f0;
             color: #0f172a;
             font-weight: 800;
             text-transform: uppercase;
-            font-size: 8.5px;
+            font-size: 9px;
             text-align: center;
+            height: 28px;
           }
           .even-row {
             background-color: #f8fafc;
@@ -367,10 +382,12 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
           .col-subj {
             text-align: left;
             width: 25%;
+            font-weight: 800;
           }
           .subj-name {
             font-weight: 800;
             color: #0f172a;
+            font-size: 10.5px;
           }
           .subj-teacher {
             font-size: 8px;
