@@ -56,6 +56,7 @@ import {
   Pie,
   Cell
 } from 'recharts';
+import { resolveTeacherScope, ResolvedTeacherScope } from '@/lib/teacher-resolver';
 
 export default function DashboardPage() {
   const { t, dir } = useI18n();
@@ -64,6 +65,11 @@ export default function DashboardPage() {
   const notify = useNotify();
 
   const isStaffManager = profile?.role === 'SUPER_ADMIN' || profile?.role === 'ADMIN' || profile?.role === 'SUPERVISOR';
+  const isTeacher = profile?.role === 'TEACHER';
+
+  const [teacherScope, setTeacherScope] = useState<ResolvedTeacherScope | null>(null);
+  const [teacherClasses, setTeacherClasses] = useState<any[]>([]);
+  const [teacherTotalStudents, setTeacherTotalStudents] = useState<number>(0);
 
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [selectedAnn, setSelectedAnn] = useState<any | null>(null);
@@ -118,6 +124,20 @@ export default function DashboardPage() {
       try {
         setLoading(true);
         const supabase = createClient();
+
+        // 0. If TEACHER, load teacher-scoped classes and student metrics
+        if (profile?.role === 'TEACHER') {
+          const scope = await resolveTeacherScope(profile);
+          setTeacherScope(scope);
+          if (scope.allowedClassIds.length > 0) {
+            const [{ data: scopedClasses }, { data: scopedStudents }] = await Promise.all([
+              supabase.from('classes').select('*').in('id', scope.allowedClassIds).order('name'),
+              supabase.from('students').select('id, class_id').in('class_id', scope.allowedClassIds),
+            ]);
+            setTeacherClasses(scopedClasses || []);
+            setTeacherTotalStudents((scopedStudents || []).length);
+          }
+        }
 
         // 1. Current Week Dates (Monday to Saturday)
         const now = new Date();
@@ -302,7 +322,7 @@ export default function DashboardPage() {
     }
 
     loadAllLiveStats();
-  }, [t, dir]);
+  }, [t, dir, profile]);
 
   const handleQuickPublishAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -500,374 +520,488 @@ export default function DashboardPage() {
           })()
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 items-stretch">
-          <Link href="/students" className="block group h-full">
-            <StatCard
-              title={t('total_students_card')}
-              value={loading ? '...' : `${stats.studentsCount} ${t('student')}`}
-              subtitle={t('active_enrolled')}
-              icon={GraduationCap}
-              color="cyan"
-              trend={{ value: '+8.5%', isPositive: true }}
-            />
-          </Link>
+        {/* TEACHER-SPECIFIC DASHBOARD VIEW */}
+        {isTeacher ? (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* 4 Teacher KPI Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 items-stretch">
+              <Link href="/attendance/students" className="block group h-full">
+                <StatCard
+                  title={dir === 'rtl' ? 'أقسامي المسندة' : 'Mes Classes Assignées'}
+                  value={loading ? '...' : `${teacherClasses.length} ${dir === 'rtl' ? 'أقسام' : 'Classes'}`}
+                  subtitle={dir === 'rtl' ? 'جدول الحصص المعتمد' : 'Classes de votre planning'}
+                  icon={GraduationCap}
+                  color="cyan"
+                />
+              </Link>
 
-          <Link href="/teachers" className="block group h-full">
-            <StatCard
-              title={t('teaching_staff')}
-              value={loading ? '...' : `${stats.teachersCount} ${t('profs')}`}
-              subtitle={t('teachers_collaborators')}
-              icon={Users}
-              color="blue"
-            />
-          </Link>
+              <Link href="/students" className="block group h-full">
+                <StatCard
+                  title={dir === 'rtl' ? 'مجموع تلاميذي' : 'Effectif de Mes Classes'}
+                  value={loading ? '...' : `${teacherTotalStudents} ${dir === 'rtl' ? 'تلميذ' : 'Élèves'}`}
+                  subtitle={dir === 'rtl' ? 'في الأقسام المسندة إليك' : 'Élèves sous votre suivi'}
+                  icon={Users}
+                  color="blue"
+                />
+              </Link>
 
-          <Link href="/classes" className="block group h-full">
-            <StatCard
-              title={t('classes_rooms')}
-              value={loading ? '...' : `${stats.classesCount} ${t('classes_unit')} / ${stats.roomsCount} ${t('rooms_unit')}`}
-              subtitle={t('divisions_locaux')}
-              icon={Building2}
-              color="orange"
-            />
-          </Link>
+              <Link href="/attendance/students" className="block group h-full">
+                <StatCard
+                  title={dir === 'rtl' ? 'ورقة الحضور اليومية' : 'Pointage Présence'}
+                  value={dir === 'rtl' ? 'تسجيل الغياب' : "Faire l'Appel"}
+                  subtitle={dir === 'rtl' ? 'متابعة حضور الحصص' : 'Suivi en temps réel'}
+                  icon={ClipboardList}
+                  color="emerald"
+                />
+              </Link>
 
-          <Link href="/stock" className="block group h-full">
-            <StatCard
-              title={t('stock_equipment')}
-              value={loading ? '...' : `${stats.totalStockUnits} ${t('units')}`}
-              subtitle={stats.lowStockCount + stats.outOfStockCount > 0 ? `${stats.lowStockCount + stats.outOfStockCount} ${t('low_stock_items')}` : t('stock_provisioned')}
-              icon={AlertTriangle}
-              color={stats.lowStockCount + stats.outOfStockCount > 0 ? 'gold' : 'cyan'}
-            />
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5 items-stretch">
-          <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between h-full min-h-[220px]">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="p-2 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0">
-                  <Boxes className="w-5 h-5" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white leading-tight">{t('economat_logistics')}</h3>
-                  <p className="text-[10px] text-slate-400 leading-tight">{t('store_suppliers')}</p>
-                </div>
-              </div>
-              <Link href="/stock" className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline shrink-0">
-                {t('manage')} &rarr;
+              <Link href="/timetable" className="block group h-full">
+                <StatCard
+                  title={dir === 'rtl' ? 'جدول حصصي' : 'Emploi du Temps'}
+                  value={dir === 'rtl' ? 'استعراض الحصص' : 'Consulter Planning'}
+                  subtitle={dir === 'rtl' ? 'القاعات والتوقيت' : 'Salles et horaires'}
+                  icon={CalendarDays}
+                  color="orange"
+                />
               </Link>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5 py-3">
-              <div className="h-[74px] p-2.5 sm:p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 flex flex-col justify-center">
-                <div className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wide leading-tight">{t('articles_referenced')}</div>
-                <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white mt-1 leading-tight">
-                  {stats.totalStockArticles} {t('articles_unit')}
+            {/* Teacher Classes Grid */}
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400">
+                    <GraduationCap className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+                      {dir === 'rtl' ? 'الأقسام والمجموعات المسندة إليك' : 'Mes Classes & Groupes Pédagogiques'}
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      {dir === 'rtl' ? 'الوصول السريع لتسجيل الغياب وتصفح لوائح التلاميذ' : 'Accès rapide au pointage des présences et consultation des effectifs'}
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              <div className="h-[74px] p-2.5 sm:p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 flex flex-col justify-center">
-                <div className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wide leading-tight">{t('supplier_partners')}</div>
-                <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white mt-1 leading-tight">
-                  {stats.suppliersCount} {t('partners_unit')}
+              {teacherClasses.length === 0 ? (
+                <div className="py-10 text-center text-xs text-slate-400">
+                  {dir === 'rtl' ? 'لم يتم العثور على أقسام مسندة لحسابك بعد في جدول الحصص.' : 'Aucune classe ne vous a encore été assignée dans l\'emploi du temps.'}
                 </div>
-              </div>
-            </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {teacherClasses.map((c) => (
+                    <div
+                      key={c.id}
+                      className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 hover:shadow-md transition-all flex flex-col justify-between space-y-3"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-black text-base text-slate-900 dark:text-white">
+                            {c.name}
+                          </div>
+                          <div className="text-xs text-slate-400 font-semibold">
+                            {c.level} &bull; {c.group_name || 'Groupe Global'}
+                          </div>
+                        </div>
+                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-sky-100 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300">
+                          {c.capacity ? `${c.capacity} places` : 'Actif'}
+                        </span>
+                      </div>
 
-            <div className="flex items-center justify-between text-xs pt-2.5 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-slate-500">{t('dispatches_out')}:</span>
-              <span className="font-black text-emerald-600 dark:text-emerald-400 shrink-0">{stats.dispatchesCount} {t('dispatches_unit')}</span>
+                      <div className="flex items-center gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
+                        <Link
+                          href={`/attendance/students`}
+                          className="flex-1 py-1.5 px-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs text-center transition-colors shadow-xs"
+                        >
+                          {dir === 'rtl' ? 'تسجيل الغياب' : 'Faire l\'Appel'}
+                        </Link>
+                        <Link
+                          href={`/students`}
+                          className="py-1.5 px-3 rounded-xl bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold text-xs text-center transition-colors"
+                        >
+                          {dir === 'rtl' ? 'اللائحة' : 'Liste'}
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
+        ) : (
+          /* ADMINISTRATIVE FULL DASHBOARD VIEW (ADMIN / SUPER_ADMIN) */
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 items-stretch">
+              <Link href="/students" className="block group h-full">
+                <StatCard
+                  title={t('total_students_card')}
+                  value={loading ? '...' : `${stats.studentsCount} ${t('student')}`}
+                  subtitle={t('active_enrolled')}
+                  icon={GraduationCap}
+                  color="cyan"
+                  trend={{ value: '+8.5%', isPositive: true }}
+                />
+              </Link>
 
-          <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between h-full min-h-[220px]">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="p-2 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 shrink-0">
-                  <UserCheck className="w-5 h-5" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white leading-tight">{t('attendance_tracking')}</h3>
-                  <p className="text-[10px] text-slate-400 leading-tight">{t('collaborators_staff')}</p>
-                </div>
-              </div>
-              <Link href="/attendance/staff" className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline shrink-0">
-                {t('timesheet')} &rarr;
+              <Link href="/teachers" className="block group h-full">
+                <StatCard
+                  title={t('teaching_staff')}
+                  value={loading ? '...' : `${stats.teachersCount} ${t('profs')}`}
+                  subtitle={t('teachers_collaborators')}
+                  icon={Users}
+                  color="blue"
+                />
+              </Link>
+
+              <Link href="/classes" className="block group h-full">
+                <StatCard
+                  title={t('classes_rooms')}
+                  value={loading ? '...' : `${stats.classesCount} ${t('classes_unit')} / ${stats.roomsCount} ${t('rooms_unit')}`}
+                  subtitle={t('divisions_locaux')}
+                  icon={Building2}
+                  color="orange"
+                />
+              </Link>
+
+              <Link href="/stock" className="block group h-full">
+                <StatCard
+                  title={t('stock_equipment')}
+                  value={loading ? '...' : `${stats.totalStockUnits} ${t('units')}`}
+                  subtitle={stats.lowStockCount + stats.outOfStockCount > 0 ? `${stats.lowStockCount + stats.outOfStockCount} ${t('low_stock_items')}` : t('stock_provisioned')}
+                  icon={AlertTriangle}
+                  color={stats.lowStockCount + stats.outOfStockCount > 0 ? 'gold' : 'cyan'}
+                />
               </Link>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5 py-3">
-              <div className="h-[74px] p-2.5 sm:p-3 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/50 flex flex-col justify-center">
-                <div className="text-[9.5px] font-bold text-emerald-600 uppercase tracking-wide leading-tight">{t('attendance_rate')}</div>
-                <div className="text-sm sm:text-base font-black text-emerald-700 dark:text-emerald-300 mt-1 leading-tight">
-                  {stats.attendanceRate}%
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5 items-stretch">
+              <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between h-full min-h-[220px]">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="p-2 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0">
+                      <Boxes className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white leading-tight">{t('economat_logistics')}</h3>
+                      <p className="text-[10px] text-slate-400 leading-tight">{t('store_suppliers')}</p>
+                    </div>
+                  </div>
+                  <Link href="/stock" className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline shrink-0">
+                    {t('manage')} &rarr;
+                  </Link>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5 py-3">
+                  <div className="h-[74px] p-2.5 sm:p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 flex flex-col justify-center">
+                    <div className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wide leading-tight">{t('articles_referenced')}</div>
+                    <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white mt-1 leading-tight">
+                      {stats.totalStockArticles} {t('articles_unit')}
+                    </div>
+                  </div>
+
+                  <div className="h-[74px] p-2.5 sm:p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 flex flex-col justify-center">
+                    <div className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wide leading-tight">{t('supplier_partners')}</div>
+                    <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white mt-1 leading-tight">
+                      {stats.suppliersCount} {t('partners_unit')}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-xs pt-2.5 border-t border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-500">{t('dispatches_out')}:</span>
+                  <span className="font-black text-emerald-600 dark:text-emerald-400 shrink-0">{stats.dispatchesCount} {t('dispatches_unit')}</span>
                 </div>
               </div>
 
-              <div className="h-[74px] p-2.5 sm:p-3 rounded-2xl bg-blue-50/60 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50 flex flex-col justify-center">
-                <div className="text-[9.5px] font-bold text-blue-600 uppercase tracking-wide leading-tight">{t('active_workforce')}</div>
-                <div className="text-sm sm:text-base font-black text-blue-700 dark:text-blue-300 mt-1 leading-tight">
-                  {stats.teachersCount} {t('members')}
+              <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between h-full min-h-[220px]">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="p-2 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 shrink-0">
+                      <UserCheck className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white leading-tight">{t('attendance_tracking')}</h3>
+                      <p className="text-[10px] text-slate-400 leading-tight">{t('collaborators_staff')}</p>
+                    </div>
+                  </div>
+                  <Link href="/attendance/staff" className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline shrink-0">
+                    {t('timesheet')} &rarr;
+                  </Link>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5 py-3">
+                  <div className="h-[74px] p-2.5 sm:p-3 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/50 flex flex-col justify-center">
+                    <div className="text-[9.5px] font-bold text-emerald-600 uppercase tracking-wide leading-tight">{t('attendance_rate')}</div>
+                    <div className="text-sm sm:text-base font-black text-emerald-700 dark:text-emerald-300 mt-1 leading-tight">
+                      {stats.attendanceRate}%
+                    </div>
+                  </div>
+
+                  <div className="h-[74px] p-2.5 sm:p-3 rounded-2xl bg-blue-50/60 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50 flex flex-col justify-center">
+                    <div className="text-[9.5px] font-bold text-blue-600 uppercase tracking-wide leading-tight">{t('active_workforce')}</div>
+                    <div className="text-sm sm:text-base font-black text-blue-700 dark:text-blue-300 mt-1 leading-tight">
+                      {stats.teachersCount} {t('members')}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-xs pt-2.5 border-t border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-500">{t('active_substitutions')}:</span>
+                  <span className="font-black text-purple-600 dark:text-purple-400 shrink-0">{stats.substitutionsCount} {t('substitutions_unit')}</span>
+                </div>
+              </div>
+
+              <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between h-full min-h-[220px]">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="p-2 rounded-xl bg-orange-500/15 text-orange-600 dark:text-orange-400 shrink-0">
+                      <DoorClosed className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white leading-tight">{t('premises_rooms')}</h3>
+                      <p className="text-[10px] text-slate-400 leading-tight">{t('salles_labs')}</p>
+                    </div>
+                  </div>
+                  <Link href="/rooms" className="text-xs font-bold text-orange-600 dark:text-orange-400 hover:underline shrink-0">
+                    {t('see')} &rarr;
+                  </Link>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5 py-3">
+                  <div className="h-[74px] p-2.5 sm:p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 flex flex-col justify-center">
+                    <div className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wide leading-tight">{t('classrooms')}</div>
+                    <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white mt-1 leading-tight">
+                      {stats.roomsCount} {t('rooms_unit')}
+                    </div>
+                  </div>
+
+                  <div className="h-[74px] p-2.5 sm:p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 flex flex-col justify-center">
+                    <div className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wide leading-tight">{t('classes_levels')}</div>
+                    <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white mt-1 leading-tight">
+                      {stats.classesCount} {t('classes_unit')}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-xs pt-2.5 border-t border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-500">{t('occupancy_rate')}:</span>
+                  <span className="font-black text-sky-600 dark:text-sky-400 shrink-0">{t('optimized')} (100%)</span>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-xs pt-2.5 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-slate-500">{t('active_substitutions')}:</span>
-              <span className="font-black text-purple-600 dark:text-purple-400 shrink-0">{stats.substitutionsCount} {t('substitutions_unit')}</span>
-            </div>
-          </div>
-
-          <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between h-full min-h-[220px]">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="p-2 rounded-xl bg-orange-500/15 text-orange-600 dark:text-orange-400 shrink-0">
-                  <DoorClosed className="w-5 h-5" />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
+              <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between min-h-[380px]">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                      {t('weekly_attendance_chart')}
+                    </h3>
+                    <p className="text-xs text-slate-500">{t('synced_attendance_sheet')}</p>
+                  </div>
+                  <span className="px-3 py-1 text-xs font-bold rounded-full bg-sky-100 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 border border-sky-300/40 shrink-0">
+                    {stats.attendanceRate}% {t('weekly_average')}
+                  </span>
                 </div>
-                <div className="min-w-0">
-                  <h3 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white leading-tight">{t('premises_rooms')}</h3>
-                  <p className="text-[10px] text-slate-400 leading-tight">{t('salles_labs')}</p>
-                </div>
-              </div>
-              <Link href="/rooms" className="text-xs font-bold text-orange-600 dark:text-orange-400 hover:underline shrink-0">
-                {t('see')} &rarr;
-              </Link>
-            </div>
 
-            <div className="grid grid-cols-2 gap-2.5 py-3">
-              <div className="h-[74px] p-2.5 sm:p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 flex flex-col justify-center">
-                <div className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wide leading-tight">{t('classrooms')}</div>
-                <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white mt-1 leading-tight">
-                  {stats.roomsCount} {t('rooms_unit')}
-                </div>
-              </div>
-
-              <div className="h-[74px] p-2.5 sm:p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 flex flex-col justify-center">
-                <div className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wide leading-tight">{t('classes_levels')}</div>
-                <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white mt-1 leading-tight">
-                  {stats.classesCount} {t('classes_unit')}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between text-xs pt-2.5 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-slate-500">{t('occupancy_rate')}:</span>
-              <span className="font-black text-sky-600 dark:text-sky-400 shrink-0">{t('optimized')} (100%)</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
-          <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between min-h-[380px]">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
-                  {t('weekly_attendance_chart')}
-                </h3>
-                <p className="text-xs text-slate-500">{t('synced_attendance_sheet')}</p>
-              </div>
-              <span className="px-3 py-1 text-xs font-bold rounded-full bg-sky-100 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 border border-sky-300/40 shrink-0">
-                {stats.attendanceRate}% {t('weekly_average')}
-              </span>
-            </div>
-
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={attendanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
-                  <YAxis tickLine={false} axisLine={false} domain={[0, 100]} tick={{ fill: '#64748b', fontSize: 12 }} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#0f172a',
-                      borderRadius: '12px',
-                      color: '#fff',
-                      border: '1px solid rgba(56, 189, 248, 0.2)',
-                      fontSize: '12px',
-                    }}
-                  />
-                  <Bar dataKey="presents" fill="#0284c7" radius={[8, 8, 0, 0]} name={dir === 'rtl' ? 'الحضور (%)' : 'Présents (%)'} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between min-h-[380px]">
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
-                  {t('headcount_by_cycle')}
-                </h3>
-                <GraduationCap className="w-4 h-4 text-sky-500" />
-              </div>
-              <p className="text-xs text-slate-500">{t('real_student_distribution')}</p>
-
-              <div className="h-44 w-full my-2">
-                <ResponsiveContainer width="100%" height="100%">
-                  {stats.studentsCount > 0 ? (
-                    <PieChart>
-                      <Pie
-                        data={cycleDistribution}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={70}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        {cycleDistribution.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={attendanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
+                      <YAxis tickLine={false} axisLine={false} domain={[0, 100]} tick={{ fill: '#64748b', fontSize: 12 }} />
                       <Tooltip
-                        formatter={(val: unknown) => `${Number(val || 0)} ${t('student')}`}
-                        contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', color: '#fff', border: '1px solid rgba(56, 189, 248, 0.2)' }}
+                        contentStyle={{
+                          backgroundColor: '#0f172a',
+                          borderRadius: '12px',
+                          color: '#fff',
+                          border: '1px solid rgba(56, 189, 248, 0.2)',
+                          fontSize: '12px',
+                        }}
                       />
-                    </PieChart>
+                      <Bar dataKey="presents" fill="#0284c7" radius={[8, 8, 0, 0]} name={dir === 'rtl' ? 'الحضور (%)' : 'Présents (%)'} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between min-h-[380px]">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                      {t('headcount_by_cycle')}
+                    </h3>
+                    <GraduationCap className="w-4 h-4 text-sky-500" />
+                  </div>
+                  <p className="text-xs text-slate-500">{t('real_student_distribution')}</p>
+
+                  <div className="h-44 w-full my-2">
+                    <ResponsiveContainer width="100%" height="100%">
+                      {stats.studentsCount > 0 ? (
+                        <PieChart>
+                          <Pie
+                            data={cycleDistribution}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={50}
+                            outerRadius={70}
+                            paddingAngle={5}
+                            dataKey="value"
+                          >
+                            {cycleDistribution.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(val: unknown) => `${Number(val || 0)} ${t('student')}`}
+                            contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', color: '#fff', border: '1px solid rgba(56, 189, 248, 0.2)' }}
+                          />
+                        </PieChart>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-xs text-slate-400 font-medium">
+                          {dir === 'rtl' ? 'لا يوجد تلاميذ مسجلين حالياً' : 'Aucun élève inscrit actuellement'}
+                        </div>
+                      )}
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="space-y-2 mt-2">
+                    {cycleDistribution.map((item, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                          <span className="text-slate-600 dark:text-slate-300 font-medium truncate">{item.name}</span>
+                        </div>
+                        <span className="font-bold text-slate-900 dark:text-white shrink-0">
+                          {item.value} {t('student')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-3 mt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs">
+                  <span className="text-slate-500 font-medium">{t('total_students')}:</span>
+                  <span className="font-black text-sky-600 dark:text-sky-400">{stats.studentsCount} {t('student')}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
+              <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between h-full min-h-[340px] space-y-3">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="p-2 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400 shrink-0">
+                      <ShoppingBag className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-sm text-slate-900 dark:text-white truncate">{t('recent_stock_dispatches')}</h3>
+                      <p className="text-[11px] text-slate-400 truncate">{t('supplies_consumables')}</p>
+                    </div>
+                  </div>
+                  <Link href="/stock" className="text-xs font-bold text-rose-600 dark:text-rose-400 hover:underline shrink-0">
+                    {t('stock_journal')} &rarr;
+                  </Link>
+                </div>
+
+                <div className="space-y-2.5 flex-1 flex flex-col justify-start">
+                  {recentMovements.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-slate-400 my-auto">
+                      {t('no_recent_outflow')}
+                    </div>
                   ) : (
-                    <div className="h-full flex items-center justify-center text-xs text-slate-400 font-medium">
-                      {dir === 'rtl' ? 'لا يوجد تلاميذ مسجلين حالياً' : 'Aucun élève inscrit actuellement'}
-                    </div>
+                    recentMovements.slice(0, 4).map((mov) => (
+                      <div
+                        key={mov.id}
+                        className="h-[58px] p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 flex items-center justify-between text-xs"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-8 h-8 rounded-full bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 font-bold flex items-center justify-center text-xs shrink-0">
+                            -
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-bold text-slate-900 dark:text-white truncate">
+                              {mov.product?.name || (dir === 'rtl' ? 'مستلزمات عامة' : 'Article divers')}
+                            </div>
+                            <div className="text-[11px] text-slate-400 truncate">
+                              {mov.destination || (dir === 'rtl' ? 'استخدام داخلي' : 'Usage interne')}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <span className="font-black text-rose-600 dark:text-rose-400">
+                            -{mov.quantity} {mov.product?.unit || 'U'}
+                          </span>
+                          <div className="text-[10px] text-slate-400">
+                            {new Date(mov.created_at).toLocaleDateString(dir === 'rtl' ? 'ar-MA' : 'fr-FR')}
+                          </div>
+                        </div>
+                      </div>
+                    ))
                   )}
-                </ResponsiveContainer>
+                </div>
               </div>
 
-              <div className="space-y-2 mt-2">
-                {cycleDistribution.map((item, i) => (
-                  <div key={i} className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                      <span className="text-slate-600 dark:text-slate-300 font-medium truncate">{item.name}</span>
+              <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between h-full min-h-[340px] space-y-3">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="p-2 rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400 shrink-0">
+                      <UserPlus className="w-4 h-4" />
                     </div>
-                    <span className="font-bold text-slate-900 dark:text-white shrink-0">
-                      {item.value} {t('student')}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="pt-3 mt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs">
-              <span className="text-slate-500 font-medium">{t('total_students')}:</span>
-              <span className="font-black text-sky-600 dark:text-sky-400">{stats.studentsCount} {t('student')}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between h-full min-h-[340px] space-y-3">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="p-2 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 shrink-0">
-                  <Send className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="font-bold text-sm text-slate-900 dark:text-white truncate">{t('recent_stock_movements')}</h3>
-                  <p className="text-[11px] text-slate-400 truncate">{t('dispatches_out')}</p>
-                </div>
-              </div>
-              <Link href="/stock" className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline shrink-0">
-                {t('all_stock')} &rarr;
-              </Link>
-            </div>
-
-            <div className="space-y-2.5 flex-1 flex flex-col justify-start">
-              {recentMovements.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-400 my-auto">
-                  {t('no_recent_movements')}
-                </div>
-              ) : (
-                recentMovements.slice(0, 4).map((mov) => (
-                  <div
-                    key={mov.id}
-                    className="h-[58px] p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 flex items-center justify-between text-xs"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="font-mono text-[10px] font-bold text-slate-400 shrink-0">
-                        {mov.voucher_number || `BS-${mov.id.slice(-4)}`}
-                      </span>
-                      <div className="min-w-0">
-                        <div className="font-bold text-slate-900 dark:text-white truncate">
-                          {mov.product?.name || t('article')}
-                        </div>
-                        <div className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold truncate">
-                          {mov.requested_by || 'Personnel GM'}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="text-right shrink-0">
-                      <span className="font-black text-rose-600 dark:text-rose-400">
-                        -{mov.quantity} {mov.product?.unit || 'U'}
-                      </span>
-                      <div className="text-[10px] text-slate-400">
-                        {new Date(mov.created_at).toLocaleDateString(dir === 'rtl' ? 'ar-MA' : 'fr-FR')}
-                      </div>
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-sm text-slate-900 dark:text-white truncate">{t('recent_student_registrations')}</h3>
+                      <p className="text-[11px] text-slate-400 truncate">{t('students_page_title')}</p>
                     </div>
                   </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between h-full min-h-[340px] space-y-3">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="p-2 rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400 shrink-0">
-                  <UserPlus className="w-4 h-4" />
+                  <Link href="/students" className="text-xs font-bold text-sky-600 dark:text-sky-400 hover:underline shrink-0">
+                    {t('all_students')} &rarr;
+                  </Link>
                 </div>
-                <div className="min-w-0">
-                  <h3 className="font-bold text-sm text-slate-900 dark:text-white truncate">{t('recent_student_registrations')}</h3>
-                  <p className="text-[11px] text-slate-400 truncate">{t('students_page_title')}</p>
+
+                <div className="space-y-2.5 flex-1 flex flex-col justify-start">
+                  {recentStudents.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-slate-400 my-auto">
+                      {t('no_recent_students')}
+                    </div>
+                  ) : (
+                    recentStudents.map((st) => (
+                      <div
+                        key={st.id}
+                        className="h-[58px] p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 flex items-center justify-between text-xs"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-500 to-blue-600 text-white font-bold flex items-center justify-center text-xs shrink-0">
+                            {st.first_name?.[0] || 'E'}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-bold text-slate-900 dark:text-white truncate">
+                              {st.first_name} {st.last_name}
+                            </div>
+                            <div className="text-[11px] text-slate-400 truncate">
+                              {st.class?.name || (dir === 'rtl' ? 'قسم عام' : 'Classe standard')}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300">
+                            <CheckCircle2 className="w-2.5 h-2.5" />
+                            <span>{t('active')}</span>
+                          </span>
+                          <div className="text-[10px] text-slate-400 mt-0.5">
+                            {new Date(st.created_at || Date.now()).toLocaleDateString(dir === 'rtl' ? 'ar-MA' : 'fr-FR')}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
-              <Link href="/students" className="text-xs font-bold text-sky-600 dark:text-sky-400 hover:underline shrink-0">
-                {t('all_students')} &rarr;
-              </Link>
             </div>
-
-            <div className="space-y-2.5 flex-1 flex flex-col justify-start">
-              {recentStudents.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-400 my-auto">
-                  {t('no_recent_students')}
-                </div>
-              ) : (
-                recentStudents.map((st) => (
-                  <div
-                    key={st.id}
-                    className="h-[58px] p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 flex items-center justify-between text-xs"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-500 to-blue-600 text-white font-bold flex items-center justify-center text-xs shrink-0">
-                        {st.first_name?.[0] || 'E'}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="font-bold text-slate-900 dark:text-white truncate">
-                          {st.first_name} {st.last_name}
-                        </div>
-                        <div className="text-[11px] text-slate-400 truncate">
-                          {st.class?.name || (dir === 'rtl' ? 'قسم عام' : 'Classe standard')}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="text-right shrink-0">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300">
-                        <CheckCircle2 className="w-2.5 h-2.5" />
-                        <span>{t('active')}</span>
-                      </span>
-                      <div className="text-[10px] text-slate-400 mt-0.5">
-                        {new Date(st.created_at || Date.now()).toLocaleDateString(dir === 'rtl' ? 'ar-MA' : 'fr-FR')}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
+          </>
+        )}
 
         {/* 5. LIVE ANNOUNCEMENTS & OFFICIAL NOTICES BOARD */}
         <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
