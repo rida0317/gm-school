@@ -295,13 +295,7 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
           <!-- Row 3: Official Director Signature & Stamp -->
           <div class="signature-section">
             <div class="signature-title">Signature et cachet du directeur :</div>
-            <div class="director-stamp-area">
-              <div class="stamp-placeholder">
-                <div class="stamp-circle">
-                  <div class="stamp-inner-text">GROUPE SCOLAIRE<br><strong>DES GÉNÉRATIONS MONTANTES</strong><br>DIRECTION PÉDAGOGIQUE</div>
-                </div>
-              </div>
-            </div>
+            <div class="director-stamp-space"></div>
           </div>
         </div>
       </div>
