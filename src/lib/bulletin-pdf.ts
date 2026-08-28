@@ -98,23 +98,25 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
               <img src="${fullLogoSrc}" alt="Logo" class="logo-img" />
             </div>
             <div class="gov-text-block">
-              <div class="gov-ar">المملكة المغربية</div>
-              <div class="gov-ar-sub">وزارة التربية الوطنية والتعليم الأولي والرياضة</div>
-              <div class="gov-fr">Royaume du Maroc</div>
-              <div class="gov-fr-sub">Ministère de l'Éducation Nationale, du Préscolaire et des Sports</div>
+              <div class="gov-ar">المملكة المغربية &bull; وزارة التربية الوطنية والتعليم الأولي والرياضة</div>
+              <div class="school-name-ar">مجموعة مدارس الأجيال الصاعدة</div>
+              <div class="gov-fr">ROYAUME DU MAROC &bull; MINISTÈRE DE L'ÉDUCATION NATIONALE</div>
+              <div class="school-name-fr">GROUPE SCOLAIRE DES GÉNÉRATIONS MONTANTES</div>
+              <div class="school-sub-bilingual">التعليم المدرسي الخصوصي &bull; Enseignement Privé &bull; Marrakech - Guéliz</div>
             </div>
           </div>
 
           <div class="header-col-center">
             <div class="bulletin-title">Bulletin du ${semesterLabel}</div>
-            <div class="academic-year-text">Année scolaire : ${rc.academic_year || academicYear}</div>
+            <div class="bulletin-sub-title">كشف نقط الدورة</div>
+            <div class="academic-year-text">Année scolaire / الموسم الدراسي : ${rc.academic_year || academicYear}</div>
           </div>
 
           <div class="header-col-right">
-            <div class="acad-title">Académie Régionale d'Education et de Formation</div>
-            <div class="acad-item"><strong>Région :</strong> Marrakech-Safi (جهة مراكش - آسفي)</div>
-            <div class="acad-item"><strong>D.Provinciale :</strong> Marrakech - Guéliz (مراكش - جليز)</div>
-            <div class="acad-item"><strong>Etablissement :</strong> <span class="school-name-text">${schoolName}</span></div>
+            <div class="acad-title">الأكاديمية الجهوية للتربية والتكوين &bull; AREF</div>
+            <div class="acad-item"><strong>الجهة / Région :</strong> مراكش - آسفي &bull; Marrakech-Safi</div>
+            <div class="acad-item"><strong>المديرية / D.Provinciale :</strong> مراكش - جليز &bull; Marrakech - Guéliz</div>
+            <div class="acad-item"><strong>المؤسسة / Etablissement :</strong> <span class="school-name-text">G.S GÉNÉRATIONS MONTANTES</span></div>
           </div>
         </div>
 
@@ -366,23 +368,33 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             line-height: 1.25;
           }
           .gov-ar {
-            font-size: 9.5px;
-            font-weight: 800;
-          }
-          .gov-ar-sub {
             font-size: 8px;
             font-weight: 700;
-            color: #333333;
+            color: #475569;
+          }
+          .school-name-ar {
+            font-size: 11px;
+            font-weight: 900;
+            color: #000000;
+            margin: 1px 0;
           }
           .gov-fr {
-            font-size: 9px;
-            font-weight: 800;
-            text-transform: uppercase;
-            margin-top: 1px;
-          }
-          .gov-fr-sub {
             font-size: 7.5px;
-            color: #444444;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #475569;
+          }
+          .school-name-fr {
+            font-size: 10px;
+            font-weight: 900;
+            color: #000000;
+            letter-spacing: 0.2px;
+          }
+          .school-sub-bilingual {
+            font-size: 7.5px;
+            color: #64748b;
+            font-weight: 600;
+            margin-top: 1px;
           }
           .header-col-center {
             text-align: center;
@@ -390,10 +402,15 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             padding-top: 2px;
           }
           .bulletin-title {
-            font-size: 14px;
+            font-size: 13.5px;
             font-weight: 900;
             text-transform: uppercase;
             letter-spacing: 0.3px;
+          }
+          .bulletin-sub-title {
+            font-size: 10px;
+            font-weight: 800;
+            color: #334155;
           }
           .academic-year-text {
             font-size: 11px;
