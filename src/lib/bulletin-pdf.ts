@@ -71,66 +71,6 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
       }
     }
 
-    // Format Moroccan Primary Subject Names with official components
-    const formatSubjectDisplayName = (name: string) => {
-      const lower = name.toLowerCase();
-      if (lower.includes('arabe') || lower.includes('عربية')) {
-        return `
-          <div class="subj-main-title">اللغة العربية (8 مكونات رسمية)</div>
-          <div class="subj-components-list">الاستماع والتحدث &bull; القراءة &bull; التراكيب &bull; الصرف والتحويل &bull; الإملاء &bull; التطبيقات الكتابية &bull; التعبير الكتابي والإنشاء &bull; مشروع الوحدة</div>
-        `;
-      }
-      if (lower.includes('français') || lower.includes('francais')) {
-        return `
-          <div class="subj-main-title">Langue Française (Composantes officielles)</div>
-          <div class="subj-components-list">Compréhension de l'écrit &bull; Activités de langue &bull; Production écrite &bull; Communication orale &bull; Écriture</div>
-        `;
-      }
-      if (lower.includes('math') || lower.includes('رياضيات')) {
-        return `
-          <div class="subj-main-title">الرياضيات / Mathématiques</div>
-          <div class="subj-components-list">الأعداد والحساب &bull; الهندسة والقياس &bull; تنظيم ومعالجة البيانات</div>
-        `;
-      }
-      if (lower.includes('éveil') || lower.includes('eveil') || lower.includes('scientifique') || lower.includes('نشاط')) {
-        return `
-          <div class="subj-main-title">النشاط العلمي / Éveil Scientifique</div>
-          <div class="subj-components-list">العلوم الفيزيائية والبيولوجية والتكنولوجية</div>
-        `;
-      }
-      if (lower.includes('islam') || lower.includes('إسلامية') || lower.includes('اسلامية')) {
-        return `
-          <div class="subj-main-title">التربية الإسلامية / Éducation Islamique</div>
-          <div class="subj-components-list">التزكية (القرآن والعقيدة) &bull; الاقتداء &bull; الاستجابة &bull; القسط &bull; الحكمة</div>
-        `;
-      }
-      if (lower.includes('art') || lower.includes('فنية') || lower.includes('تشكيل')) {
-        return `
-          <div class="subj-main-title">التربية الفنية / Éducation Artistique</div>
-          <div class="subj-components-list">الفنون التشكيلية والرسم &bull; الموسيقى والأناشيد &bull; المسرح</div>
-        `;
-      }
-      if (lower.includes('physique') || lower.includes('sport') || lower.includes('بدنية')) {
-        return `
-          <div class="subj-main-title">التربية البدنية / Éducation Physique</div>
-          <div class="subj-components-list">الأنشطة الحركية والرياضية المدرسية</div>
-        `;
-      }
-      if (lower.includes('anglais') || lower.includes('إنجليزية') || lower.includes('انجليزية')) {
-        return `
-          <div class="subj-main-title">Langue Anglaise / اللغة الإنجليزية</div>
-          <div class="subj-components-list">Oral communication &bull; Reading &bull; Writing activities</div>
-        `;
-      }
-      if (lower.includes('amazigh') || lower.includes('أمازيغية')) {
-        return `
-          <div class="subj-main-title">اللغة الأمازيغية / Langue Amazighe</div>
-          <div class="subj-components-list">تيفيناغ &bull; التواصل الشفهي &bull; القراءة والكتابة</div>
-        `;
-      }
-      return `<div class="subj-main-title">${name}</div>`;
-    };
-
     const rowsHtml = rc.subjects.map((sub, idx) => {
       const cc1Val = sub.scores.cc1 !== null && sub.scores.cc1 !== undefined ? sub.scores.cc1.toFixed(2) : '—';
       const cc2Val = sub.scores.cc2 !== null && sub.scores.cc2 !== undefined ? sub.scores.cc2.toFixed(2) : '—';
@@ -150,20 +90,19 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
       const appreciation = sub.appreciation || (
         sub.average !== null && sub.average !== undefined
           ? sub.average >= veryGoodThreshold
-            ? (isPrimary ? 'ممتاز، واصل تألقك 🌟 / Excellent' : 'Excellent travail, continuez ainsi')
+            ? (isPrimary ? 'ممتاز، واصل تألقك 🌟' : 'Excellent travail, continuez ainsi')
             : sub.average >= goodThreshold
-            ? (isPrimary ? 'عمل جيد جداً 🎖️ / Très Bon' : 'Bon travail, résultats satisfaisants')
+            ? (isPrimary ? 'عمل جيد جداً 🎖️' : 'Bon travail, résultats satisfaisants')
             : sub.average >= passThreshold
-            ? (isPrimary ? 'مستحسن، يمكن تحسين الأداء 👏 / Convenable' : 'Résultats convenables, peut mieux faire')
-            : (isPrimary ? 'تعثر في بعض المكونات، يحتاج لدعم ⚠️ / Soutien requis' : 'Des difficultés, un travail régulier est nécessaire')
+            ? (isPrimary ? 'مستحسن، يمكن تحسين الأداء 👏' : 'Résultats convenables, peut mieux faire')
+            : (isPrimary ? 'تعثر في بعض الدروس، يحتاج لدعم ⚠️' : 'Des difficultés, un travail régulier est nécessaire')
           : '—'
       );
 
       return `
         <tr class="${idx % 2 === 1 ? 'even-row' : ''}">
           <td class="col-subj">
-            ${formatSubjectDisplayName(sub.subject_name)}
-            ${sub.teacher_name ? `<div class="subj-teacher">الأستاذ(ة): ${sub.teacher_name}</div>` : ''}
+            <div class="subj-main-title">${sub.subject_name}</div>
           </td>
           <td class="col-score text-center">${cc1Val}</td>
           <td class="col-score text-center">${cc2Val}</td>
@@ -187,35 +126,35 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
           <div class="header-left">
             <img src="${fullLogoSrc}" alt="Logo" class="logo-img" />
             <div class="school-titles">
-              <div class="gov-text">المملكة المغربية &bull; وزارة التربية الوطنية والتعليم الأولي والرياضة</div>
+              <div class="gov-text">${isPrimary ? 'المملكة المغربية &bull; وزارة التربية الوطنية والتعليم الأولي والرياضة' : "ROYAUME DU MAROC &bull; MINISTÈRE DE L'ÉDUCATION NATIONALE"}</div>
               <div class="school-name">${schoolName}</div>
-              <div class="sub-text">${isPrimary ? 'سلك التعليم الابتدائي المعتمد &bull; Cycle Primaire MEN' : 'Enseignement Privé &bull; Maternelle - Primaire - Collège - Lycée'}</div>
+              <div class="sub-text">${isPrimary ? 'سلك التعليم الابتدائي &bull; Enseignement Primaire' : 'Enseignement Privé &bull; Maternelle - Primaire - Collège - Lycée'}</div>
             </div>
           </div>
           <div class="header-right">
             <div class="badge-bulletin">${isPrimary ? 'كشف نقط سلك الابتدائي (10/10)' : 'BULLETIN SCOLAIRE OFFICIEL'}</div>
-            <div class="meta-row"><strong>الدورة / Semestre :</strong> ${rc.semester === 'S1' ? 'الدورة الأولى (S1)' : 'الدورة الثانية (S2)'}</div>
-            <div class="meta-row"><strong>الموسم الدراسي :</strong> ${rc.academic_year || academicYear}</div>
+            <div class="meta-row"><strong>${isPrimary ? 'الدورة :' : 'Semestre :'}</strong> ${rc.semester === 'S1' ? (isPrimary ? 'الدورة الأولى (S1)' : 'Semestre 1 (S1)') : (isPrimary ? 'الدورة الثانية (S2)' : 'Semestre 2 (S2)')}</div>
+            <div class="meta-row"><strong>${isPrimary ? 'الموسم الدراسي :' : 'Année Scolaire :'}</strong> ${rc.academic_year || academicYear}</div>
           </div>
         </div>
 
         <!-- Student ID Card -->
         <div class="student-id-grid">
           <div class="id-item">
-            <span class="id-label">${isPrimary ? 'اسم التلميذ(ة) / Nom & Prénom :' : 'Nom & Prénom :'}</span>
+            <span class="id-label">${isPrimary ? 'اسم التلميذ(ة) / Nom :' : 'Nom &amp; Prénom :'}</span>
             <span class="id-value text-highlight">${rc.student_name}</span>
           </div>
           <div class="id-item">
-            <span class="id-label">${isPrimary ? 'رمز مسار / Code Massar :' : 'Code Massar :'}</span>
+            <span class="id-label">${isPrimary ? 'رمز مسار / Massar :' : 'Code Massar :'}</span>
             <span class="id-value massar-font">${rc.massar_code || '—'}</span>
           </div>
           <div class="id-item">
-            <span class="id-label">${isPrimary ? 'المستوى والقسم / Classe :' : 'Classe :'}</span>
+            <span class="id-label">${isPrimary ? 'القسم / Classe :' : 'Classe :'}</span>
             <span class="id-value">${rc.class_name} (${rc.level})</span>
           </div>
           <div class="id-item">
-            <span class="id-label">${isPrimary ? 'العدد الإجمالي / Effectif :' : 'Effectif :'}</span>
-            <span class="id-value">${rc.total_students} تلميذاً</span>
+            <span class="id-label">${isPrimary ? 'العدد / Effectif :' : 'Effectif de la classe :'}</span>
+            <span class="id-value">${rc.total_students} ${isPrimary ? 'تلميذاً' : 'élèves'}</span>
           </div>
         </div>
 
@@ -236,16 +175,16 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             </colgroup>
             <thead>
               <tr>
-                <th class="col-subj">${isPrimary ? 'المواد الدراسية والمكونات (Discipline & Composantes)' : 'Matière / Discipline'}</th>
+                <th class="col-subj">${isPrimary ? 'المادة الدراسية' : 'Matière / Discipline'}</th>
                 <th class="col-score">${isPrimary ? 'الفرض 1' : 'C.C 1'}</th>
                 <th class="col-score">${isPrimary ? 'الفرض 2' : 'C.C 2'}</th>
                 <th class="col-score">${isPrimary ? 'الفرض 3' : 'C.C 3'}</th>
                 <th class="col-score">${isPrimary ? 'الأنشطة' : 'Activités'}</th>
-                <th class="col-avg">${isPrimary ? 'معدل المادة' : 'Moyenne'}</th>
-                <th class="col-coeff">المعامل</th>
-                <th class="col-pts">النقطة</th>
-                <th class="col-stat">أدنى / أعلى</th>
-                <th class="col-apprec">${isPrimary ? 'ملاحظات الأستاذ(ة) والتقويم' : 'Appréciations des Enseignants'}</th>
+                <th class="col-avg">${isPrimary ? 'المعدل' : 'Moyenne'}</th>
+                <th class="col-coeff">${isPrimary ? 'المعامل' : 'Coeff'}</th>
+                <th class="col-pts">${isPrimary ? 'النقطة' : 'Points'}</th>
+                <th class="col-stat">${isPrimary ? 'أدنى / أعلى' : 'Min / Max'}</th>
+                <th class="col-apprec">${isPrimary ? 'ملاحظات الأساتذة والتقويم' : 'Appréciations des Enseignants'}</th>
               </tr>
             </thead>
             <tbody>
@@ -257,43 +196,43 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
         <!-- Summary KPI & Honors Section -->
         <div class="summary-container">
           <div class="kpi-box">
-            <div class="kpi-title">${isPrimary ? 'النتائج الإجمالية للدورة / RÉSULTATS DU SEMESTRE' : 'RÉSULTATS GLOBAUX DU SEMESTRE'}</div>
+            <div class="kpi-title">${isPrimary ? 'النتائج الإجمالية للدورة' : 'RÉSULTATS GLOBAUX DU SEMESTRE'}</div>
             <div class="kpi-grid">
               <div class="kpi-cell">
-                <div class="cell-label">مجموع النقط</div>
+                <div class="cell-label">${isPrimary ? 'مجموع النقط' : 'Total des Points'}</div>
                 <div class="cell-val">${rc.total_points.toFixed(2)}</div>
               </div>
               <div class="kpi-cell">
-                <div class="cell-label">مجموع المعاملات</div>
+                <div class="cell-label">${isPrimary ? 'مجموع المعاملات' : 'Total Coefficients'}</div>
                 <div class="cell-val">${rc.total_coefficients}</div>
               </div>
               <div class="kpi-cell highlight-avg">
-                <div class="cell-label">المعدل العام</div>
+                <div class="cell-label">${isPrimary ? 'المعدل العام' : 'MOYENNE GÉNÉRALE'}</div>
                 <div class="cell-val-lg">${rc.general_average.toFixed(2)} / ${maxScale}</div>
               </div>
               <div class="kpi-cell highlight-rank">
-                <div class="cell-label">الرتبة في القسم</div>
-                <div class="cell-val-lg">${rc.rank}${rc.rank === 1 ? 'er' : 'e'} <span class="rank-total">/ ${rc.total_students}</span></div>
+                <div class="cell-label">${isPrimary ? 'الرتبة في القسم' : 'RANG / CLASSEMENT'}</div>
+                <div class="cell-val-lg">${rc.rank}${rc.rank === 1 ? (isPrimary ? '' : 'er') : (isPrimary ? '' : 'ème')} <span class="rank-total">/ ${rc.total_students}</span></div>
               </div>
             </div>
 
             <!-- Assiduity & Discipline -->
             <div class="assiduity-strip">
-              <span><strong>${isPrimary ? 'المواظبة والغياب :' : 'Assiduité :'}</strong> ${rc.total_absences_hours}h (${rc.unexcused_absences_hours}h غير مبررة)</span>
-              <span><strong>${isPrimary ? 'السلوك والانضباط :' : 'Conduite :'}</strong> ${rc.conduct_mention || (isPrimary ? 'حسن جداً / Exemplaire' : 'Très Bonne')}</span>
+              <span><strong>${isPrimary ? 'المواظبة والغياب :' : 'Assiduité & Présence :'}</strong> ${rc.total_absences_hours}h (${rc.unexcused_absences_hours}h ${isPrimary ? 'غير مبررة' : 'non justifiées'})</span>
+              <span><strong>${isPrimary ? 'السلوك والانضباط :' : 'Conduite :'}</strong> ${rc.conduct_mention || (isPrimary ? 'حسن جداً' : 'Très Bonne')}</span>
             </div>
           </div>
 
           <div class="decision-box">
-            <div class="decision-title">${isPrimary ? 'قرار وملاحظة مجلس القسم / CONSEIL DE CLASSE' : 'DÉCISION DU CONSEIL DE CLASSE'}</div>
+            <div class="decision-title">${isPrimary ? 'قرار وملاحظة مجلس القسم' : 'DÉCISION DU CONSEIL DE CLASSE'}</div>
             <div class="mention-pill ${mentionBadgeClass}">${mentionText}</div>
             <div class="council-text">
               ${isPrimary
                 ? rc.general_average >= goodThreshold
                   ? 'يُشيد مجلس القسم بالنتائج الممتازة والانضباط النموذجي للتلميذ(ة) ويهنئه على هذا التألق والاجتهاد المستمر.'
                   : rc.general_average >= passThreshold
-                  ? 'نتائج طيبة ومجهود مشجع، مع دعوة التلميذ(ة) لمزيد من التركيز ومراجعة بعض المكونات لتحقيق نتائج أعلى.'
-                  : 'مستوى دون العتبة، يُوصى بمواكبة مستمرة وانخراط فعال في حصص الدعم والتقوية لتجاوز الصعوبات.'
+                  ? 'نتائج طيبة ومجهود مشجع، مع دعوة التلميذ(ة) لمزيد من التركيز لتحقيق مراتب أعلى.'
+                  : 'مستوى غير كافٍ، يتطلب مواكبة مستمرة وانخراطاً فعالاً في حصص الدعم والتقوية.'
                 : rc.general_average >= goodThreshold
                 ? 'Le Conseil de classe félicite l’élève pour son engagement, son travail exemplaire et son assiduité constante.'
                 : rc.general_average >= passThreshold
@@ -306,17 +245,17 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
         <!-- Official Signatures Footer -->
         <div class="signatures-footer">
           <div class="sig-box">
-            <div class="sig-title">${isPrimary ? 'أستاذ(ة) القسم / Professeur' : 'Le Professeur Principal'}</div>
-            <div class="sig-space">توقيع وملاحظة الأستاذ</div>
+            <div class="sig-title">${isPrimary ? 'أستاذ(ة) القسم' : 'Le Professeur Principal'}</div>
+            <div class="sig-space">${isPrimary ? 'توقيع وملاحظة الأستاذ' : 'Visa & Signature'}</div>
           </div>
           <div class="sig-box">
-            <div class="sig-title">${isPrimary ? 'توقيع ولي الأمر / Signature Parents' : 'Signature des Parents / Tuteur'}</div>
-            <div class="sig-space">توقيع واطلاع الولي</div>
+            <div class="sig-title">${isPrimary ? 'توقيع ولي الأمر' : 'Signature des Parents / Tuteur'}</div>
+            <div class="sig-space">${isPrimary ? 'توقيع واطلاع الولي' : 'Signature Parents'}</div>
           </div>
           <div class="sig-box">
-            <div class="sig-title">${isPrimary ? 'مدير المؤسسة والخاتم / Direction' : 'Le Directeur Pédagogique &bull; Cachet'}</div>
+            <div class="sig-title">${isPrimary ? 'مدير المؤسسة والخاتم' : 'Le Directeur Pédagogique &bull; Cachet'}</div>
             <div class="sig-space">
-              <div class="official-seal">خاتم وتأشيرة الإدارة</div>
+              <div class="official-seal">${isPrimary ? 'خاتم وتأشيرة الإدارة' : 'VISA &bull; GM SCHOOL'}</div>
             </div>
           </div>
         </div>
@@ -333,7 +272,7 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
         <style>
           @page {
             size: A4 portrait;
-            margin: 5mm 7mm;
+            margin: 7mm 9mm;
           }
           * {
             box-sizing: border-box;
@@ -341,11 +280,10 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
           html, body {
             margin: 0;
             padding: 0;
-            height: 100%;
             font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
             color: #0f172a;
-            font-size: 10px;
-            line-height: 1.2;
+            font-size: 10.5px;
+            line-height: 1.25;
             background: #ffffff;
           }
           .page-break {
@@ -355,10 +293,6 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
           .bulletin-sheet {
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
-            height: 282mm;
-            max-height: 282mm;
-            padding: 2px;
             box-sizing: border-box;
             overflow: hidden;
             page-break-inside: avoid;
@@ -371,38 +305,38 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 2px solid #0f172a;
-            padding-bottom: 4px;
-            margin-bottom: 6px;
+            border-bottom: 2.5px solid #0f172a;
+            padding-bottom: 6px;
+            margin-bottom: 10px;
             flex-shrink: 0;
           }
           .header-left {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
           }
           .logo-img {
-            width: 48px;
-            height: 48px;
+            width: 52px;
+            height: 52px;
             object-fit: contain;
             border-radius: 6px;
           }
           .gov-text {
-            font-size: 8px;
+            font-size: 8.5px;
             font-weight: 800;
             text-transform: uppercase;
             color: #475569;
             letter-spacing: 0.2px;
           }
           .school-name {
-            font-size: 14px;
+            font-size: 15px;
             font-weight: 900;
             color: #0f172a;
-            letter-spacing: 0.2px;
-            margin: 1px 0;
+            letter-spacing: 0.3px;
+            margin: 2px 0;
           }
           .sub-text {
-            font-size: 8.5px;
+            font-size: 9px;
             color: #64748b;
             font-weight: 600;
           }
@@ -414,26 +348,26 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             background-color: #0f172a;
             color: #ffffff;
             font-weight: 900;
-            font-size: 11px;
-            padding: 3px 10px;
-            border-radius: 4px;
-            letter-spacing: 0.4px;
-            margin-bottom: 3px;
+            font-size: 11.5px;
+            padding: 4px 12px;
+            border-radius: 5px;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
           }
           .meta-row {
-            font-size: 9.5px;
+            font-size: 10px;
             color: #334155;
           }
           /* Student ID */
           .student-id-grid {
             display: grid;
             grid-template-columns: 2fr 1.2fr 1.2fr 1fr;
-            gap: 6px;
+            gap: 8px;
             background-color: #f8fafc;
             border: 1.5px solid #cbd5e1;
-            border-radius: 6px;
-            padding: 6px 10px;
-            margin-bottom: 6px;
+            border-radius: 8px;
+            padding: 8px 12px;
+            margin-bottom: 12px;
             flex-shrink: 0;
           }
           .id-item {
@@ -441,19 +375,19 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             flex-direction: column;
           }
           .id-label {
-            font-size: 8px;
+            font-size: 8.5px;
             font-weight: bold;
             color: #64748b;
             text-transform: uppercase;
           }
           .id-value {
-            font-size: 11.5px;
+            font-size: 12px;
             font-weight: 800;
             color: #0f172a;
           }
           .text-highlight {
             color: #1e3a8a;
-            font-size: 12.5px;
+            font-size: 13px;
             font-weight: 900;
           }
           .massar-font {
@@ -461,9 +395,9 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             color: #0284c7;
             font-weight: 900;
           }
-          /* Table: Stretched & Vertically Balanced */
+          /* Table */
           .table-wrapper {
-            margin-bottom: 6px;
+            margin-bottom: 12px;
             overflow: hidden;
           }
           .grades-table {
@@ -472,9 +406,9 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             table-layout: fixed;
           }
           .grades-table th, .grades-table td {
-            border: 1px solid #475569;
-            padding: 4.5px 5px;
-            font-size: 9.5px;
+            border: 1.5px solid #475569;
+            padding: 6.5px 6px;
+            font-size: 10.5px;
             vertical-align: middle;
             text-align: center;
           }
@@ -483,9 +417,9 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             color: #0f172a;
             font-weight: 900;
             text-transform: uppercase;
-            font-size: 8.5px;
+            font-size: 9.5px;
             text-align: center;
-            height: 24px;
+            height: 28px;
             letter-spacing: 0.2px;
           }
           .even-row {
@@ -493,58 +427,45 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
           }
           .col-subj {
             text-align: left !important;
-            padding-left: 8px !important;
+            padding-left: 10px !important;
           }
           .subj-main-title {
             font-weight: 900;
             color: #0f172a;
-            font-size: 10.5px;
+            font-size: 12px;
             letter-spacing: 0.1px;
-            line-height: 1.15;
-          }
-          .subj-components-list {
-            font-size: 7px;
-            font-weight: 600;
-            color: #475569;
-            margin-top: 1px;
-            line-height: 1.15;
-          }
-          .subj-teacher {
-            font-size: 7px;
-            font-weight: 600;
-            color: #64748b;
-            margin-top: 1px;
+            line-height: 1.2;
           }
           .col-score {
-            font-size: 9.5px;
+            font-size: 10.5px;
             font-weight: 600;
             text-align: center;
           }
           .col-avg {
-            font-size: 10.5px;
+            font-size: 11.5px;
             font-weight: 900;
             background-color: #f1f5f9;
             text-align: center;
           }
           .col-coeff {
-            font-size: 9.5px;
+            font-size: 10.5px;
             font-weight: 800;
             text-align: center;
           }
           .col-pts {
-            font-size: 9.5px;
+            font-size: 10.5px;
             font-weight: 900;
             text-align: center;
           }
           .col-stat {
-            font-size: 7.5px;
+            font-size: 8px;
             text-align: center;
           }
           .col-apprec {
             text-align: left !important;
-            font-size: 7.5px;
+            font-size: 8.5px;
             color: #334155;
-            padding-left: 6px !important;
+            padding-left: 8px !important;
           }
           .score-danger {
             color: #dc2626 !important;
@@ -561,51 +482,51 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
           .summary-container {
             display: grid;
             grid-template-columns: 1.3fr 1fr;
-            gap: 6px;
-            margin-bottom: 6px;
+            gap: 8px;
+            margin-bottom: 12px;
             flex-shrink: 0;
           }
           .kpi-box, .decision-box {
             border: 1px solid #94a3b8;
-            border-radius: 6px;
-            padding: 5px 7px;
+            border-radius: 8px;
+            padding: 8px 10px;
             background: #ffffff;
           }
           .kpi-title, .decision-title {
-            font-size: 8px;
+            font-size: 8.5px;
             font-weight: 900;
             text-transform: uppercase;
             color: #0f172a;
             border-bottom: 1px solid #cbd5e1;
-            padding-bottom: 2px;
-            margin-bottom: 4px;
+            padding-bottom: 3px;
+            margin-bottom: 6px;
             letter-spacing: 0.3px;
           }
           .kpi-grid {
             display: grid;
             grid-template-columns: 1fr 1fr 1.3fr 1.3fr;
-            gap: 3px;
+            gap: 4px;
             text-align: center;
           }
           .kpi-cell {
             background: #f8fafc;
             border: 1px solid #e2e8f0;
-            border-radius: 4px;
-            padding: 3px 2px;
+            border-radius: 6px;
+            padding: 5px 3px;
           }
           .cell-label {
-            font-size: 7px;
+            font-size: 7.5px;
             font-weight: bold;
             color: #64748b;
             text-transform: uppercase;
           }
           .cell-val {
-            font-size: 10.5px;
+            font-size: 11px;
             font-weight: 800;
             color: #0f172a;
           }
           .cell-val-lg {
-            font-size: 12px;
+            font-size: 13px;
             font-weight: 900;
           }
           .highlight-avg {
@@ -625,27 +546,27 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             color: #854d0e;
           }
           .rank-total {
-            font-size: 8.5px;
+            font-size: 9px;
             color: #713f12;
             font-weight: bold;
           }
           .assiduity-strip {
-            margin-top: 4px;
-            padding-top: 3px;
+            margin-top: 6px;
+            padding-top: 4px;
             border-top: 1px dashed #cbd5e1;
             display: flex;
             justify-content: space-between;
-            font-size: 8px;
+            font-size: 8.5px;
             color: #475569;
           }
           /* Decision & Mentions */
           .mention-pill {
             display: inline-block;
-            padding: 2px 7px;
-            border-radius: 4px;
-            font-size: 9.5px;
+            padding: 3px 8px;
+            border-radius: 5px;
+            font-size: 10px;
             font-weight: 900;
-            margin-bottom: 3px;
+            margin-bottom: 4px;
             text-transform: uppercase;
           }
           .mention-tb { background-color: #dcfce7; color: #15803d; border: 1px solid #86efac; }
@@ -654,9 +575,9 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
           .mention-p { background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; }
           .mention-insuff { background-color: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
           .council-text {
-            font-size: 8px;
+            font-size: 8.5px;
             color: #334155;
-            line-height: 1.25;
+            line-height: 1.3;
           }
           /* Signatures */
           .signatures-footer {
