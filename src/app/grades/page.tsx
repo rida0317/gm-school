@@ -1014,7 +1014,7 @@ export default function GradesPage() {
               <select
                 value={selectedCycle}
                 onChange={(e) => handleCycleChange(e.target.value as any)}
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                className="w-full h-11 px-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 cursor-pointer"
               >
                 <option value="ALL">{dir === 'rtl' ? '🌐 جميع الأسلاك (Tous)' : '🌐 Tous les Cycles'}</option>
                 <option value="PRIMAIRE">{dir === 'rtl' ? '🎒 سلك الابتدائي (Primaire)' : '🎒 Primaire'}</option>
@@ -1033,7 +1033,7 @@ export default function GradesPage() {
               <select
                 value={selectedClassId}
                 onChange={(e) => setSelectedClassId(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                className="w-full h-11 px-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 cursor-pointer"
               >
                 {availableClasses.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -1043,7 +1043,7 @@ export default function GradesPage() {
               </select>
             </div>
 
-            {/* Subject Filter */}
+            {/* 3. Subject Filter */}
             <div>
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                 <BookOpen className="w-3.5 h-3.5 text-emerald-500" />
@@ -1052,7 +1052,7 @@ export default function GradesPage() {
               <select
                 value={selectedSubjectId}
                 onChange={(e) => setSelectedSubjectId(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                className="w-full h-11 px-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 cursor-pointer"
               >
                 {subjects.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -1062,39 +1062,41 @@ export default function GradesPage() {
               </select>
             </div>
 
-            {/* Semester Filter */}
+            {/* 4. Semester Filter (Clean S1 & S2) */}
             <div>
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-indigo-500" />
                 <span>{dir === 'rtl' ? 'الدورة / الأسدوس' : 'Semestre Scolaire'}</span>
               </label>
-              <div className="grid grid-cols-2 gap-1.5 bg-slate-50 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700">
+              <div className="grid grid-cols-2 gap-1.5 bg-slate-50 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700 h-11 items-center">
                 <button
                   type="button"
                   onClick={() => setSelectedSemester('S1')}
-                  className={`py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  className={`h-full rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center ${
                     selectedSemester === 'S1'
                       ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 dark:text-slate-300'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
+                  title={dir === 'rtl' ? 'الدورة الأولى (S1)' : 'Semestre 1 (S1)'}
                 >
-                  {dir === 'rtl' ? 'الدورة 1 (S1)' : 'Semestre 1 (S1)'}
+                  S1
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedSemester('S2')}
-                  className={`py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  className={`h-full rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center ${
                     selectedSemester === 'S2'
                       ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 dark:text-slate-300'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
+                  title={dir === 'rtl' ? 'الدورة الثانية (S2)' : 'Semestre 2 (S2)'}
                 >
-                  {dir === 'rtl' ? 'الدورة 2 (S2)' : 'Semestre 2 (S2)'}
+                  S2
                 </button>
               </div>
             </div>
 
-            {/* Evaluation Type (For Tab 1) */}
+            {/* 5. Evaluation Type (For Tab 1) */}
             <div>
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                 <Award className="w-3.5 h-3.5 text-amber-500" />
@@ -1103,7 +1105,7 @@ export default function GradesPage() {
               <select
                 value={selectedEvalType}
                 onChange={(e) => setSelectedEvalType(e.target.value as EvaluationType)}
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                className="w-full h-11 px-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 cursor-pointer"
               >
                 {EVALUATION_TYPES.map((ev) => (
                   <option key={ev.type} value={ev.type}>
