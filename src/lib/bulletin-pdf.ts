@@ -338,11 +338,9 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
           .bulletin-sheet {
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
-            height: 280mm;
-            max-height: 280mm;
+            justify-content: flex-start;
+            gap: 12px;
             box-sizing: border-box;
-            overflow: hidden;
             page-break-inside: avoid;
             break-inside: avoid;
             page-break-after: always;
@@ -355,41 +353,41 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             justify-content: space-between;
             align-items: flex-start;
             border-bottom: 2px solid #000000;
-            padding-bottom: 6px;
-            margin-bottom: 6px;
+            padding-bottom: 8px;
+            margin-bottom: 2px;
             flex-shrink: 0;
           }
           .header-col-left {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
             width: 38%;
           }
           .logo-img {
-            width: 50px;
-            height: 50px;
+            width: 54px;
+            height: 54px;
             object-fit: contain;
           }
           .gov-text-block {
-            line-height: 1.2;
+            line-height: 1.25;
           }
           .gov-ar {
-            font-size: 9px;
+            font-size: 9.5px;
             font-weight: 800;
           }
           .gov-ar-sub {
-            font-size: 7.5px;
+            font-size: 8px;
             font-weight: 700;
             color: #333333;
           }
           .gov-fr {
-            font-size: 8.5px;
+            font-size: 9px;
             font-weight: 800;
             text-transform: uppercase;
             margin-top: 1px;
           }
           .gov-fr-sub {
-            font-size: 7px;
+            font-size: 7.5px;
             color: #444444;
           }
           .header-col-center {
@@ -398,28 +396,28 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             padding-top: 2px;
           }
           .bulletin-title {
-            font-size: 13.5px;
+            font-size: 14px;
             font-weight: 900;
             text-transform: uppercase;
             letter-spacing: 0.3px;
           }
           .academic-year-text {
-            font-size: 10.5px;
+            font-size: 11px;
             font-weight: 700;
-            margin-top: 2px;
+            margin-top: 3px;
           }
           .header-col-right {
             text-align: right;
             width: 34%;
-            font-size: 9.5px;
-            line-height: 1.3;
+            font-size: 10px;
+            line-height: 1.35;
           }
           .acad-title {
             font-weight: 800;
-            font-size: 9px;
+            font-size: 9.5px;
           }
           .acad-item {
-            font-size: 9px;
+            font-size: 9.5px;
           }
           .school-name-text {
             font-weight: 900;
@@ -428,29 +426,29 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
 
           /* Student Metadata */
           .student-meta-box {
-            margin-bottom: 6px;
-            font-size: 11px;
+            margin-bottom: 2px;
+            font-size: 11.5px;
             flex-shrink: 0;
           }
           .meta-line {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 3px;
+            margin-bottom: 4px;
           }
           .student-name-strong {
-            font-size: 12.5px;
+            font-size: 13px;
             font-weight: 900;
           }
           .massar-code-badge {
             font-family: monospace;
             font-weight: 800;
-            margin-left: 6px;
-            font-size: 11.5px;
+            margin-left: 8px;
+            font-size: 12px;
           }
 
           /* Massar Table */
           .table-container {
-            margin-bottom: 6px;
+            margin-bottom: 2px;
             flex-shrink: 0;
           }
           .massar-grades-table {
@@ -460,28 +458,28 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
           }
           .massar-grades-table th, .massar-grades-table td {
             border: 1.5px solid #000000;
-            padding: 6.5px 6px;
-            font-size: 10.5px;
+            padding: 8.5px 7px;
+            font-size: 11px;
             text-align: center;
             vertical-align: middle;
           }
           .massar-grades-table th {
             background-color: #f1f5f9;
             font-weight: 900;
-            font-size: 10px;
-            height: 28px;
+            font-size: 10.5px;
+            height: 30px;
           }
           .even-row {
             background-color: #fafafa;
           }
           .col-subj {
             text-align: left !important;
-            padding-left: 8px !important;
-            font-size: 11px;
+            padding-left: 10px !important;
+            font-size: 11.5px;
             font-weight: 800;
           }
           .col-apprec {
-            font-size: 9.5px;
+            font-size: 10px;
             padding-left: 8px !important;
           }
           .conduct-row {
@@ -492,28 +490,28 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
           .bottom-section {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 10px;
             flex-shrink: 0;
           }
           .bottom-grid-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 8px;
+            gap: 10px;
           }
           .quadrant-box {
             border: 1.5px solid #000000;
-            padding: 7px 9px;
-            min-height: 96px;
+            padding: 8px 10px;
+            min-height: 104px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
           }
           .box-header-title {
-            font-size: 10.5px;
+            font-size: 11px;
             font-weight: 900;
             border-bottom: 1px solid #cccccc;
-            padding-bottom: 2px;
-            margin-bottom: 4px;
+            padding-bottom: 3px;
+            margin-bottom: 5px;
             text-align: center;
           }
 
@@ -521,11 +519,11 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
           .inner-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 9.5px;
+            font-size: 10px;
           }
           .inner-table th, .inner-table td {
             border: 1px solid #777777;
-            padding: 4px 5px;
+            padding: 5px 6px;
             text-align: center;
           }
           .inner-table th {
@@ -540,78 +538,78 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
           .checkbox-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 5px;
-            font-size: 10px;
+            gap: 6px;
+            font-size: 10.5px;
           }
           .checkbox-col {
             display: flex;
             flex-direction: column;
-            gap: 5px;
+            gap: 6px;
           }
           .checkbox-item {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 7px;
           }
           .custom-checkbox {
-            width: 15px;
-            height: 15px;
+            width: 16px;
+            height: 16px;
             border: 1.5px solid #000000;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 10.5px;
+            font-size: 11px;
             font-weight: 900;
             line-height: 1;
           }
           .custom-checkbox.square {
-            width: 20px;
-            height: 15px;
+            width: 22px;
+            height: 16px;
           }
           .custom-checkbox.checked {
             background-color: #f1f5f9;
           }
 
           .council-commentary {
-            font-size: 9.5px;
+            font-size: 10px;
             font-style: italic;
             margin-bottom: 6px;
-            line-height: 1.3;
+            line-height: 1.35;
           }
           .admission-checkboxes {
             display: flex;
             justify-content: space-around;
             align-items: center;
             border-top: 1px dashed #cccccc;
-            padding-top: 5px;
-            font-size: 10.5px;
+            padding-top: 6px;
+            font-size: 11px;
             font-weight: 800;
           }
 
           .general-rank-strip {
-            font-size: 10px;
+            font-size: 10.5px;
             text-align: center;
-            margin-top: 4px;
-            padding-top: 3px;
+            margin-top: 5px;
+            padding-top: 4px;
             border-top: 1px dashed #cccccc;
           }
 
           /* Signatures */
           .signature-section {
-            margin-top: 4px;
+            margin-top: 8px;
             display: flex;
             justify-content: space-between;
             align-items: flex-end;
-            padding-top: 4px;
+            padding-top: 6px;
           }
           .signature-title {
-            font-size: 11px;
+            font-size: 12px;
             font-weight: 900;
             text-decoration: underline;
           }
           .director-stamp-area {
-            width: 190px;
-            height: 54px;
+            width: 200px;
+            height: 60px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -620,13 +618,13 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
             border: 1.5px dashed #1e3a8a;
             color: #1e3a8a;
             border-radius: 50%;
-            width: 140px;
-            height: 52px;
+            width: 150px;
+            height: 56px;
             display: flex;
             align-items: center;
             justify-content: center;
             text-align: center;
-            font-size: 7px;
+            font-size: 7.5px;
             padding: 2px;
             transform: rotate(-3deg);
           }
