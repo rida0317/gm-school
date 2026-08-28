@@ -112,8 +112,8 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
 
           <div class="header-col-right">
             <div class="acad-title">Académie Régionale d'Education et de Formation</div>
-            <div class="acad-item"><strong>Région :</strong> Casablanca-Settat</div>
-            <div class="acad-item"><strong>D.Provinciale :</strong> Nouaceur / Bouskoura</div>
+            <div class="acad-item"><strong>Région :</strong> Marrakech-Safi (جهة مراكش - آسفي)</div>
+            <div class="acad-item"><strong>D.Provinciale :</strong> Marrakech - Guéliz (مراكش - جليز)</div>
             <div class="acad-item"><strong>Etablissement :</strong> <span class="school-name-text">${schoolName}</span></div>
           </div>
         </div>
