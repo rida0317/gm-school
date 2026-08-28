@@ -120,22 +120,22 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
           </div>
         </div>
 
-        <!-- Student & Class Metadata -->
+        <!-- Student & Class Metadata (French) -->
         <div class="student-meta-box">
           <div class="meta-line">
-            <div class="meta-field"><strong>Niveau / المستوى :</strong> ${rc.level || rc.class_name}</div>
-            <div class="meta-field"><strong>Classe / القسم :</strong> ${rc.class_name}</div>
+            <div class="meta-field"><strong>Niveau :</strong> ${rc.level || rc.class_name}</div>
+            <div class="meta-field"><strong>Classe :</strong> ${rc.class_name}</div>
           </div>
           <div class="meta-line">
             <div class="meta-field">
-              <strong>Nom &amp; Prénom / اسم التلميذ(ة) :</strong> 
+              <strong>Nom &amp; Prénom de l'élève :</strong> 
               <span class="student-name-strong">${rc.student_name.toUpperCase()}</span>
             </div>
-            <div class="meta-field"><strong>Effectif / عدد التلاميذ :</strong> ${rc.total_students}</div>
+            <div class="meta-field"><strong>Effectif de la classe :</strong> ${rc.total_students} élèves</div>
           </div>
           <div class="meta-line">
             <div class="meta-field">
-              <strong>Code Massar / رمز مسار :</strong> 
+              <strong>Code Massar :</strong> 
               <span class="massar-code-badge">${rc.massar_code || '—'}</span>
             </div>
           </div>
