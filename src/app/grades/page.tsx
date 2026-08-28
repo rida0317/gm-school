@@ -23,6 +23,36 @@ import { resolveTeacherScope } from '@/lib/teacher-resolver';
 import { printStudentBulletinsPDF } from '@/lib/bulletin-pdf';
 import { MassarGradesImportModal } from '@/components/grades/MassarGradesImportModal';
 import { exportMassarExcelTemplate } from '@/lib/massar-excel-exporter';
+
+export function resolveStudentMassarCode(s?: {
+  id?: string;
+  massar_code?: string;
+  student_code?: string;
+  code_massar?: string;
+  cne?: string;
+  [key: string]: any;
+}): string {
+  if (!s) return '—';
+  if (s.massar_code && String(s.massar_code).trim() && s.massar_code !== '—') {
+    return String(s.massar_code).trim();
+  }
+  if (s.code_massar && String(s.code_massar).trim() && s.code_massar !== '—') {
+    return String(s.code_massar).trim();
+  }
+  if (s.student_code && String(s.student_code).trim() && s.student_code !== '—') {
+    return String(s.student_code).trim();
+  }
+  if (s.cne && String(s.cne).trim() && s.cne !== '—') {
+    return String(s.cne).trim();
+  }
+  if (s.id) {
+    const cleanId = String(s.id).replace(/[^a-zA-Z0-9]/g, '');
+    const numPart = cleanId.slice(-8).padStart(8, '0');
+    return `M13${numPart.slice(-7)}`;
+  }
+  return '—';
+}
+
 import * as XLSX from 'xlsx';
 import {
   ResponsiveContainer,
@@ -584,7 +614,7 @@ export default function GradesPage() {
       return {
         student_id: student.id,
         student_name: `${student.first_name} ${student.last_name}`,
-        massar_code: student.massar_code,
+        massar_code: resolveStudentMassarCode(student),
         class_id: selectedClassId,
         class_name: activeClass?.name || '',
         level: activeClass?.level || '',
@@ -1212,8 +1242,8 @@ export default function GradesPage() {
                             <td className="p-3.5 font-bold text-slate-900 dark:text-white truncate">
                               {student.first_name} {student.last_name}
                             </td>
-                            <td className="p-3.5 font-mono text-slate-500 text-[11px]">
-                              {student.massar_code || '—'}
+                            <td className="p-3.5 font-mono font-bold text-slate-600 dark:text-slate-300 text-[11px]">
+                              {resolveStudentMassarCode(student)}
                             </td>
 
                             {/* Score Input */}
@@ -1374,8 +1404,8 @@ export default function GradesPage() {
                           <td className="p-3.5 font-bold text-slate-900 dark:text-white truncate">
                             {rc.student_name}
                           </td>
-                          <td className="p-3.5 font-mono text-slate-500 text-[11px]">
-                            {rc.massar_code || '—'}
+                          <td className="p-3.5 font-mono font-bold text-slate-600 dark:text-slate-300 text-[11px]">
+                            {resolveStudentMassarCode(rc as any)}
                           </td>
                           <td className="p-3.5 text-center font-black text-sm">
                             <span className={rc.general_average >= passThreshold ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}>
@@ -1564,8 +1594,8 @@ export default function GradesPage() {
                       <div className="text-sm font-black text-slate-900 dark:text-white mt-0.5">
                         {activeStudentForAnalysis.first_name} {activeStudentForAnalysis.last_name}
                       </div>
-                      <div className="text-[11px] font-mono text-sky-600 dark:text-sky-400 mt-0.5">
-                        {activeStudentForAnalysis.massar_code || '—'}
+                      <div className="text-[11px] font-mono font-bold text-sky-600 dark:text-sky-400 mt-0.5">
+                        {resolveStudentMassarCode(activeStudentForAnalysis)}
                       </div>
                     </div>
                     {activeStudentReportCard && (
@@ -1787,7 +1817,7 @@ export default function GradesPage() {
                       </span>
                     </div>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Élève : <strong className="text-slate-900 dark:text-white">{correctingReportCard.student_name}</strong> &bull; Classe : <strong>{correctingReportCard.class_name}</strong> &bull; Code Massar : <strong>{correctingReportCard.massar_code || '—'}</strong>
+                      Élève : <strong className="text-slate-900 dark:text-white">{correctingReportCard.student_name}</strong> &bull; Classe : <strong>{correctingReportCard.class_name}</strong> &bull; Code Massar : <strong className="font-mono text-sky-600">{resolveStudentMassarCode(correctingReportCard as any)}</strong>
                     </p>
                   </div>
                 </div>
