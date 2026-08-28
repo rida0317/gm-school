@@ -107,6 +107,83 @@ export default function GradesPage() {
   const [selectedEvalType, setSelectedEvalType] = useState<EvaluationType>('CC1');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Group classes by educational cycle (Primaire, Collège, Lycée, Maternelle)
+  const groupedClasses = useMemo(() => {
+    const groups: {
+      primaire: ClassEntity[];
+      college: ClassEntity[];
+      lycee: ClassEntity[];
+      maternelle: ClassEntity[];
+      other: ClassEntity[];
+    } = {
+      primaire: [],
+      college: [],
+      lycee: [],
+      maternelle: [],
+      other: [],
+    };
+
+    classes.forEach((c) => {
+      const cycle = (c.cycle || '').toLowerCase();
+      const lvl = (c.level || '').toLowerCase();
+      const name = (c.name || '').toLowerCase();
+
+      if (
+        cycle.includes('maternelle') ||
+        lvl.includes('ps') ||
+        lvl.includes('ms') ||
+        lvl.includes('gs') ||
+        lvl.includes('maternelle') ||
+        cycle.includes('أولي') ||
+        lvl.includes('أولي') ||
+        name.includes('maternelle')
+      ) {
+        groups.maternelle.push(c);
+      } else if (
+        cycle.includes('primaire') ||
+        lvl.includes('ap') ||
+        lvl.includes('cp') ||
+        lvl.includes('ce') ||
+        lvl.includes('cm') ||
+        lvl.includes('ابتدائي') ||
+        cycle.includes('ابتدائي') ||
+        name.includes('ap') ||
+        name.includes('cp') ||
+        name.includes('ce') ||
+        name.includes('cm')
+      ) {
+        groups.primaire.push(c);
+      } else if (
+        cycle.includes('collège') ||
+        cycle.includes('college') ||
+        lvl.includes('ac') ||
+        lvl.includes('asc') ||
+        lvl.includes('إعدادي') ||
+        cycle.includes('إعدادي') ||
+        name.includes('ac') ||
+        name.includes('collège') ||
+        name.includes('college')
+      ) {
+        groups.college.push(c);
+      } else if (
+        cycle.includes('lycée') ||
+        cycle.includes('lycee') ||
+        lvl.includes('tc') ||
+        lvl.includes('bac') ||
+        lvl.includes('تأهيلي') ||
+        cycle.includes('تأهيلي') ||
+        name.includes('bac') ||
+        name.includes('tc')
+      ) {
+        groups.lycee.push(c);
+      } else {
+        groups.other.push(c);
+      }
+    });
+
+    return groups;
+  }, [classes]);
+
   // Local In-Memory Grade State for active spreadsheet entry: Map<student_id, { score: number | null, is_absent: boolean, comment: string }>
   const [localGradesMap, setLocalGradesMap] = useState<Record<string, { score: string; is_absent: boolean; comment: string }>>({});
 
@@ -916,11 +993,55 @@ export default function GradesPage() {
                 onChange={(e) => setSelectedClassId(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 cursor-pointer"
               >
-                {classes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.level})
-                  </option>
-                ))}
+                {groupedClasses.primaire.length > 0 && (
+                  <optgroup label={dir === 'rtl' ? '🎒 سلك التعليم الابتدائي (Primaire)' : '🎒 Cycle Primaire'}>
+                    {groupedClasses.primaire.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.level})
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+
+                {groupedClasses.college.length > 0 && (
+                  <optgroup label={dir === 'rtl' ? '🎓 سلك التعليم الإعدادي (Collège)' : '🎓 Cycle Collège'}>
+                    {groupedClasses.college.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.level})
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+
+                {groupedClasses.lycee.length > 0 && (
+                  <optgroup label={dir === 'rtl' ? '🏛️ سلك التعليم التأهيلي (Lycée)' : '🏛️ Cycle Lycée'}>
+                    {groupedClasses.lycee.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.level})
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+
+                {groupedClasses.maternelle.length > 0 && (
+                  <optgroup label={dir === 'rtl' ? '🧸 سلك التعليم الأولي (Maternelle)' : '🧸 Cycle Maternelle'}>
+                    {groupedClasses.maternelle.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.level})
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+
+                {groupedClasses.other.length > 0 && (
+                  <optgroup label={dir === 'rtl' ? '📌 أقسام أخرى' : '📌 Autres Classes'}>
+                    {groupedClasses.other.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.level})
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </div>
 
