@@ -101,6 +101,7 @@ export default function GradesPage() {
   const [isSaving, setIsSaving] = useState(false);
 
   // Filters
+  const [selectedCycle, setSelectedCycle] = useState<'ALL' | 'PRIMAIRE' | 'COLLEGE' | 'LYCEE' | 'MATERNELLE'>('ALL');
   const [selectedClassId, setSelectedClassId] = useState<string>('');
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>('');
   const [selectedSemester, setSelectedSemester] = useState<AcademicSemester>('S1');
@@ -183,6 +184,28 @@ export default function GradesPage() {
 
     return groups;
   }, [classes]);
+
+  // Filter classes according to selected cycle box
+  const availableClasses = useMemo(() => {
+    if (selectedCycle === 'PRIMAIRE') return groupedClasses.primaire;
+    if (selectedCycle === 'COLLEGE') return groupedClasses.college;
+    if (selectedCycle === 'LYCEE') return groupedClasses.lycee;
+    if (selectedCycle === 'MATERNELLE') return groupedClasses.maternelle;
+    return classes;
+  }, [selectedCycle, groupedClasses, classes]);
+
+  const handleCycleChange = (cycle: 'ALL' | 'PRIMAIRE' | 'COLLEGE' | 'LYCEE' | 'MATERNELLE') => {
+    setSelectedCycle(cycle);
+    let targetList = classes;
+    if (cycle === 'PRIMAIRE') targetList = groupedClasses.primaire;
+    else if (cycle === 'COLLEGE') targetList = groupedClasses.college;
+    else if (cycle === 'LYCEE') targetList = groupedClasses.lycee;
+    else if (cycle === 'MATERNELLE') targetList = groupedClasses.maternelle;
+
+    if (targetList.length > 0 && !targetList.some((c) => c.id === selectedClassId)) {
+      setSelectedClassId(targetList[0].id);
+    }
+  };
 
   // Local In-Memory Grade State for active spreadsheet entry: Map<student_id, { score: number | null, is_absent: boolean, comment: string }>
   const [localGradesMap, setLocalGradesMap] = useState<Record<string, { score: string; is_absent: boolean; comment: string }>>({});
@@ -979,10 +1002,29 @@ export default function GradesPage() {
           </div>
         </div>
 
-        {/* Global Filter Bar (Class ➔ Subject ➔ Semester ➔ Evaluation Type) */}
+        {/* Global Filter Bar (Cycle ➔ Class ➔ Subject ➔ Semester ➔ Evaluation Type) */}
         <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
-            {/* Class Filter */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
+            {/* 1. Cycle Filter Box */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <GraduationCap className="w-3.5 h-3.5 text-amber-500" />
+                <span>{dir === 'rtl' ? 'السلك التعليمي' : 'Cycle Scolaire'}</span>
+              </label>
+              <select
+                value={selectedCycle}
+                onChange={(e) => handleCycleChange(e.target.value as any)}
+                className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 cursor-pointer"
+              >
+                <option value="ALL">{dir === 'rtl' ? '🌐 جميع الأسلاك (Tous)' : '🌐 Tous les Cycles'}</option>
+                <option value="PRIMAIRE">{dir === 'rtl' ? '🎒 سلك الابتدائي (Primaire)' : '🎒 Primaire'}</option>
+                <option value="COLLEGE">{dir === 'rtl' ? '🎓 سلك الإعدادي (Collège)' : '🎓 Collège'}</option>
+                <option value="LYCEE">{dir === 'rtl' ? '🏛️ سلك التأهيلي (Lycée)' : '🏛️ Lycée'}</option>
+                <option value="MATERNELLE">{dir === 'rtl' ? '🧸 سلك الأولي (Maternelle)' : '🧸 Maternelle'}</option>
+              </select>
+            </div>
+
+            {/* 2. Class Filter Box */}
             <div>
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-sky-500" />
@@ -993,55 +1035,11 @@ export default function GradesPage() {
                 onChange={(e) => setSelectedClassId(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 cursor-pointer"
               >
-                {groupedClasses.primaire.length > 0 && (
-                  <optgroup label={dir === 'rtl' ? '🎒 سلك التعليم الابتدائي (Primaire)' : '🎒 Cycle Primaire'}>
-                    {groupedClasses.primaire.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} ({c.level})
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-
-                {groupedClasses.college.length > 0 && (
-                  <optgroup label={dir === 'rtl' ? '🎓 سلك التعليم الإعدادي (Collège)' : '🎓 Cycle Collège'}>
-                    {groupedClasses.college.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} ({c.level})
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-
-                {groupedClasses.lycee.length > 0 && (
-                  <optgroup label={dir === 'rtl' ? '🏛️ سلك التعليم التأهيلي (Lycée)' : '🏛️ Cycle Lycée'}>
-                    {groupedClasses.lycee.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} ({c.level})
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-
-                {groupedClasses.maternelle.length > 0 && (
-                  <optgroup label={dir === 'rtl' ? '🧸 سلك التعليم الأولي (Maternelle)' : '🧸 Cycle Maternelle'}>
-                    {groupedClasses.maternelle.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} ({c.level})
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-
-                {groupedClasses.other.length > 0 && (
-                  <optgroup label={dir === 'rtl' ? '📌 أقسام أخرى' : '📌 Autres Classes'}>
-                    {groupedClasses.other.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} ({c.level})
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
+                {availableClasses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.level})
+                  </option>
+                ))}
               </select>
             </div>
 
