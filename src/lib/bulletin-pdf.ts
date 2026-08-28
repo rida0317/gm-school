@@ -222,6 +222,18 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
         <!-- Grades Table -->
         <div class="table-wrapper">
           <table class="grades-table">
+            <colgroup>
+              <col style="width: 25%" />
+              <col style="width: 7%" />
+              <col style="width: 7%" />
+              <col style="width: 7%" />
+              <col style="width: 7%" />
+              <col style="width: 8%" />
+              <col style="width: 5%" />
+              <col style="width: 7%" />
+              <col style="width: 8%" />
+              <col style="width: 19%" />
+            </colgroup>
             <thead>
               <tr>
                 <th class="col-subj">${isPrimary ? 'المواد الدراسية والمكونات (Discipline & Composantes)' : 'Matière / Discipline'}</th>
@@ -451,90 +463,88 @@ export function printStudentBulletinsPDF({ reportCards, settings }: PrintBulleti
           }
           /* Table: Stretched & Vertically Balanced */
           .table-wrapper {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
             margin-bottom: 6px;
             overflow: hidden;
           }
           .grades-table {
             width: 100%;
-            height: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
           }
           .grades-table th, .grades-table td {
             border: 1px solid #475569;
-            padding: 4px 5px;
-            font-size: 10px;
+            padding: 4.5px 5px;
+            font-size: 9.5px;
+            vertical-align: middle;
+            text-align: center;
           }
           .grades-table th {
             background-color: #e2e8f0;
             color: #0f172a;
             font-weight: 900;
             text-transform: uppercase;
-            font-size: 9px;
+            font-size: 8.5px;
             text-align: center;
-            height: 26px;
+            height: 24px;
             letter-spacing: 0.2px;
           }
           .even-row {
             background-color: #f8fafc;
           }
           .col-subj {
-            text-align: left;
-            width: 27%;
+            text-align: left !important;
             padding-left: 8px !important;
           }
           .subj-main-title {
             font-weight: 900;
             color: #0f172a;
-            font-size: 11px;
+            font-size: 10.5px;
             letter-spacing: 0.1px;
             line-height: 1.15;
           }
           .subj-components-list {
-            font-size: 7.5px;
+            font-size: 7px;
             font-weight: 600;
             color: #475569;
             margin-top: 1px;
-            line-height: 1.2;
+            line-height: 1.15;
           }
           .subj-teacher {
-            font-size: 7.5px;
+            font-size: 7px;
             font-weight: 600;
             color: #64748b;
             margin-top: 1px;
           }
           .col-score {
-            width: 6.5%;
-            font-size: 10px;
+            font-size: 9.5px;
             font-weight: 600;
+            text-align: center;
           }
           .col-avg {
-            width: 8.5%;
-            font-size: 11px;
+            font-size: 10.5px;
             font-weight: 900;
             background-color: #f1f5f9;
+            text-align: center;
           }
           .col-coeff {
-            width: 5%;
-            font-size: 10.5px;
-            font-weight: 900;
+            font-size: 9.5px;
+            font-weight: 800;
+            text-align: center;
           }
           .col-pts {
-            width: 7%;
-            font-size: 10.5px;
+            font-size: 9.5px;
             font-weight: 900;
+            text-align: center;
           }
           .col-stat {
-            width: 10%;
-            font-size: 8px;
+            font-size: 7.5px;
+            text-align: center;
           }
           .col-apprec {
-            text-align: left;
-            font-size: 8px;
+            text-align: left !important;
+            font-size: 7.5px;
             color: #334155;
-            width: 26%;
+            padding-left: 6px !important;
           }
           .score-danger {
             color: #dc2626 !important;
